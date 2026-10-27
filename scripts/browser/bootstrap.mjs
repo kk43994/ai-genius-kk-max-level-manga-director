@@ -94,10 +94,24 @@ document.addEventListener('click', async event => {
 
 events.addEventListener('release:changed', event=>{
   if(event.detail.compatibleNow===false){readOnly=true;document.body.dataset.readOnly='true';display('页面与服务版本不兼容，当前处于只读状态；输入可继续保留为草稿。');}
+  else if(event.detail.compatibleNow===true && readOnly){readOnly=false;delete document.body.dataset.readOnly;drafts?.onState(drafts);}
 });
 events.addEventListener('shell:action',event=>{
   if(event.detail.action==='connect'){event.preventDefault();openAccounts();}
   if(event.detail.action==='manual-plan')shell.setView({workspaceState:'ready'});
+  if(event.detail.action==='help'){
+    event.preventDefault();const dialog=document.getElementById('shell-info-dialog');
+    document.getElementById('shell-info-title').textContent='使用资产实验室';
+    const body=document.getElementById('shell-info-body');body.replaceChildren();
+    for(const text of ['先创建项目，导入 TXT、Markdown 或 DOCX 剧本，也可以手工建立角色、场景和道具清单。',
+      '工作区主所有者用于找回本站资料；创作账号与个人、团队空间用于明确新任务归属。切换选择不会改动历史任务。',
+      '制作顺序是 MJ 风格 → Image2 资产 → Nano 精修。每一步先审核，再使用已确认版本继续；返修始终追溯原始 Image2。',
+      '下载只包含已审核的成果。更新页面会先保存草稿，处理中的任务或下载会阻止刷新。',
+      '当前为集成预览，可以整理项目与保存草稿。官方连接、收费生成和视频尚未开放。']){
+      const paragraph=document.createElement('p');paragraph.textContent=text;body.append(paragraph);
+    }
+    if(!dialog.open)dialog.showModal();
+  }
 });
 events.addEventListener('provider-accounts:changed',event=>{
   const items=event.detail.items || []; shell.setView({connectionState:items.some(item=>item.authorization?.state==='connected')?'connected':'disconnected'});
