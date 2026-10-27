@@ -79,7 +79,7 @@ async function refreshTasks() {
     root.append(note);
     for (const task of tasks.slice(-20).reverse()) {
       const item=document.createElement('div'); item.className='integration-task';
-      const label=document.createElement('strong'); label.textContent=task.recipe+' · '+({draft:'待确认',queued:'排队中',running:'生成中',downloading:'收取中',completed:'文件已收取',blocked_authorization:'需原账号授权',failed:'失败',cancelled:'已取消',unknown_submission:'提交状态待核验'}[task.status] || task.status);
+      const label=document.createElement('strong'); label.textContent=task.recipe+' · '+({draft:'待确认',preparing:'准备中',submitting:'正在提交',queued:'排队中',running:'生成中',downloading:'收取中',completed:'文件已收取',needs_attention:'待处理',blocked_authorization:'需原账号授权',failed:'失败',cancelled:'已取消',unknown_submission:'提交状态待核验'}[task.status] || task.status);
       const owner=document.createElement('small'); owner.textContent=(task.ownership.accountLabelAtCreation || task.ownership.providerAccountId)+' / '+(task.ownership.spaceNameAtCreation || task.ownership.spaceId);
       item.append(label,owner);
       if(task.error?.message){const error=document.createElement('p');error.textContent=task.error.message;item.append(error);}
@@ -196,4 +196,13 @@ try {
 } catch(error) {
   display(error.message || '工作区暂时无法载入，请稍后重试。'); save.disabled=true;
   document.getElementById('workflow-root').textContent='工作区未能载入，现有数据未被替换。';
+  if(error.code==='SESSION_REQUIRED') {
+    display('本站会话已失效。原工作区数据仍保留；建立新的临时工作区不会恢复或合并旧内容。');
+    const button=document.createElement('button');button.type='button';button.textContent='建立新的临时工作区';
+    button.addEventListener('click',async()=>{
+      button.disabled=true;
+      try {await transport.bootstrapAnonymousSession();switchingWorkspace=true;location.assign(config.publicBasePath);}
+      catch(problem){display(problem.message || '临时工作区尚未建立，请稍后重试。');button.disabled=false;}
+    });status.append(button);
+  }
 }
