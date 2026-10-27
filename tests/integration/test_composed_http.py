@@ -100,6 +100,8 @@ class ComposedHTTPTests(unittest.TestCase):
     def test_custom_api_mount_preserves_session_and_project_routes(self):
         self.close();self.start(api='/customer/api/v1')
         cookie,_=self.session();self.assertEqual(self.request('/projects',cookie=cookie)[0],200)
+        self.assertIn('Path=/',self.request('/session',cookie=cookie)[1]['Set-Cookie'])
+        self.assertNotIn('Path=/asset-lab/',self.request('/session',cookie=cookie)[1]['Set-Cookie'])
         self.assertEqual(self.request('/asset-lab/api/v1/session',absolute=True)[0],410)
 
     def test_unconfigured_version_fails_deliberately(self):

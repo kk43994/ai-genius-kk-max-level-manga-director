@@ -43,7 +43,7 @@ sessions.verify_csrf(ctx, presented_token) -> bool
 # 必须返回 True 才允许写入；校验对应本站 session 的 token。
 ```
 
-`GET /api/v1/session` 是公开注册路由，由 session 模块负责首次引导、持久化、设置 Cookie 与返回 csrfToken。公共 adapter 不提供内存 session fallback。Cookie Path 取 `services.config.publicBasePath`，正式 HTTPS 设置 Secure；刷新/重开、过期、重启恢复均由集成后的存储与 session 测试确认。
+`GET /api/v1/session` 是公开注册路由，由 session 模块负责首次引导、持久化、设置 Cookie 与返回 csrfToken。公共 adapter 不提供内存 session fallback。Cookie Path 默认为 publicBasePath；显式 API 在不同前缀时取 UI/API 的共同父路径，Cookie 名仍按挂载及本地实例隔离且不设置 Domain。正式 HTTPS 设置 Secure；刷新/重开、过期、重启恢复由存储与 HTTP 测试确认。
 
 ## 账号级空间发现
 

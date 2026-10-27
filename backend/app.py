@@ -148,6 +148,19 @@ class Config:
     def apiBase(self):
         return self.api_base
 
+    @property
+    def session_cookie_path(self):
+        # An explicitly separated same-origin API still needs the site's cookie.
+        # Names remain isolated per mount/instance; never broaden Domain.
+        frontend = self.public_base_path.strip("/").split("/") if self.public_base_path != "/" else []
+        api = self.api_base.strip("/").split("/")
+        common = []
+        for left, right in zip(frontend, api):
+            if left != right:
+                break
+            common.append(left)
+        return "/" + "/".join(common) + ("/" if common else "")
+
     def browser_config(self):
         return {"publicBasePath": self.public_base_path, "apiBase": self.api_base,
                 "apiVersion": 1, "mode": "customer-development"}
@@ -328,7 +341,7 @@ class SessionHTTPAdapter:
             cookie = SimpleCookie()
             cookie.load(response.headers[name])
             if self.service.cookie_name in cookie:
-                cookie[self.service.cookie_name]["path"] = self.config.public_base_path
+                cookie[self.service.cookie_name]["path"] = self.config.session_cookie_path
                 response.headers[name] = cookie.output(header="").strip()
         return response
 
