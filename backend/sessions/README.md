@@ -22,10 +22,12 @@ features 默认全 false；SessionService 接受显式的 `features` 参数，�
 
 本模块对 v1 契约增加 `POST /api/v1/session/logout`，body `{}`、带 Origin 和 X-CSRF-Token；返回 `{loggedOut:true}`，服务端撤销当前 session，Cookie 清空。它与“移除 LibTV 账号”不同：不删除项目、素材或 provider grant，也不宣称撤销 LibTV 登录。
 
-目前只实现匿名本站会话，没有邮箱/手机号/跨设备账户与找回机制。**清 Cookie、本站注销、Cookie 到期、使用另一浏览器后无法自动找回旧匿名租户**；旧数据仍保留，新的首次访问分配新 tenant。产品在展示注销入口前需要清楚提示这一点，或由后续本站账户功能提供经过验证的恢复途径。不能用相同 LibTV subject 直接合并两个租户来绕过本站身份验证。
+已补充独立的主所有者绑定与找回服务：用户先明确绑定主所有者，清 Cookie、本站注销或 Cookie 到期后，可以通过**新的官方 OAuth + 权威身份读取**恢复原工作区。普通生成账号不是主所有者。精确的 callback、确认与草稿保留接线见 `OWNER_RECOVERY.md`；只有完成授权模块接线和官方验证后才能对客户宣称可用。尚未绑定主所有者的旧匿名数据不会根据已有生成账号猜测归属或跨租户合并。
 
 有无效、过期、重复、伪造的本站 Cookie 时 bootstrap 返回 SESSION_REQUIRED，不静默换成另一个客户。adapter 不要捕获 401 后偷偷创建新会话或返回空白项目成功。
 
 `rotate(ctx)` 仅为未来本站身份验证或权限升级提供会话轮换：旧 token 即刻失效，tenant 保持不变，新 CSRF 产生。LibTV 账号切换不调用 rotate。`logout(ctx,all_sessions=True)` 供已验证的本站安全动作使用，当前公开注销路由不接受此选项。
 
 本模块不控制 provider OAuth state/PKCE，不处理官方注销或 revocation。真实授权由会话 2 实现并验证。
+
+`GET /session` 额外提供 `workspace` 概要；`services.workspace_recovery` 注入后注册工作区查询、待确认和取消接口。Schema 1 升级到 schema 2 为增量迁移，主所有者绑定不会修改历史 task ownership。

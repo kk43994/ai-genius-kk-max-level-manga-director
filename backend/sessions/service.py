@@ -1,4 +1,4 @@
-"""Anonymous first-party site sessions; independent of LibTV login identity."""
+"""First-party site sessions; provider account switching never changes site ownership."""
 from dataclasses import dataclass, field as dataclass_field
 import hashlib
 import hmac
@@ -7,7 +7,7 @@ import re
 import secrets
 from urllib.parse import urlsplit
 
-from backend.storage import SelectionRepository, StorageError, TenantContext
+from backend.storage import SelectionRepository, StorageError, TenantContext, WorkspaceRepository
 from backend.storage.core import checked_id, field, opaque_id, utc
 
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}\Z")
@@ -107,7 +107,8 @@ class SessionService:
         context = TenantContext(row["tenant_id"], row["id"], request_id)
         data = {"session": {"id": row["id"], "expiresAt": utc(row["expires_at"])},
                 "tenant": {"id": row["tenant_id"]}, "csrfToken": self.store.csrf_for(row["id"]),
-                "selection": self.selections.get(context), "features": dict(self.features)}
+                "selection": self.selections.get(context), "features": dict(self.features),
+                "workspace": WorkspaceRepository(self.store).get(context)}
         return SessionResult(context, data, self._cookie(token, row["expires_at"] - self.store.clock()))
 
     def _insert(self, conn, tenant_id, now):
@@ -165,7 +166,7 @@ class SessionService:
             raise StorageError("CSRF_FAILED", "请求来源或 CSRF 校验失败，请刷新页面重试", 403)
 
     def rotate(self, ctx):
-        """For a future verified site login boundary. Never call for LibTV switching."""
+        """For verified site login boundaries. Never call for generation account switching."""
         with self.store._system_transaction() as conn:
             old = self._require(conn, ctx)
             now = self.store.clock()

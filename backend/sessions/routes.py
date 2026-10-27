@@ -44,3 +44,35 @@ def register_routes(router, services):
     # Additive route to v1: the base contract required logout handling but did not
     # name a URL. The integrator must expose this route with normal session/CSRF.
     router.add("POST", "/api/v1/session/logout", logout)
+
+    recovery = field(services, "workspace_recovery")
+    if recovery is None:
+        return  # Do not advertise recovery routes until the provider hook is wired.
+
+    def recovery_response(ctx, data, session=None):
+        headers = {"Cache-Control": "no-store", "Vary": "Cookie"}
+        if session is not None:
+            headers["Set-Cookie"] = session.set_cookie
+        return Response(200, {"data": data, "meta": {"requestId": field(ctx, "requestId", ""), "apiVersion": 1}}, headers)
+
+    def confirm(ctx, params):
+        body = field(ctx, "json")
+        allowed = {"action", "workspaceId", "expectedVersion", "expectedContentRevision", "draftDisposition", "savedDrafts"}
+        if not isinstance(body, dict) or not set(body) <= allowed:
+            raise invalid()
+        result = recovery.confirm(ctx, params["id"], action=body.get("action"),
+                                  workspace_id=body.get("workspaceId"), expected_version=body.get("expectedVersion"),
+                                  expected_content_revision=body.get("expectedContentRevision"),
+                                  draft_disposition=body.get("draftDisposition"), saved_drafts=body.get("savedDrafts"))
+        return recovery_response(ctx, result.data, result.session)
+
+    def cancel(ctx, params):
+        if field(ctx, "json", {}) != {}:
+            raise invalid()
+        return recovery_response(ctx, recovery.cancel(ctx, params["id"]))
+
+    router.add("GET", "/api/v1/workspace", lambda ctx, params: recovery_response(ctx, recovery.repo.get(ctx)))
+    router.add("GET", "/api/v1/workspace-intents/{id}",
+               lambda ctx, params: recovery_response(ctx, recovery.get_intent(ctx, params["id"])))
+    router.add("POST", "/api/v1/workspace-intents/{id}/confirm", confirm)
+    router.add("POST", "/api/v1/workspace-intents/{id}/cancel", cancel)

@@ -2,7 +2,7 @@
 
 这是供公共入口、授权、空间和任务模块装配的服务端存储实现。它不安装 OAuth 回调、不修改公共服务器、不运行 CLI、不读取本机真实授权、不发送生成或付费请求。
 
-数据 schema 为 `1`。仅在真实服务安装本模块并完成相应功能验收之后才能启用产品 feature flag。存储单元测试通过不能将 `providerAuthorization` 或 `imageGeneration` 设为 true。
+数据 schema 为 `2`，新增主所有者与恢复意图表；从 schema 1 原子增量迁移。仅在真实服务安装本模块并完成相应功能验收之后才能启用产品 feature flag。存储单元测试通过不能将 `providerAuthorization` 或 `imageGeneration` 设为 true。
 
 ## 安装与数据边界
 
@@ -143,7 +143,7 @@ account = accounts.complete_authorization(
 
 路径只由服务端生成 ID 构成，文件访问使用目录 FD + O_NOFOLLOW；拒绝路径穿越、符号链接和硬链接，读取核对长度与 SHA-256。文件先 fsync 后提交数据库，避免记录指向尚未落盘的内容。硬崩溃可能留下无记录的孤立 blob；它不会被公开读取，需后续维护工具清理，不能因此删除有记录素材。
 
-`migrate()` 在单个写事务安装 schema 1，并校验持久密钥；遇到更新的 schema 立即拒绝运行，不做降级、不删表。SQLite 当前使用默认 rollback journal、FULL 同步和跨进程数据库锁；没有不受管控的内存队列。
+`migrate()` 在单个写事务安装 schema 2 或从 schema 1 增量升级，并校验持久密钥；遇到更新的 schema 立即拒绝运行，不做降级、不删表。SQLite 当前使用默认 rollback journal、FULL 同步和跨进程数据库锁；没有不受管控的内存队列。`readiness()` 返回实际 dataSchemaVersion；部署/集成不得再硬编码 schema 1。
 
 本模块不自动执行生产备份、schema 升级或轮换密钥。部署需使用 SQLite backup API 或暂停写入后做一致性备份，同时保留 tenant blob 文件；不要在写入时只复制一个 sqlite 文件，也不要只备份数据库就声称素材完整。数据库中的历史 grant 备份仍是密文，key 必须通过独立受控渠道备份。轮换密钥需单独设计重加密迁移，不可直接换文件。
 
@@ -154,3 +154,5 @@ python -m unittest discover -s tests/storage -v
 ```
 
 测试使用两个合成租户、多组合成身份、临时数据目录；涵盖重新启动恢复、跨租户拒绝、授权失效与重授权、8 路并发 CAS/幂等、删除保留历史、Origin/CSRF、cookie 哈希、凭据认证加密、路径攻击、迁移拒绝和 worker fence。没有真实官方授权、真实双登录身份、收费调用、Chrome UI 或服务器部署验收。
+
+Schema 2 的主所有者、Cookie 丢失找回、显式保留匿名工作区和未保存草稿门禁，见 `../sessions/OWNER_RECOVERY.md`。网站所有权独立于 provider_accounts，账号移除不触碰主所有者，旧库不从生成账号推断主所有者。

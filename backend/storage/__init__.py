@@ -2,9 +2,10 @@
 from .accounts import AccountRepository, SelectionRepository, VerifiedIdentity
 from .core import SCHEMA_VERSION, Store, TenantContext, opaque_id, request_hash
 from .errors import StorageError
+from .workspaces import WorkspaceRepository
 
 __all__ = ["AccountRepository", "SelectionRepository", "VerifiedIdentity", "Store",
-           "TenantContext", "StorageError", "SCHEMA_VERSION", "opaque_id", "request_hash"]
+           "TenantContext", "StorageError", "SCHEMA_VERSION", "opaque_id", "request_hash", "WorkspaceRepository"]
 
 
 def register_routes(router, services):

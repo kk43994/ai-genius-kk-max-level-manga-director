@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .errors import StorageError, conflict, invalid, not_found
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _ID = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,127}\Z")
 _COLLECTION = re.compile(r"[a-z][a-z0-9_.-]{0,63}\Z")
 _SECRET_KEYS = {"accesstoken", "refreshtoken", "clientsecret", "idtoken",
@@ -211,23 +211,34 @@ class Store:
             existing = conn.execute("PRAGMA user_version").fetchone()[0]
             if existing > SCHEMA_VERSION:
                 raise StorageError("SCHEMA_INCOMPATIBLE", "数据版本较新，禁止使用旧版本写入", 503)
-            if existing == SCHEMA_VERSION:
+            if existing:
                 self._verify_key(conn)
-                return
-            # Executing each statement retains the explicit transaction; executescript
-            # would implicitly commit and break concurrent migration atomicity.
-            from .schema import STATEMENTS
-            for statement in STATEMENTS:
-                conn.execute(statement)
-            probe = self._seal("system", "key-check", "v1", {"check": "asset-lab-storage-v1"})
-            conn.execute("INSERT INTO settings(key,value) VALUES('key_check',?)", (probe,))
-            conn.execute("PRAGMA user_version=1")
+            else:
+                # executescript implicitly commits; keep migrations atomic instead.
+                from .schema import STATEMENTS
+                for statement in STATEMENTS:
+                    conn.execute(statement)
+                probe = self._seal("system", "key-check", "v1", {"check": "asset-lab-storage-v1"})
+                conn.execute("INSERT INTO settings(key,value) VALUES('key_check',?)", (probe,))
+                existing = 1
+            if existing < 2:
+                from .workspace_schema import STATEMENTS_V2
+                for statement in STATEMENTS_V2:
+                    conn.execute(statement)
+            conn.execute("PRAGMA user_version=2")
 
     def _verify_key(self, conn):
         row = conn.execute("SELECT value FROM settings WHERE key='key_check'").fetchone()
         if row is None:
             raise StorageError("STORAGE_CORRUPT", "存储配置不完整", 500)
         self._unseal("system", "key-check", "v1", row[0])
+
+    def readiness(self):
+        with self._system_transaction(write=False) as conn:
+            schema = conn.execute("PRAGMA user_version").fetchone()[0]
+        return {"ready": schema == SCHEMA_VERSION,
+                "reason": "schema_ready" if schema == SCHEMA_VERSION else "schema_incompatible",
+                "dataSchemaVersion": schema}
 
     def _seal(self, tenant, namespace, identifier, value):
         nonce = secrets.token_bytes(12)
