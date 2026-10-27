@@ -1,0 +1,2 @@
+# Decoding/verification and safe thumbnails; tested with 12.3.0.
+Pillow>=11,<13

@@ -91,3 +91,16 @@ export function assetCoverage(entities=[],jobs=[],scope){
   ready:rows.filter(e=>e.category===category&&e.ready).length})).filter(g=>g.total);
  return {rows,groups,total:rows.length,ready:rows.filter(e=>e.ready).length,missing:rows.filter(e=>!e.ready)};
 }
+
+// Customer archives preserve every declared entity even before its first output.
+// Names are labels; project/entity IDs determine membership.
+export function buildCustomerArchives(assets = [], plan = {entities: []}) {
+ return (plan.entities || []).map(entity => {
+  const asset = assets.find(item => item.entityId === entity.id && item.active);
+  const revisions = [...(asset?.revisions || [])].sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const approved = revisions.filter(r => r.review === 'approved' && r.status === 'ready');
+  return {...entity, assetId:asset?.id || null, assetVersion:asset?.version || null, revisions,
+   cover:approved.find(r => r.stage === 'refine') || approved.find(r => r.stage === 'asset') || approved[0] || revisions[0] || null,
+   stages:Object.fromEntries(['style','asset','refine'].map(stage => [stage,approved.some(r => r.stage === stage)]))};
+ });
+}
