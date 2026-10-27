@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "sourceDir": "../..",
+  "include": {"public": ".build/public", "server": ".build/server"},
+  "buildCommand": ["python3", "scripts/build_customer.py"],
+  "testCommand": ["python3", "-m", "unittest", "discover", "-s", "tests/integration"],
+  "release": {
+    "schemaVersion": 1, "product": "asset-lab-customer", "channel": "preview",
+    "version": "0.1.0-preview.1", "buildId": "REPLACE_WITH_VERIFIED_BUILD_ID",
+    "publishedAt": "2026-10-27T08:30:00Z", "apiVersion": 1, "dataSchemaVersion": 1,
+    "minCompatibleClient": "0.1.0-preview.1", "releaseNotes": ["填写实际更新说明"],
+    "reloadRequired": true, "entryUrl": "/asset-lab/", "integrity": {"algorithm":"sha256","value":null}
+  },
+  "origin": "https://kk666.best", "basePath": "/asset-lab/"
+}

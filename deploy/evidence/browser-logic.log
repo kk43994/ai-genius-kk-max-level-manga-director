@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: SemVer numeric ordering and full official prerelease precedence
+ok 1 - SemVer numeric ordering and full official prerelease precedence
+  ---
+  duration_ms: 0.841042
+  type: 'test'
+  ...
+# Subtest: invalid versions, fields, dates, checksum and credentials fields are rejected
+ok 2 - invalid versions, fields, dates, checksum and credentials fields are rejected
+  ---
+  duration_ms: 1.347083
+  type: 'test'
+  ...
+# Subtest: same-origin HTTPS and base path allowlist rejects redirect/exfil paths
+ok 3 - same-origin HTTPS and base path allowlist rejects redirect/exfil paths
+  ---
+  duration_ms: 0.307958
+  type: 'test'
+  ...
+# Subtest: startup coalesces, interval is six hours, manual checks use shared API
+ok 4 - startup coalesces, interval is six hours, manual checks use shared API
+  ---
+  duration_ms: 1.221459
+  type: 'test'
+  ...
+# Subtest: offline keeps last good timestamp but never reports latest or navigates
+ok 5 - offline keeps last good timestamp but never reports latest or navigates
+  ---
+  duration_ms: 0.295042
+  type: 'test'
+  ...
+# Subtest: malformed, untrusted and wrong-channel manifests fail safely
+ok 6 - malformed, untrusted and wrong-channel manifests fail safely
+  ---
+  duration_ms: 0.345833
+  type: 'test'
+  ...
+# Subtest: timeout works even when a shared API adapter ignores AbortSignal
+ok 7 - timeout works even when a shared API adapter ignores AbortSignal
+  ---
+  duration_ms: 11.933875
+  type: 'test'
+  ...
+# Subtest: new runtime requiring a newer client is detected, but safe update is possible
+ok 8 - new runtime requiring a newer client is detected, but safe update is possible
+  ---
+  duration_ms: 0.232
+  type: 'test'
+  ...
+# Subtest: new frontend requiring an unstarted API or schema cannot refresh
+ok 9 - new frontend requiring an unstarted API or schema cannot refresh
+  ---
+  duration_ms: 0.32
+  type: 'test'
+  ...
+# Subtest: same version different build and server rollback both offer explicit refresh
+ok 10 - same version different build and server rollback both offer explicit refresh
+  ---
+  duration_ms: 0.202125
+  type: 'test'
+  ...
+# Subtest: same identity reports up to date
+ok 11 - same identity reports up to date
+  ---
+  duration_ms: 0.490708
+  type: 'test'
+  ...
+# Subtest: dirty state, active tasks/downloads and unknown safety all block navigation
+ok 12 - dirty state, active tasks/downloads and unknown safety all block navigation
+  ---
+  duration_ms: 0.337708
+  type: 'test'
+  ...
+# Subtest: draft save must be acknowledged; conflict retains content and stops refresh
+ok 13 - draft save must be acknowledged; conflict retains content and stops refresh
+  ---
+  duration_ms: 0.14975
+  type: 'test'
+  ...
+# Subtest: confirmed draft save is awaited then safety is re-read before navigation
+ok 14 - confirmed draft save is awaited then safety is re-read before navigation
+  ---
+  duration_ms: 6.109333
+  type: 'test'
+  ...
+# Subtest: click rechecks latest and refuses reload after a network failure
+ok 15 - click rechecks latest and refuses reload after a network failure
+  ---
+  duration_ms: 0.291042
+  type: 'test'
+  ...
+# Subtest: double click only navigates once; unmount disables further requests
+ok 16 - double click only navigates once; unmount disables further requests
+  ---
+  duration_ms: 0.77725
+  type: 'test'
+  ...
+# Subtest: root mount and subpath mount both retain relative API calls
+ok 17 - root mount and subpath mount both retain relative API calls
+  ---
+  duration_ms: 0.229625
+  type: 'test'
+  ...
+# Subtest: hidden pages pause polling and visibility only checks when expired
+ok 18 - hidden pages pause polling and visibility only checks when expired
+  ---
+  duration_ms: 0.180625
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 90.411833

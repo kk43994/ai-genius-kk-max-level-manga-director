@@ -1,0 +1,26 @@
+test_http_root_and_subpath_upgrade_rollback_and_invalid_manifest (test_http.HttpReleaseTest.test_http_root_and_subpath_upgrade_rollback_and_invalid_manifest) ... ok
+test_api_current_is_running_snapshot_latest_tracks_switch_and_bad_manifest (test_release.ReleasesTest.test_api_current_is_running_snapshot_latest_tracks_switch_and_bad_manifest) ... ok
+test_archive_traversal_links_and_duplicate_entries_rejected (test_release.ReleasesTest.test_archive_traversal_links_and_duplicate_entries_rejected) ... ok
+test_backend_activation_without_drain_hooks_refused (test_release.ReleasesTest.test_backend_activation_without_drain_hooks_refused) ... ok
+test_build_and_test_failures_do_not_produce_artifact (test_release.ReleasesTest.test_build_and_test_failures_do_not_produce_artifact) ... ok
+test_build_install_upgrade_rollback_preserves_data_and_old_assets (test_release.ReleasesTest.test_build_install_upgrade_rollback_preserves_data_and_old_assets) ... ok
+test_bundle_checksum_failure_never_switches_current (test_release.ReleasesTest.test_bundle_checksum_failure_never_switches_current) ... ok
+test_contract_router_envelopes_headers_and_unconfigured_failure (test_release.ReleasesTest.test_contract_router_envelopes_headers_and_unconfigured_failure) ... ok
+test_crash_journal_recovery_restores_old_and_previous (test_release.ReleasesTest.test_crash_journal_recovery_restores_old_and_previous) ... ok
+test_data_and_release_overlap_or_unknown_root_refused (test_release.ReleasesTest.test_data_and_release_overlap_or_unknown_root_refused) ... ok
+test_failed_health_probe_restores_previous_pointer (test_release.ReleasesTest.test_failed_health_probe_restores_previous_pointer) ... ok
+test_inventory_tamper_rejected_even_with_valid_transport_hash (test_release.ReleasesTest.test_inventory_tamper_rejected_even_with_valid_transport_hash) ... ok
+test_legitimate_session_code_modules_are_not_mistaken_for_runtime_credentials (test_release.ReleasesTest.test_legitimate_session_code_modules_are_not_mistaken_for_runtime_credentials) ... ok
+test_lock_conflict_does_not_switch (test_release.ReleasesTest.test_lock_conflict_does_not_switch) ... ok
+test_private_key_content_is_refused_without_echoing_secret (test_release.ReleasesTest.test_private_key_content_is_refused_without_echoing_secret) ... ok
+test_root_mount_build_and_api_validation (test_release.ReleasesTest.test_root_mount_build_and_api_validation) ... ok
+test_same_id_is_immutable_and_identical_retry_is_noop (test_release.ReleasesTest.test_same_id_is_immutable_and_identical_retry_is_noop) ... ok
+test_schema_change_is_refused_and_data_left_intact (test_release.ReleasesTest.test_schema_change_is_refused_and_data_left_intact) ... ok
+test_secret_runtime_and_symlink_inputs_refused (test_release.ReleasesTest.test_secret_runtime_and_symlink_inputs_refused) ... ok
+test_stable_gate_and_channel_mismatch (test_release.ReleasesTest.test_stable_gate_and_channel_mismatch) ... ok
+test_ssh_argument_quoting_preserves_literal_metacharacters (test_ssh_wrapper.SshWrapperTest.test_ssh_argument_quoting_preserves_literal_metacharacters) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 3.076s
+
+OK

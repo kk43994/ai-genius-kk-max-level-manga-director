@@ -1,0 +1,20 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>资产实验室 · 更新链验收</title>
+<style>body{font:16px/1.6 system-ui,sans-serif;background:#101815;color:#e0eae4;margin:0;padding:48px 24px}main{max-width:820px;margin:auto}small{color:#9fc2ad}h1{font-size:30px;margin:10px 0}section{background:#1a2720;border:1px solid #345243;border-radius:16px;padding:24px;margin:22px 0}textarea{box-sizing:border-box;width:100%;min-height:100px;background:#101815;color:#e0eae4;padding:12px;border-radius:8px;border:1px solid #567862;font:inherit}button{font:inherit;border:0;border-radius:8px;padding:8px 16px;margin:4px 12px 4px 0;background:#b9eccb;color:#10271a;cursor:pointer}button:disabled{opacity:.45}#detail{white-space:pre-wrap;font-size:13px;color:#9fb4a7}label{display:block;margin:12px 0}.asset-version-notice{margin:0}li{margin:6px 0}</style></head><body><main>
+<small>本机隔离验收 / 合成数据 / 不连接 LibTV</small><h1>更新由你决定，制作进度先保留</h1><p>这页用于审查版本提示和刷新保护，不是已经上线的客户工作台。</p>
+<section><label for="draft">演示草稿</label><textarea id="draft" placeholder="输入内容，试验保存后刷新"></textarea>
+<label><input id="running" type="checkbox"> 模拟一个运行中的任务</label><label><input id="conflict" type="checkbox"> 模拟保存冲突</label>
+<p>演示保存仅写入本标签页的 sessionStorage；正式版本由集成模块接入服务端草稿。</p></section>
+<div id="update-root"></div><pre id="detail"></pre></main>
+<script type="module">
+import { mount } from './updates/index.js';
+const build = JSON.parse(document.getElementById('asset-lab-build').textContent);
+const publicBasePath = new URL(document.baseURI).pathname.split('releases/')[0];
+const apiBase = publicBasePath + 'api/v1';
+const draft=document.getElementById('draft');draft.value=sessionStorage.getItem('asset-lab-demo-draft')||'';
+let saved=draft.value;const events=new EventTarget();
+events.addEventListener('release:changed',e=>{document.getElementById('detail').textContent=JSON.stringify({状态:e.detail.status,当前版本:e.detail.currentVersion,最新版本:e.detail.latestVersion,检查时间:e.detail.checkedAt},null,2);});
+const api={async request(path,options){const r=await fetch(apiBase+path,{...options,redirect:'error'});const body=await r.json();if(!r.ok)throw new Error(body.error?.message||'不可用');return body.data;}};
+mount({root:document.getElementById('update-root'),api,events,session:null,publicBasePath,currentBuild:build,
+  getSafetyState:async()=>({hasUnsavedChanges:draft.value!==saved,activeTasks:document.getElementById('running').checked?1:0,activeDownloads:0}),
+  saveDraft:async()=>{if(document.getElementById('conflict').checked)throw new Error('VERSION_CONFLICT');sessionStorage.setItem('asset-lab-demo-draft',draft.value);saved=draft.value;return {saved:true};}});
+</script></body></html>

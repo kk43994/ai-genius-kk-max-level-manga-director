@@ -1,0 +1,56 @@
+✔ SemVer numeric ordering and full official prerelease precedence (0.8045ms)
+✔ invalid versions, fields, dates, checksum and credentials fields are rejected (1.141792ms)
+✔ same-origin HTTPS and base path allowlist rejects redirect/exfil paths (0.192583ms)
+✔ startup coalesces, interval is six hours, manual checks use shared API (1.021792ms)
+✔ offline keeps last good timestamp but never reports latest or navigates (0.3045ms)
+✔ malformed, untrusted and wrong-channel manifests fail safely (0.432833ms)
+✔ timeout works even when a shared API adapter ignores AbortSignal (11.975333ms)
+✔ new runtime requiring a newer client is detected, but safe update is possible (0.194209ms)
+✔ new frontend requiring an unstarted API or schema cannot refresh (0.275709ms)
+✔ same version different build and server rollback both offer explicit refresh (0.180666ms)
+✔ same identity reports up to date (0.103792ms)
+✔ dirty state, active tasks/downloads and unknown safety all block navigation (0.319208ms)
+✔ draft save must be acknowledged; conflict retains content and stops refresh (0.143791ms)
+✔ confirmed draft save is awaited then safety is re-read before navigation (5.947041ms)
+✔ click rechecks latest and refuses reload after a network failure (0.133125ms)
+✔ double click only navigates once; unmount disables further requests (0.880708ms)
+✔ root mount and subpath mount both retain relative API calls (0.185584ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 86.73825
+✔ SemVer numeric ordering and full official prerelease precedence (0.871958ms)
+✔ invalid versions, fields, dates, checksum and credentials fields are rejected (1.077209ms)
+✔ same-origin HTTPS and base path allowlist rejects redirect/exfil paths (0.214625ms)
+✔ startup coalesces, interval is six hours, manual checks use shared API (1.075833ms)
+✔ offline keeps last good timestamp but never reports latest or navigates (0.335292ms)
+✔ malformed, untrusted and wrong-channel manifests fail safely (0.333958ms)
+✔ timeout works even when a shared API adapter ignores AbortSignal (11.3245ms)
+✔ new runtime requiring a newer client is detected, but safe update is possible (0.209542ms)
+✔ new frontend requiring an unstarted API or schema cannot refresh (0.272083ms)
+✔ same version different build and server rollback both offer explicit refresh (0.216375ms)
+✔ same identity reports up to date (0.095209ms)
+✔ dirty state, active tasks/downloads and unknown safety all block navigation (0.632ms)
+✔ draft save must be acknowledged; conflict retains content and stops refresh (0.17025ms)
+✔ confirmed draft save is awaited then safety is re-read before navigation (6.904958ms)
+✔ click rechecks latest and refuses reload after a network failure (0.177333ms)
+✔ double click only navigates once; unmount disables further requests (0.646875ms)
+✔ root mount and subpath mount both retain relative API calls (0.160292ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 98.013959
+{
+  "directory": "/Users/zhoukaihao/Documents/New project/work/asset-lab-release/.demo",
+  "runtime": "/Users/zhoukaihao/Documents/New project/work/asset-lab-release/.demo/runtime",
+  "publicBasePath": "/asset-lab/",
+  "nextBundle": "/Users/zhoukaihao/Documents/New project/work/asset-lab-release/.demo/demo-second.tar.gz"
+}

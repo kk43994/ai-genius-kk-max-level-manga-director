@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-10-27T09:10:25.541178+00:00",
+  "scope": "synthetic local fixtures; no provider calls, paid generation, remote writes or public deployment",
+  "sourceSha256": "8362362617052ded91cde606a88994cc81517c04894bfedbb522df631dbc10cd",
+  "sourceUnchangedDuringVerification": true,
+  "results": [
+    {
+      "name": "browser-logic",
+      "exitCode": 0,
+      "tests": 18,
+      "log": "browser-logic.log"
+    },
+    {
+      "name": "release-and-http",
+      "exitCode": 0,
+      "tests": 21,
+      "log": "release-and-http.log"
+    }
+  ],
+  "allPassed": true
+}

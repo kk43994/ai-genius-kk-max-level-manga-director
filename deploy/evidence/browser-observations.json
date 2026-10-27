@@ -1,0 +1,15 @@
+{
+  "observedAt": "2026-10-27T08:52:43.890Z",
+  "url": "http://127.0.0.1:57122/asset-lab/",
+  "environment": "local loopback synthetic release preview",
+  "observations": [
+    "Initial page 0.1.0-preview.1 / demo-first reported up_to_date.",
+    "Installed synthetic 0.1.1-preview.1 / demo-second with the actual release tool while the old tab remained open.",
+    "Manual check showed the new build without reloading the tab.",
+    "A simulated running task blocked explicit refresh and preserved the old page.",
+    "A simulated draft save conflict blocked refresh and preserved the entered text.",
+    "After conflict was cleared, the explicit save-and-refresh action loaded demo-second and retained the exact synthetic draft text."
+  ],
+  "screenshots": ["browser-task-blocked.png", "browser-updated.png"],
+  "scopeLimit": "Demo save callback uses only this tab's sessionStorage. Real tenant server persistence and real running-job recovery await the integrated storage/workflow adapters. No LibTV call or customer data was used."
+}

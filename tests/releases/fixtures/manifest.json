@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1, "product": "asset-lab-customer", "channel": "stable",
+  "version": "1.0.0", "buildId": "synthetic-a", "publishedAt": "2026-10-27T08:30:00Z",
+  "apiVersion": 1, "dataSchemaVersion": 1, "minCompatibleClient": "1.0.0",
+  "releaseNotes": ["合成验收版本，不是客户产品发布。"], "reloadRequired": true,
+  "entryUrl": "/asset-lab/", "integrity": {"algorithm": "sha256", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+}

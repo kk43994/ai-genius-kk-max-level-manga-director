@@ -1,0 +1,32 @@
+# REVIEW TEMPLATE — not installed. Dedicated user and integration entrypoint
+# must exist first. The service is loopback-only and never starts generation.
+[Unit]
+Description=Asset Lab customer preview
+After=network.target
+
+[Service]
+Type=simple
+User=asset-lab
+Group=asset-lab
+WorkingDirectory=/srv/asset-lab-customer/runtime/channels/preview/current/server
+Environment=ASSET_LAB_DATA_DIR=/var/lib/asset-lab-customer/preview
+Environment=ASSET_LAB_RELEASE_ROOT=/srv/asset-lab-customer/runtime
+Environment=ASSET_LAB_CHANNEL=preview
+Environment=ASSET_LAB_RUNNING_MANIFEST=/srv/asset-lab-customer/runtime/channels/preview/current/release.json
+Environment=ASSET_LAB_PUBLIC_BASE_PATH=/asset-lab/
+Environment=ASSET_LAB_API_BASE=/asset-lab/api/v1
+Environment=PYTHONDONTWRITEBYTECODE=1
+# External protected configuration is never uploaded with a release.
+EnvironmentFile=/etc/asset-lab-customer/preview.env
+ExecStart=/usr/bin/python3 -m backend.app --port 18769
+Restart=on-failure
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/asset-lab-customer/preview
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

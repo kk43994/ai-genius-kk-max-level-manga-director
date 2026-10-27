@@ -1,0 +1,7 @@
+{
+  "quiescenceCommand": ["/usr/local/libexec/asset-lab/check-idle"],
+  "preflightCommand": ["/usr/local/libexec/asset-lab/check-release-and-schema"],
+  "activateCommand": ["/usr/local/libexec/asset-lab/activate-checked-release"],
+  "deactivateCommand": ["/usr/local/libexec/asset-lab/stop-failed-first-release"],
+  "probeCommand": ["/usr/local/libexec/asset-lab/check-live-health"]
+}

@@ -1,0 +1,14 @@
+{
+  "observedAt": "2026-10-27T08:29:44Z",
+  "recheckedDateLocal": "2026-10-27 Asia/Shanghai",
+  "access": "existing ssh alias kelao; read only",
+  "instructionsRead": ["/root/AGENTS.md", "/srv/kk666/collaboration/HANDOFF.md", "/srv/kk666/collaboration/PROTOCOL.md", "/srv/kk666/collaboration/HUB.md", "/srv/kk666/collaboration/projects/sub2api-fleet/CURRENT.md", "/srv/kk666/collaboration/projects/sub2api-fleet/网线现状说明-KK自营.md", "/srv/kk666/collaboration/CHANGELOG.md"],
+  "nginx": {"configTestExitCode": 0, "active": true, "httpIncludes": "/etc/nginx/kk666-conf.d/*.conf", "streamIncludes": "/etc/nginx/kk666-stream-conf.d/*.conf", "rootHostTlsListener": "127.0.0.1:12443", "rootHostConfig": "/etc/nginx/kk666-conf.d/root-kk666-best-https.conf", "rootHostPublicDirectory": "/var/www/kk666-site", "mjsMimePresent": false},
+  "https": {"url": "https://kk666.best/", "status": 200, "certificateNames": ["kk666.best", "www.kk666.best"], "certificateNotBefore": "2026-10-14T00:26:53Z", "certificateNotAfter": "2027-01-12T00:26:52Z", "verificationDisabled": false},
+  "existingReleasePattern": "/opt/opc-finance/current -> /opt/opc-finance/releases/20260806T013907Z",
+  "assetLabSearch": {"loadedNginxConfigs": "no asset-lab route found", "directories": "/srv /opt /var/www searched to depth 4", "deploymentFound": false, "hubProjectTasks": 0, "hubCurrentDocumentFound": false},
+  "candidatesNotCreated": {"publicEntry": "https://kk666.best/asset-lab/", "loopbackPort": 18769, "portWasFree": true, "releaseNamespace": "/srv/asset-lab-customer/runtime", "persistentData": "/var/lib/asset-lab-customer/{preview,stable}", "namespaceExists": false},
+  "diskAtObservation": {"size": "79G", "used": "45G", "available": "32G"},
+  "runtime": {"node": "v24.18.0", "python": "3.14.4"},
+  "deploymentState": "NOT DEPLOYED; no Hub mutation, route change, service restart, remote file upload or customer-store read/write performed"
+}
