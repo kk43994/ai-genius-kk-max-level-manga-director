@@ -45,7 +45,8 @@ class StorageAuthRepository:
                                  'displayName': row['display_name'], 'verified': bool(row['verified'])},
                     'authorizationState': row['state'], 'expiresAtEpoch': row['expires_at'],
                     'lastVerifiedAt': row['last_verified_at'], 'removedAt': row['removed_at'], 'reason': row['reason'],
-                    'private': secret.get('authBundleCiphertext'), 'refreshClaim': secret.get('refreshClaim')}
+                    'private': secret.get('authBundleCiphertext'), 'refreshClaim': secret.get('refreshClaim'),
+                    'grantedScopes': secret.get('grantedScopes', [])}
             original_accounts = copy.deepcopy(accounts)
             state['accounts'] = accounts
             yield state
@@ -74,7 +75,8 @@ class StorageAuthRepository:
                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'libtv')''', values + (now, now, tenant, id))
                 if account['private']:
                     tx.secret_put('provider-grants', id, {'authBundleCiphertext': account['private'],
-                                                         'refreshClaim': account.get('refreshClaim')})
+                                                         'refreshClaim': account.get('refreshClaim'),
+                                                         'grantedScopes': account.get('grantedScopes', [])})
                 else:
                     tx.secret_delete('provider-grants', id)
                 if account['removedAt'] and (not before or not before['removedAt']):

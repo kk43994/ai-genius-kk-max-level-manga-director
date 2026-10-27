@@ -96,6 +96,7 @@ class WorkflowService:
 
     def capabilities(self):
         return {'scriptAnalysis': False, 'persistentProjects': True,
+                'localScriptExtraction': True, 'quickStart': True,
                 'videoGeneration': False, 'analysis': copy.deepcopy(ANALYSIS)}
 
     def _project(self, tx, project_id):
@@ -220,7 +221,7 @@ class WorkflowService:
         with self.repository.transaction(ctx) as tx:
             return copy.deepcopy(self._project(tx, project_id)['plan'])
 
-    def save_plan(self, ctx, project_id, payload):
+    def save_plan(self, ctx, project_id, payload, *, needs_review=False):
         public_input(payload, {'expectedVersion', 'entities', 'stylePrompt'})
         entities = payload.get('entities')
         if not isinstance(entities, list) or len(entities) > 300:
@@ -275,6 +276,8 @@ class WorkflowService:
                     asset.update(active=False, version=asset['version'] + 1)
             project['plan'] = dict(version=previous['version'] + 1, entities=clean, stylePrompt=style,
                                    styleVersion=previous['styleVersion'] + int(style != previous['stylePrompt']), updatedAt=now())
+            if needs_review:
+                project['plan']['needsReview'] = True
             project.update(version=project['version'] + 1, updatedAt=now())
             self._invalidate(tx, project_id)
             return copy.deepcopy(project['plan'])
@@ -327,6 +330,8 @@ class WorkflowService:
             invalid('每个阶段请选择一张已审核的参考图。')
         with self.repository.transaction(ctx) as tx:
             project = self._project(tx, payload.get('projectId'))
+            if project['plan'].get('needsReview'):
+                raise WorkflowError('PLAN_REVIEW_REQUIRED', '请先核对并确认自动拆出的资产清单。', 409)
             entity = self._entity(project, payload.get('entityId'))
             repair = None
             if payload.get('repairOfRevisionId'):
@@ -583,6 +588,7 @@ class WorkflowService:
                 conflict('审核结果已变化，请重新确认归档。')
             record = dict(id=new_id('bundle'), projectId=project_id, createdAt=now(),
                           sha256=hashlib.sha256(raw).hexdigest(), bytes=len(raw), coverage=current,
+                          planVersion=project['plan']['version'], revisionIds=current_ids,
                           assetCount=len(manifest['assets']), blobId=tx.put_blob(raw))
             tx.state['bundles'][record['id']] = record
             project.update(version=project['version'] + 1, updatedAt=now(), lastBundleId=record['id'])

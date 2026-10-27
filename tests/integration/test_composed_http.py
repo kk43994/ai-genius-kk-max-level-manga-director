@@ -67,6 +67,32 @@ class ComposedHTTPTests(unittest.TestCase):
         self.assertEqual(self.app.services.storage.readiness()['dataSchemaVersion'],SCHEMA_VERSION)
         self.assertFalse(self.request('/ready')[2]['data']['customerReady'])
 
+    def test_quickstart_http_csrf_restart_and_tenant_boundary(self):
+        cookie, session = self.session()
+        payload = {'text': '《HTTP 流程验证》\n角色：旅人\n场景：庭院\n道具：灯笼', 'idempotencyKey':'http-start-synthetic'}
+        self.assertEqual(self.request('/workflow/start','POST',cookie=cookie,body=payload)[0],403)
+        status, _, response = self.request('/workflow/start','POST',cookie=cookie,csrf=session['csrfToken'],body=payload)
+        self.assertEqual(status,200,response)
+        pid = response['data']['project']['id']
+        self.assertTrue(response['data']['plan']['needsReview'])
+        self.assertEqual(len(response['data']['plan']['entities']),3)
+        port = self.server.server_port;self.close();self.start(port=port)
+        status, _, repeated = self.request('/workflow/start','POST',cookie=cookie,csrf=session['csrfToken'],body=payload)
+        self.assertEqual(status,200,repeated)
+        self.assertEqual(repeated['data']['project']['id'],pid)
+        self.assertTrue(repeated['data']['duplicate'])
+        other, _ = self.session()
+        self.assertEqual(self.request('/projects/'+pid,cookie=other)[0],404)
+        self.assertEqual(self.request('/tasks',cookie=cookie)[2]['data']['items'],[])
+
+    def test_quickstart_text_and_continuation_drafts_roundtrip(self):
+        cookie, session = self.session()
+        content = {'workflow':{'quick-start':{'text':'尚未提交的剧本','idempotencyKey':'draft-start'},'flow:synthetic':True},'accountSelection':None}
+        status, _, body = self.request('/drafts/browser','PUT',cookie=cookie,csrf=session['csrfToken'],body={'expectedVersion':0,'content':content})
+        self.assertEqual(status,200,body)
+        port = self.server.server_port;self.close();self.start(port=port)
+        self.assertEqual(self.request('/drafts/browser',cookie=cookie)[2]['data']['content'],content)
+
     def test_server_drafts_version_isolation_and_restart(self):
         cookie,session=self.session();content={'workflow':{'new-project':{'name':'尚未创建的项目','description':'刷新仍保留'},'review:synthetic':{'note':'人工审核备注'}},'accountSelection':None}
         self.assertEqual(self.request('/drafts/browser')[0],401)

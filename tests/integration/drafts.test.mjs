@@ -52,3 +52,8 @@ test('paused old workspace cannot autosave with a rotated Cookie',async()=>{
   const f=setup();await f.drafts.load();f.drafts.pause();
   await assert.rejects(f.drafts.save({force:true}),/暂停提交/);assert.equal(f.calls.length,0);f.drafts.destroy();
 });
+test('pasted script alone counts as unsaved content before a project exists',async()=>{
+ const f=setup();await f.drafts.load();f.storage.setItem(f.drafts.workflowKey,JSON.stringify({'quick-start':{text:'尚未开始的剧本',idempotencyKey:'draft-one'}}));
+ assert.equal(f.drafts.hasContent(),true);assert.equal(f.drafts.hasPending(),true);
+ const saving=f.drafts.save();f.ack(1);await saving;assert.equal(f.drafts.hasPending(),false);f.drafts.destroy();
+});

@@ -1,4 +1,5 @@
 import {buildCustomerArchives} from '../asset-lab-archives.js';
+import {nextAction, prepareIdentity} from './guide.js';
 import {DraftStore, escapeHTML as esc, localBase, assetURL, categories, stages, stageLabels, states, recipes,
   approvedSources, belongsToSelection, resolveRefineSource, defaultPrompt} from './model.js';
 
@@ -14,14 +15,15 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   if (!root || !api?.request || !session?.tenant?.id) throw new Error('工作流需要挂载节点、API 客户端与本站会话。');
   apiBase = localBase(apiBase, '/api/v1'); publicBasePath = localBase(publicBasePath, '/');
   const doc = root.ownerDocument;
+  doc.body.dataset.workflowMounted = 'true';
   const drafts = new DraftStore(storage, session.tenant.id, apiBase);
   const listeners = [];
-  let alive = true, busy = false, loading = false, requestSerial = 0, timer, error = '', notice = '';
+  let alive = true, busy = false, loading = false, requestSerial = 0, timer, flowTimer, error = '', notice = '';
   let projects = [], project = null, plan = {version:0,entities:[],stylePrompt:''}, assets = [], bundles = [], tasks = [], scripts = [];
   let coverage = {total:0, ready:0, complete:false}, capabilities = {scriptAnalysis:false}, taskError = '';
-  let selected = drafts.get('selectedProject') || '', page = normalizePage(drafts.get('page') || 'plan');
+  let selected = drafts.get('quick-start')?.text ? '' : drafts.get('selectedProject') || '', page = normalizePage(drafts.get('page') || 'plan');
   let selectedEntity = drafts.get('selectedEntity') || '', editing = false, reviewId = null, prepared = null;
-  let filter = 'all', search = '', saveError = '', creating = false, focusedBeforeReview;
+  let filter = 'all', search = '', saveError = '', creating = Boolean(drafts.get('quick-start')?.text), focusedBeforeReview;
   const status = () => root.querySelector('[data-wf-status]');
   const listen = (target, event, handler) => { if (!target) return; target.addEventListener(event,handler); listeners.push(() => target.removeEventListener(event,handler)); };
   const announce = message => { notice = message; if (status()) status().textContent = message; };
@@ -31,7 +33,8 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const composeKey = () => `compose:${selected}:${selectedEntity}:${page}`;
   const image = (assetId, revisionId, thumb = true) => esc(assetURL(apiBase,assetId,revisionId,thumb));
   const path = relative => apiBase + relative;
-  const dirty = () => Object.keys(drafts.data).some(k => k.startsWith('plan:') || k.startsWith('compose:') || k.startsWith('review:'));
+  const dirty = () => Object.keys(drafts.data).some(k => k.startsWith('plan:') || k.startsWith('compose:') || k.startsWith('review:') || (k==='quick-start'&&drafts.get(k)?.text));
+  const guide = () => nextAction({project, plan, assets, tasks, bundles, selection:session.selection, taskError});
 
   const stylesheet = doc.createElement('link');
   stylesheet.rel = 'stylesheet'; stylesheet.href = new URL('./workflow.css', import.meta.url).href;
@@ -54,12 +57,13 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const entries = [['plan','01 清单'],['style','02 MJ 风格'],['asset','03 Image2'],['refine','04 Nano'],['review','05 审核'],['delivery','06 下载']];
     return `<nav class="wf-tabs" aria-label="资产制作步骤">${entries.map(([id,title]) => `<button type="button" data-wf-nav="${id}" ${page === id ? 'aria-current="step"' : ''}>${title}</button>`).join('')}</nav>`;
   }
+  function stepNavigation() { return drafts.get(`flow:${selected}`)?`<details class="wf-advanced"><summary>分步编辑与高级设置</summary>${nav()}</details>`:nav(); }
   function empty(title, detail) { return `<div class="wf-empty"><h3>${esc(title)}</h3><p class="wf-muted">${esc(detail)}</p></div>`; }
   function render() {
     if (!alive) return;
     const title = project ? project.name : projects.length ? '开始一个新项目' : '开始你的第一个项目';
     const chooser = projects.length ? `<label><span class="sr-only">当前项目</span><select data-wf-project>${!selected?'<option value="">选择已有项目</option>':''}${options(projects.map(p=>[p.id,p.name]),selected)}</select></label>` : '';
-    root.innerHTML = `<section class="wf" aria-label="资产工作流"><div class="wf-toolbar"><div><span class="wf-muted">从故事到资产 · 每一步由你确认</span><h2>${esc(title)}</h2></div><div class="wf-actions">${chooser}<button type="button" data-wf-action="new-project">＋ 新项目</button><button type="button" data-wf-action="refresh" ${busy ? 'disabled' : ''}>刷新状态</button></div></div>${renderStatus()}${project ? nav() : ''}${loading ? '<p class="wf-muted" role="status">正在读取已保存项目…</p>' : !project ? createView() : page === 'plan' ? planView() : stages.includes(page) ? composeView() : page === 'review' ? reviewView() : deliveryView()}${reviewId ? reviewDetail() : ''}${prepared ? confirmationView() : ''}</section>`;
+    root.innerHTML = `<section class="wf" aria-label="资产工作流"><div class="wf-toolbar"><div><span class="wf-muted">从一份剧本，到一套可用资产</span><h2>${esc(title)}</h2></div><div class="wf-actions">${chooser}<button type="button" data-wf-action="new-project" ${busy?'disabled':''}>＋ 新项目</button><button type="button" data-wf-action="refresh" ${busy ? 'disabled' : ''}>刷新状态</button></div></div>${renderStatus()}${project ? guideView()+stepNavigation() : ''}${loading ? '<p class="wf-muted" role="status">正在读取已保存项目…</p>' : !project ? createView() : page === 'plan' ? planView() : stages.includes(page) ? composeView() : page === 'review' ? reviewView()+tasksView(selectedEntity) : deliveryView()}${reviewId ? reviewDetail() : ''}${prepared ? confirmationView() : ''}</section>`;
     renderLibrary();
     const saveStatus = doc.getElementById('saveStatus'); if (saveStatus) saveStatus.textContent = saveError ? '草稿保存失败' : busy ? '处理中' : dirty() ? '编辑草稿已在本机保存' : '项目已同步';
     const titleNode = doc.getElementById('workspace-title'); if (titleNode) titleNode.textContent = project?.name || '开始创作';
@@ -68,11 +72,20 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function createView() {
     const draft = drafts.get('new-project') || {name:'',description:''};
-    return `<div class="wf-panel"><h3>先为故事建一个空间</h3><p class="wf-muted">导入剧本或手工整理清单后，角色、场景和道具都会各自保留制作记录。</p><form data-wf-form="create" class="wf-compose"><label>项目名称<input name="name" maxlength="120" required value="${esc(draft.name)}" placeholder="例如：山间来信"></label><label>项目说明（可选）<textarea name="description" maxlength="4000">${esc(draft.description)}</textarea></label><div class="wf-actions"><button class="primary" type="submit">创建项目</button></div></form></div>`;
+    const quick = drafts.get('quick-start') || {text:''};
+    return `<section class="wf-panel wf-start"><p class="wf-eyebrow">ASSET LAB / 从剧本开始</p><h3>把故事放进来，<br>接下来的步骤交给工作台。</h3><p class="wf-muted">自动建立项目、提取资产清单、填写制作要求。你在关键节点确认清单和图片。</p><form data-wf-form="quick-start" class="wf-compose"><label>剧本正文<textarea name="text" rows="10" maxlength="250000" required placeholder="粘贴你的剧本，例如：&#10;《山间来信》&#10;角色：林舟、阿宁&#10;场景：旧书店&#10;道具：信封&#10;林舟：这封信，是留给你的。">${esc(quick.text)}</textarea></label><div class="wf-actions"><button class="primary" type="submit">开始制作 →</button><label class="wf-link">或导入剧本文件<input data-wf-quick-upload type="file" accept=".txt,.md,.docx" hidden></label><span class="wf-muted">TXT / MD / DOCX · 最大 8 MiB</span></div></form><ol class="wf-roadmap"><li>拆出清单</li><li>确定风格</li><li>制作资产</li><li>精修审核</li><li>下载交付</li></ol><p class="wf-muted">当前提供本地规则拆解，适用于有角色、场景与对白标记的剧本。图片制作需要 LibTV 创作授权及生成服务就绪。</p><details><summary>手工创建项目</summary><form data-wf-form="create" class="wf-compose"><label>项目名称<input name="name" maxlength="120" required value="${esc(draft.name)}"></label><label>项目说明（可选）<textarea name="description" maxlength="4000">${esc(draft.description)}</textarea></label><div><button type="submit">创建空项目</button></div></form></details></section>`;
+  }
+  function guideView() {
+    const next = guide(), labels = {plan:plan.entities.length?'确认清单并继续':'补充资产清单',connect:'连接 / 选择账号',review:'查看图片并审核',prepare:'一键继续制作',confirm:'核对并继续',recover:'查询原任务',archive:'整理交付包',download:'下载全部资产',import:'导入剧本'};
+    const unavailable = ['prepare','confirm'].includes(next.kind) && session.features?.imageGeneration !== true;
+    const total = plan.entities.length * 3;
+    const done = assets.flatMap(a=>a.revisions).filter(r=>r.status==='ready'&&r.review==='approved'&&belongsToSelection(r,session.selection)).length;
+    return `<section class="wf-panel wf-guide" aria-label="一键制作进度"><div><p class="wf-eyebrow">${unavailable?'制作服务待就绪':'接下来只需这一步'}</p><h3>${esc(next.title)}</h3><p class="wf-muted">${esc(next.detail)}</p>${total?`<p class="wf-muted">${Math.min(done,total)} / ${total} 个制作环节已审核</p>`:''}${unavailable?'<p class="wf-note">这个版本的图片生成服务尚未开放。剧本和清单已保存，服务接通后从这里继续。</p>':''}</div><div class="wf-actions">${next.kind==='download'?`<a class="wf-link primary" href="${esc(path(`/projects/${encodeURIComponent(selected)}/bundles/${encodeURIComponent(next.bundle.id)}/content`))}">下载全部资产 ↓</a>`:next.kind==='blocked'?'<button data-wf-nav="review">查看任务与素材</button>':`<button class="primary" data-wf-action="continue" ${busy||unavailable?'disabled':''}>${labels[next.kind]||'继续'}</button>`}${next.kind==='recover'?'<span class="wf-muted">页面保持打开时自动查询</span>':''}</div></section>`;
   }
   function planView() {
     const draft = drafts.get(planKey());
-    const header = `<section class="wf-panel"><h3>剧本与资产清单</h3><div class="wf-actions"><label class="wf-link">导入剧本<input data-wf-upload type="file" accept=".txt,.md,.docx" hidden></label><button type="button" data-wf-action="edit-plan">${plan.entities.length ? '编辑资产清单' : '手工填写清单'}</button><button type="button" disabled title="分析模型尚未接入">自动分析尚未接入</button></div><p class="wf-muted">TXT / Markdown / DOCX · 单文件 ≤ 8 MiB。导入只保存原文，不代表分析完成。</p><div class="wf-note">分析模型尚未接入。可以先核对原文，手工建立角色、场景和道具档案。</div>${scripts.map(s=>`<details><summary>${esc(s.filename)} · ${s.characters.toLocaleString()} 字 · 原文已保存</summary><pre class="wf-script">${esc(s.text)}</pre></details>`).join('')}</section>`;
+    const warnings = [...new Set(scripts.flatMap(s=>s.analysis?.warnings||[]))];
+    const header = `<section class="wf-panel"><h3>剧本与资产清单</h3><div class="wf-actions"><label class="wf-link">导入剧本<input data-wf-upload type="file" accept=".txt,.md,.docx" hidden></label><button type="button" data-wf-action="edit-plan">${plan.entities.length ? '编辑资产清单' : '手工填写清单'}</button>${scripts.length&&!plan.entities.length?'<button type="button" data-wf-action="analyze">按剧本标记自动拆解</button>':''}</div><p class="wf-muted">TXT / Markdown / DOCX · 单文件 ≤ 8 MiB。每项原文依据可以在清单中核对。</p>${warnings.length?`<div class="wf-note">${warnings.map(w=>esc(w)).join('<br>')}</div>`:''}${scripts.map(s=>`<details><summary>${esc(s.filename)} · ${s.characters.toLocaleString()} 字 · 原文已保存</summary><pre class="wf-script">${esc(s.text)}</pre></details>`).join('')}</section>`;
     if (editing || draft) return header + planEditor(draft || {expectedVersion:plan.version, entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});
     const archives = buildCustomerArchives(assets,plan);
     return header + (archives.length ? `<div class="wf-section-title"><h3>本项目档案</h3><span class="wf-muted">${archives.length} 项 · 未生成的条目也保留在这里</span></div><div class="wf-grid">${archives.map(a=>archiveCard(a)).join('')}</div>` : empty('先整理故事里有什么','无需等待模型分析，手工清单也可以直接进入逐步制作。'));
@@ -152,7 +165,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
         api.request(`/projects/${encodeURIComponent(projectId)}/plan`),
         api.request(`/projects/${encodeURIComponent(projectId)}/assets`),
         api.request(`/projects/${encodeURIComponent(projectId)}/bundles`),
-        api.request(`/tasks?projectId=${encodeURIComponent(projectId)}`).then(value=>({ok:true,value}),e=>({ok:false,error:e})),
+        loadTasks(projectId).then(value=>({ok:true,value}),e=>({ok:false,error:e})),
       ]);
       if(!alive||serial!==requestSerial||projectId!==selected)return;
       [plan]=replies;assets=replies[1].items||[];coverage=replies[1].coverage||{total:plan.entities.length,ready:0,complete:false};bundles=replies[2].items||[];
@@ -162,7 +175,47 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       if(selectedEntity && !plan.entities.some(e=>e.id===selectedEntity))selectedEntity='';
       persist('selectedProject',selected);emitProject();
     } catch(e) {if(alive&&serial===requestSerial)error=e.message||'读取项目失败，编辑草稿已保留。';}
-    finally {if(alive&&serial===requestSerial){loading=false;render();}}
+    finally {if(alive&&serial===requestSerial){loading=false;render();scheduleFlow();}}
+  }
+  async function loadTasks(projectId) {
+    let cursor, items=[];
+    for(let i=0;i<50;i++){
+      const result=await api.request(`/tasks?projectId=${encodeURIComponent(projectId)}&limit=100${cursor?'&cursor='+encodeURIComponent(cursor):''}`);
+      items.push(...(result.items||[]));if(!result.nextCursor)return {items};cursor=result.nextCursor;
+    }
+    throw new Error('任务记录较多，尚未读取完整；已暂停准备新任务。');
+  }
+  function scheduleFlow() {
+    clearTimeout(flowTimer);
+    if(!alive||!project||editing||!drafts.get(`flow:${selected}`)||guide().kind!=='recover')return;
+    flowTimer=setTimeout(()=>{if(alive&&!busy&&!loading&&doc.visibilityState!=='hidden')void continueFlow();else scheduleFlow();},8000);
+  }
+  async function continueFlow() {
+    if(busy||loading||!project)return;
+    persist(`flow:${selected}`,true);
+    const next=guide();
+    if(next.kind==='plan'){
+      if(!plan.entities.length||drafts.get(planKey())){editing=true;if(!drafts.get(planKey()))persist(planKey(),{expectedVersion:plan.version,entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});return navigate('plan');}
+      await perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/plan`,{method:'PUT',body:{expectedVersion:plan.version,entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt}});await load();});
+      if(!error)continueAfterReview();return;
+    }
+    if(next.kind==='connect'){events.dispatchEvent(new CustomEvent('workflow:connect'));announce(next.detail);return;}
+    if(next.kind==='import'){root.querySelector('[data-wf-upload]')?.click();return;}
+    if(next.kind==='review'){selectedEntity=next.entity.id;page='review';persist('selectedEntity',selectedEntity);persist('page',page);return openReview(next.revision.id);}
+    if(['prepare','confirm'].includes(next.kind)&&session.features?.imageGeneration!==true){announce('图片制作服务尚未开放，剧本与清单已保存。');return;}
+    if(next.kind==='prepare')return perform(async()=>{
+      const revision=session.selection.revision, idempotencyKey=await prepareIdentity(next.spec,revision,
+        {entityVersion:next.entity.version,styleVersion:plan.styleVersion});
+      prepared=await api.request('/tasks/prepare',{method:'POST',body:{...next.spec,expectedSelectionRevision:revision},idempotencyKey});
+      selectedEntity=next.entity.id;page=next.stage;await load();
+      if(!prepared.confirmation){announce(prepared.task?.error?.message||'制作尚未就绪，请核对任务状态。');prepared=null;}
+    });
+    if(next.kind==='confirm')return perform(async()=>{prepared=await api.request(`/tasks/${encodeURIComponent(next.task.id)}/confirm`,{method:'POST',body:{expectedVersion:next.task.version}});await load();});
+    if(next.kind==='recover')return perform(async()=>{await api.request(`/tasks/${encodeURIComponent(next.task.id)}/recover`,{method:'POST',body:{expectedVersion:next.task.version}});await load();});
+    if(next.kind==='archive')return perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/bundles`,{method:'POST',body:{expectedVersion:project.version}});page='delivery';persist('page',page);await load();});
+  }
+  function continueAfterReview() {
+    if(drafts.get(`flow:${selected}`))setTimeout(()=>{if(alive&&!busy)void continueFlow();},0);
   }
   async function perform(operation) {
     if(busy)return;busy=true;error='';render();
@@ -196,9 +249,10 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(decision==='changes_requested'&&note.trim().length<4){error='请填写至少 4 个字的具体返修意见。';render();return;}
     await perform(async()=>{
       await api.request(`/assets/${encodeURIComponent(asset.id)}/reviews`,{method:'POST',body:{revisionId:r.id,sha256:r.sha256,decision,note,expectedVersion:asset.version}});
-      removeDraft(`review:${r.id}`);reviewId=null;announce(decision==='approved'?'这一版已保留。下一步仍需单独准备与确认。':'返修意见已保存；尚未发起新的生成。');
+      removeDraft(`review:${r.id}`);reviewId=null;announce(decision==='approved'?'这一版已保留，将按项目进度继续。':'返修意见已保存；尚未发起新的生成。');
       events.dispatchEvent(new CustomEvent('workflow:reviewed',{detail:{projectId:selected,assetId:asset.id,revisionId:r.id,decision}}));await load();
     });
+    if(!error)continueAfterReview();
   }
   function repair(id) {
     const asset=assets.find(a=>a.revisions.some(r=>r.id===id)),r=asset?.revisions.find(r=>r.id===id);if(!r)return;
@@ -222,22 +276,47 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       page='plan';persist('page',page);announce(result.duplicate?'这份剧本已保存，已恢复原记录。':'剧本原文已保存。分析模型尚未接入，可以手工整理清单。');await load();
     });
   }
+  async function startFromFile(file) {
+    if(!file)return;
+    if(!/\.(txt|md|docx)$/i.test(file.name)||file.size>8*1024*1024||!file.size){error='请选择不超过 8 MiB 的 TXT、MD 或 DOCX 文件。';render();return;}
+    await perform(async()=>{
+      const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode(...bytes.subarray(offset,offset+8192));
+      const source={filename:file.name,contentBase64:btoa(binary)};
+      // Content identity survives a lost response without storing a large file in localStorage.
+      await quickStart({...source,idempotencyKey:await prepareIdentity(source,0)});
+    });
+  }
+  async function quickStart(body) {
+    const result=await api.request('/workflow/start',{method:'POST',body});
+    project=result.project;selected=project.id;creating=false;page='plan';editing=false;
+    if(drafts.get('quick-start')?.text===body.text)removeDraft('quick-start');
+    persist('selectedProject',selected);persist('page',page);persist(`flow:${selected}`,true);
+    announce(result.duplicate?'已恢复这份剧本的项目。':'项目和剧本已保存，资产初稿已建立，请核对后继续。');await load();
+    root.querySelector('.wf-guide')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
   function onInput(event) {
     const target=event.target;if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId}`,{note:target.value});return;}
     const form=target.closest('[data-wf-form]');if(!form)return;
     if(form.dataset.wfForm==='plan')persist(planKey(),capturePlan(form));
     if(form.dataset.wfForm==='compose')persist(composeKey(),captureCompose(form));
     if(form.dataset.wfForm==='create')persist('new-project',Object.fromEntries(new FormData(form)));
+    if(form.dataset.wfForm==='quick-start')persist('quick-start',{text:form.elements.text.value,idempotencyKey:key()});
   }
   async function onSubmit(event) {
     const form=event.target.closest('[data-wf-form]');if(!form)return;event.preventDefault();
+    if(form.dataset.wfForm==='quick-start'){
+      const saved=drafts.get('quick-start'),text=form.elements.text.value;
+      const body={text,idempotencyKey:(saved?.text===text&&saved.idempotencyKey)||key()};persist('quick-start',body);
+      return perform(()=>quickStart(body));
+    }
     if(form.dataset.wfForm==='create'){
       const body=Object.fromEntries(new FormData(form));persist('new-project',body);
       return perform(async()=>{project=await api.request('/projects',{method:'POST',body});selected=project.id;creating=false;removeDraft('new-project');page='plan';persist('page',page);announce('项目已保存，可以导入剧本或填写清单。');await load();});
     }
     if(form.dataset.wfForm==='plan'){
       const body=capturePlan(form);persist(planKey(),body);
-      return perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/plan`,{method:'PUT',body});removeDraft(planKey());editing=false;announce('清单已保存，所有档案已建立。');await load();});
+      await perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/plan`,{method:'PUT',body});removeDraft(planKey());editing=false;announce('清单已保存，所有档案已建立。');await load();});
+      if(!error)continueAfterReview();return;
     }
     if(form.dataset.wfForm==='compose'){
       const draft=drafts.get(composeKey())||getCompose();persist(composeKey(),draft);
@@ -255,6 +334,11 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(button.dataset.wfRemove!==undefined){const draft=drafts.get(planKey());if(draft){draft.entities.splice(Number(button.dataset.wfRemove),1);persist(planKey(),draft);render();}return;}
     if(button.dataset.wfRecover){const task=tasks.find(t=>t.id===button.dataset.wfRecover);if(!task)return;return perform(async()=>{await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version}});announce('已查询原任务；没有重新发起生成。');await load();});}
     const action=button.dataset.wfAction;
+    if(action==='continue')return continueFlow();
+    if(action==='analyze')return perform(async()=>{
+      await api.request(`/projects/${encodeURIComponent(selected)}/scripts/${encodeURIComponent(scripts.at(-1).id)}/analyze`,{method:'POST',body:{expectedVersion:plan.version}});
+      await load();editing=false;announce('已生成本地拆解初稿，请核对。');
+    });
     if(action==='refresh')return load();
     if(action==='new-project'){creating=true;project=null;selected='';selectedEntity='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};reviewId=null;prepared=null;render();root.querySelector('input[name=name]')?.focus();return;}
     if(action==='edit-plan'){editing=true;if(!drafts.get(planKey()))persist(planKey(),{expectedVersion:plan.version,entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});render();return;}
@@ -271,6 +355,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const target=event.target;
     if(target.matches('[data-wf-project]'))return switchProject(target.value);
     if(target.matches('[data-wf-upload]'))return upload(target.files?.[0]);
+    if(target.matches('[data-wf-quick-upload]'))return startFromFile(target.files?.[0]);
     if(target.matches('[data-wf-entity-select]')){selectedEntity=target.value;persist('selectedEntity',selectedEntity);render();}
     if(target.matches('[data-wf-review-entity]')){selectedEntity=target.value;reviewId=null;render();}
     if(target.name==='sourceRevisionId'){const form=target.closest('form');persist(composeKey(),captureCompose(form));render();}
@@ -293,7 +378,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   listen(events,'tasks:changed',()=>{clearTimeout(timer);timer=setTimeout(()=>{if(alive&&!busy)load();},150);});
   listen(events,'workflow:flush-drafts',e=>{const pending=flushDrafts();if(typeof e.detail?.waitUntil==='function')e.detail.waitUntil(pending);else pending.catch(err=>{error=err.message;render();});});
   listen(doc.defaultView,'beforeunload',e=>{try{drafts.flush();}catch{e.preventDefault();e.returnValue='';}if(busy){e.preventDefault();e.returnValue='';}});
-  function unmount(){alive=false;requestSerial++;clearTimeout(timer);listeners.forEach(remove=>remove());stylesheet.remove();root.replaceChildren();for(const id of ['warehouseList','review-summary-root'])doc.getElementById(id)?.replaceChildren();const chooser=doc.getElementById('scriptSelect');if(chooser)chooser.replaceChildren();}
+  function unmount(){alive=false;requestSerial++;clearTimeout(timer);clearTimeout(flowTimer);delete doc.body.dataset.workflowMounted;listeners.forEach(remove=>remove());stylesheet.remove();root.replaceChildren();for(const id of ['warehouseList','review-summary-root'])doc.getElementById(id)?.replaceChildren();const chooser=doc.getElementById('scriptSelect');if(chooser)chooser.replaceChildren();}
   const ready=load({initial:true});
   return {unmount,ready,refresh:load,flushDrafts,hasUnsavedChanges:dirty,getState:()=>({projectId:selected,page,dirty:dirty(),busy,saveError})};
 }

@@ -96,6 +96,7 @@ class ProviderService:
                                   'expiresAt': utc(account['expiresAtEpoch']) if account['expiresAtEpoch'] else None,
                                   'lastVerifiedAt': account['lastVerifiedAt'], 'reason': account.get('reason')},
                 'capabilities': {'authorize': True, 'spaces': bool(self.account_reader.available), 'quota': False},
+                'grantedScopes': list(account.get('grantedScopes', [])),
                 'removedAt': account['removedAt']}
 
     def list_accounts(self, ctx):
@@ -128,29 +129,42 @@ class ProviderService:
                 raise AuthError('NOT_FOUND')
             return self._attempt_result(attempt)
 
-    def _client(self, ctx, metadata):
+    def _oauth_profile(self, profile):
+        if profile == 'account':
+            return self.oauth
+        if profile != 'creator':
+            raise AuthError('VALIDATION_FAILED')
+        from dataclasses import replace
+        from ..providers.libtv_oauth import LibTVOAuth
+        return LibTVOAuth(replace(self.oauth.config, scopes=('libtv:account:read', 'libtv:project:read',
+            'libtv:project:write', 'libtv:media:write', 'libtv:task:write', 'libtv:export:write')), self.oauth.http)
+
+    def _client(self, ctx, metadata, oauth=None, profile='account'):
+        oauth = oauth or self.oauth
+        registration_key = 'registration' if profile == 'account' else 'registration_creator'
         tenant, _ = require_context(ctx)
         if self.registration:
-            self.oauth.validate_registration(self.registration, metadata)
+            oauth.validate_registration(self.registration, metadata)
             client = self.registration
         else:
             with self.repository.transaction(ctx) as raw:
-                saved = self._state(ctx, raw).get('registration')
-                private = self.codec.open(saved, binding=binding(tenant, 'client', 'registration')) if saved else None
-            if private and private.get('redirect_uri') == self.oauth.config.redirect_uri:
+                saved = self._state(ctx, raw).get(registration_key)
+                private = self.codec.open(saved, binding=binding(tenant, 'client', registration_key)) if saved else None
+            if private and private.get('redirect_uri') == oauth.config.redirect_uri:
                 client = ClientRegistration(**private)
             else:
-                client = self.oauth.register(metadata)
-                sealed = self.codec.seal(client.secret_value(), binding=binding(tenant, 'client', 'registration'))
+                client = oauth.register(metadata)
+                sealed = self.codec.seal(client.secret_value(), binding=binding(tenant, 'client', registration_key))
                 with self.repository.transaction(ctx) as raw:
-                    self._state(ctx, raw)['registration'] = sealed
-            self.oauth.validate_registration(client, metadata)
+                    self._state(ctx, raw)[registration_key] = sealed
+            oauth.validate_registration(client, metadata)
         if client.secret_expires_at and client.secret_expires_at <= self.clock():
             raise AuthError('PROVIDER_UNCONFIGURED')
         return client
 
     def begin_authorization(self, ctx, providerAccountId=None, returnPath='/', expectedVersion=None,
-                            intent='connect', purpose=None, hasUnsavedChanges=None, workspaceLabel='我的工作区'):
+                            intent='connect', purpose=None, hasUnsavedChanges=None, workspaceLabel='我的工作区',
+                            authorizationProfile='account'):
         tenant, session = mutate_context(ctx)
         if returnPath not in self.oauth.config.return_paths:
             raise AuthError('VALIDATION_FAILED')
@@ -165,6 +179,9 @@ class ProviderService:
             raise AuthError('VALIDATION_FAILED')
         if intent != 'connect' and self.workspace_recovery is None:
             raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
+        if intent != 'connect' and authorizationProfile != 'account':
+            raise AuthError('VALIDATION_FAILED')
+        oauth = self._oauth_profile(authorizationProfile)
         with self.repository.transaction(ctx) as raw:
             state = self._state(ctx, raw)
             self._expire(state)
@@ -176,8 +193,8 @@ class ProviderService:
                 if type(expectedVersion) is not int or account['version'] != expectedVersion:
                     raise AuthError('VERSION_CONFLICT')
                 target_subject = account['identity']['subject']
-        metadata = self.oauth.discover()
-        client = self._client(ctx, metadata)
+        metadata = oauth.discover()
+        client = self._client(ctx, metadata, oauth, authorizationProfile)
         nonce, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(64)
         attempt_id, now = 'oa_' + secrets.token_urlsafe(18), self.clock()
         expires = now + self.oauth.config.attempt_ttl_seconds
@@ -188,11 +205,12 @@ class ProviderService:
                 authorization_attempt_id=attempt_id, oauth_state_hash=digest(nonce),
                 has_unsaved_changes=hasUnsavedChanges, workspace_label=workspaceLabel)
         try:
-            private = {'verifier': verifier, 'metadata': metadata, 'client': client.secret_value()}
+            private = {'verifier': verifier, 'metadata': metadata, 'client': client.secret_value(),
+                       'authorizationProfile': authorizationProfile}
             if owner_request:
                 private['ownerIntent'] = {'id': owner_request.intent_id, 'nonce': owner_request.nonce}
             sealed = self.codec.seal(private, binding=binding(tenant, 'attempt', attempt_id))
-            authorization_url = self.oauth.authorization_url(metadata, client, nonce, verifier)
+            authorization_url = oauth.authorization_url(metadata, client, nonce, verifier)
             with self.repository.transaction(ctx) as raw:
                 state = self._state(ctx, raw)
                 self._expire(state)
@@ -333,7 +351,8 @@ class ProviderService:
             if private['metadata'].get('authorization_response_iss_parameter_supported') and callback['iss'] != ISSUER:
                 raise AuthError('AUTHORIZATION_STATE_INVALID')
             client = ClientRegistration(**private['client'])
-            tokens = self.oauth.exchange(private['metadata'], client, callback['code'], private['verifier'], self.clock())
+            oauth = self._oauth_profile(private.get('authorizationProfile', 'account'))
+            tokens = oauth.exchange(private['metadata'], client, callback['code'], private['verifier'], self.clock())
             code_exchanged_at = self.clock()
             identity = self.verifier.verify(tokens)
             identity_verified_at = self.clock()
@@ -375,6 +394,7 @@ class ProviderService:
                                                'displayName': name, 'verified': True},
                     'authorizationState': 'connected', 'expiresAtEpoch': tokens['expires_at'],
                     'lastVerifiedAt': utc(self.clock()), 'removedAt': None, 'reason': None,
+                    'grantedScopes': sorted(tokens.get('scope', '').split()),
                     'private': self.codec.seal(bundle, binding=binding(tenant, 'account', account_id)),
                     'refreshClaim': None}
                 state['accounts'][account_id] = account
@@ -458,6 +478,7 @@ class ProviderService:
                 bundle['tokens'] = tokens
                 account.update(private=self.codec.seal(bundle, binding=binding(tenant, 'account', account_id)),
                                expiresAtEpoch=tokens['expires_at'], refreshClaim=None, authorizationState='connected',
+                               grantedScopes=sorted(tokens.get('scope', '').split()),
                                lastVerifiedAt=utc(self.clock()), reason=None, version=version + 1)
                 return bundle, copy.deepcopy(account['identity'])
         except Exception as err:

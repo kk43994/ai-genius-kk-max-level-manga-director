@@ -46,8 +46,8 @@ def register_routes(router, services):
                 or any(value is not None and (not isinstance(value, str) or len(value) > 200)
                        for value in selection.values())):
             raise invalid()
-        allowed = {"selectedProject", "selectedEntity", "page", "new-project"}
-        if any(key not in allowed and not key.startswith(("plan:", "compose:", "review:"))
+        allowed = {"selectedProject", "selectedEntity", "page", "new-project", "quick-start"}
+        if any(key not in allowed and not key.startswith(("plan:", "compose:", "review:", "flow:"))
                for key in content["workflow"]):
             raise invalid("草稿包含不支持的字段")
         if len(json.dumps(content, ensure_ascii=False).encode()) > 2 * 1024 * 1024:

@@ -77,6 +77,33 @@ class AuthorizationTests(unittest.TestCase):
         self.assertEqual('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
             pkce_challenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'))
 
+    def test_creator_scope_is_explicit_and_survives_callback_restart(self):
+        from backend.providers.libtv_oauth import SCOPES
+        self.http.metadata['scopes_supported'] = sorted(SCOPES)
+        attempt = self.begin(authorizationProfile='creator')
+        query = parse_qs(urlsplit(attempt['authorizationUrl']).query)
+        self.assertEqual(set(query['scope'][0].split()), set(SCOPES))
+        self.assertEqual(self.oauth.config.scopes, ('libtv:account:read',))
+        self.http.override[ISSUER+'token'] = HTTPResult(200, {'access_token':'synthetic-creator',
+            'refresh_token':'synthetic-refresh', 'expires_in':3600, 'token_type':'Bearer', 'scope':' '.join(sorted(SCOPES))})
+        self.service = self.new_service()
+        outcome = self.complete(attempt)
+        self.assertEqual(outcome['status'], 'completed')
+        account = self.service.get_account(self.ctx, outcome['providerAccountId'])
+        self.assertEqual(set(account['grantedScopes']), set(SCOPES))
+        ordinary = self.begin()
+        self.assertEqual(parse_qs(urlsplit(ordinary['authorizationUrl']).query)['scope'], ['libtv:account:read'])
+
+    def test_creator_callback_with_only_read_scope_is_not_connected(self):
+        from backend.providers.libtv_oauth import SCOPES
+        self.http.metadata['scopes_supported'] = sorted(SCOPES)
+        outcome = self.complete(self.begin(authorizationProfile='creator'))
+        self.assertEqual(outcome['status'], 'failed')
+        self.assertEqual(self.service.list_accounts(self.ctx)['items'], [])
+
+    def test_unknown_profile_cannot_expand_scope(self):
+        self.assertCode('VALIDATION_FAILED', lambda:self.begin(authorizationProfile='administrator'))
+
     def test_callback_completes_after_server_restart_without_plaintext_secrets(self):
         attempt = self.begin()
         self.service = self.new_service()

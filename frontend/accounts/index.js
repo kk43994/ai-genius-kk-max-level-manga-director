@@ -42,10 +42,11 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
         <div class="al-accounts__heading"><p class="al-accounts__eyebrow">账户与工作空间</p><h2 id="${prefix}-title">LibTV 账号</h2></div>
         <button type="button" data-action="refresh" class="al-accounts__button al-accounts__button--quiet">刷新状态</button>
         <button type="button" data-action="add" class="al-accounts__button al-accounts__button--primary">＋ 添加账号</button>
+        <button type="button" data-action="add-creator" class="al-accounts__button al-accounts__button--quiet">授权图片创作</button>
       </header>
       <div data-view="owner-root"></div>
       <h3 class="al-accounts__generation-title">生成账号</h3>
-      <p class="al-accounts__intro">以下账号用于资产制作。在 LibTV 官方页面登录授权，再选择个人或团队空间；添加生成账号不会绑定工作区主账号。</p>
+      <p class="al-accounts__intro">在 LibTV 官方页面登录，再选择个人或团队空间。连接账号仅申请账号读取；开启创作权限会另行申请项目、图片生成、参考图上传与素材导出。授权本身不会发起生成。</p>
       <p class="al-accounts__notice" data-view="notice" hidden></p>
       <div data-view="status" class="al-accounts__status" role="status" aria-live="polite" aria-atomic="true"></div>
       <div data-view="error" class="al-accounts__error" role="alert" aria-atomic="true" hidden></div>
@@ -78,7 +79,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   if (localClient) {
     buttons.add.textContent = '授权 LibTV';
     root.querySelector('.al-accounts__generation-title').textContent = '连接我的 LibTV';
-    root.querySelector('.al-accounts__intro').textContent = '点击授权 → 在 LibTV 官方页面登录并确认 → 自动连接账号与空间。此次仅读取账号信息，不会上传素材或发起生成。';
+    root.querySelector('.al-accounts__intro').textContent = '点击授权 → 在 LibTV 官方页面登录并确认 → 选择账号与空间。首次连接仅读取账号；需要制作时，点击该账号的“开启创作权限”，核对项目、生成、上传与导出权限。授权不会自动开始生成。';
     refs['owner-root'].hidden = true;
   }
   const text = (name, value) => { if (refs[name].textContent !== value) refs[name].textContent = value; };
@@ -161,12 +162,13 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     notice = !canAuthorize() ? 'LibTV 网页授权暂未开放。已保存的项目与素材可继续查看；入口开放后可直接在网页添加账号。' : '';
     refs.notice.hidden = !notice; text('notice', notice);
     buttons.add.disabled = blocked() || !canAuthorize();
+    buttons['add-creator'].disabled = blocked() || !canAuthorize();
     buttons.refresh.disabled = Boolean(loading || busy || ownerModule?.isActive());
     refs.accounts.setAttribute('aria-busy', String(loading));
     text('count', loading ? '正在读取…' : `${accounts.length} 个账号`);
     const cards = accounts.map(a => {
       const state = accountState(a), name = accountName(a), selected = a.id === selection().providerAccountId;
-      return `<article class="al-accounts__card ${selected ? 'al-accounts__card--selected' : ''}"><div class="al-accounts__avatar" aria-hidden="true">${e(name.slice(0, 1))}</div><div class="al-accounts__card-info"><div class="al-accounts__row"><h4>${e(name)}</h4><span class="al-accounts__badge" data-state="${e(state)}">${accountLabels[state]}</span>${selected ? '<span class="al-accounts__current-tag">当前</span>' : ''}</div><p>${a.identity?.verified ? '官方身份已验证' : '官方身份尚未验证'}${a.identity?.displayName && a.identity.displayName !== name ? ` · ${e(a.identity.displayName)}` : ''}</p></div><div class="al-accounts__actions"><button type="button" class="al-accounts__button al-accounts__button--quiet" data-action="choose" data-id="${e(a.id)}" ${blocked() || state !== 'connected' ? 'disabled' : ''} aria-label="选择账号 ${e(name)}">选择</button><button type="button" class="al-accounts__button al-accounts__button--quiet" data-action="reauthorize" data-id="${e(a.id)}" ${blocked() || !canAuthorize() || a.capabilities?.authorize !== true ? 'disabled' : ''} aria-label="重新授权 ${e(name)}">重新授权</button><button type="button" class="al-accounts__button al-accounts__button--quiet" data-action="remove" data-id="${e(a.id)}" ${blocked() ? 'disabled' : ''} aria-label="移除账号 ${e(name)}">移除</button></div></article>`;
+      return `<article class="al-accounts__card ${selected ? 'al-accounts__card--selected' : ''}"><div class="al-accounts__avatar" aria-hidden="true">${e(name.slice(0, 1))}</div><div class="al-accounts__card-info"><div class="al-accounts__row"><h4>${e(name)}</h4><span class="al-accounts__badge" data-state="${e(state)}">${accountLabels[state]}</span>${selected ? '<span class="al-accounts__current-tag">当前</span>' : ''}</div><p>${a.identity?.verified ? '官方身份已验证' : '官方身份尚未验证'}${a.identity?.displayName && a.identity.displayName !== name ? ` · ${e(a.identity.displayName)}` : ''}</p></div><div class="al-accounts__actions"><button type="button" class="al-accounts__button al-accounts__button--quiet" data-action="choose" data-id="${e(a.id)}" ${blocked() || state !== 'connected' ? 'disabled' : ''} aria-label="选择账号 ${e(name)}">选择</button><button type="button" class="al-accounts__button al-accounts__button--quiet" data-action="reauthorize" data-id="${e(a.id)}" ${blocked() || !canAuthorize() || a.capabilities?.authorize !== true ? 'disabled' : ''} aria-label="重新授权 ${e(name)}">重新授权</button><button type="button" class="al-accounts__button al-accounts__button--quiet" data-action="creator" data-id="${e(a.id)}" ${blocked() || !canAuthorize() || a.capabilities?.authorize !== true ? 'disabled' : ''}>${a.grantedScopes?.includes('libtv:task:write') ? '更新创作权限' : '开启创作权限'}</button><button type="button" class="al-accounts__button al-accounts__button--quiet" data-action="remove" data-id="${e(a.id)}" ${blocked() ? 'disabled' : ''} aria-label="移除账号 ${e(name)}">移除</button></div></article>`;
     }).join('') || `<div class="al-accounts__empty"><span aria-hidden="true">◎</span><strong>${loading ? '正在读取账号' : '添加你的第一个 LibTV 账号'}</strong><p>${loading ? '稍等片刻，正在恢复账号状态。' : '授权完成后，个人与团队空间会分别显示在下方。'}</p></div>`;
     if (cards !== cardsSignature) {
       const focused = document.activeElement;
@@ -328,7 +330,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     } catch { popup = null; }
   }
 
-  async function beginAuthorization(accountId = null) {
+  async function beginAuthorization(accountId = null, authorizationProfile = 'account') {
     if (blocked() || !canAuthorize()) return;
     const account = accounts.find(a => a.id === accountId);
     if (accountId && (!account || account.capabilities?.authorize !== true)) return;
@@ -338,6 +340,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     try {
       const path = accountId ? `/provider-accounts/${idPath(accountId)}/reauthorize` : '/provider-accounts/authorize';
       const body = accountId ? { expectedVersion: account.version, returnPath } : { provider: 'libtv', returnPath };
+      if (authorizationProfile === 'creator') body.authorizationProfile = 'creator';
       const begin = async () => {
         // A browser lock plus the shared non-secret attempt marker prevents parallel tabs
         // from starting another attempt while the first tab's POST is in flight.
@@ -443,7 +446,9 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     const action = button.dataset.action;
     if (action === 'refresh') void refresh();
     else if (action === 'add') void beginAuthorization();
+    else if (action === 'add-creator') void beginAuthorization(null, 'creator');
     else if (action === 'reauthorize') void beginAuthorization(button.dataset.id);
+    else if (action === 'creator') void beginAuthorization(button.dataset.id, 'creator');
     else if (action === 'choose') void chooseAccount(button.dataset.id).then(() => { if (!disposed && document.activeElement === button) refs.space.focus(); });
     else if (action === 'quota') void loadQuota();
     else if (action === 'check') void poll(true);

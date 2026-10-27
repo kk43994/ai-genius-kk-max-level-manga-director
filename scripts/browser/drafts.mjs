@@ -49,6 +49,7 @@ export class DraftCoordinator {
     const {workflow,accountSelection}=this.snapshot();
     return Boolean(accountSelection?.providerAccountId || accountSelection?.spaceId || workflow.selectedProject
       || Object.entries(workflow).some(([key,value]) => key.startsWith('plan:') || key.startsWith('compose:') || key.startsWith('review:')
+        || (key==='quick-start' && Boolean(value?.text?.trim()))
         || (key==='new-project' && Object.values(value || {}).some(text=>String(text).trim()))));
   }
   hasPending() { return this.conflict || Boolean(this.pendingSave) || ((this.version>0 || this.hasContent()) && encode(this.snapshot()) !== this.ack); }

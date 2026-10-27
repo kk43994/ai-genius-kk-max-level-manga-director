@@ -44,6 +44,10 @@ class StorageBridgeTests(unittest.TestCase):
 
     def test_account_is_immediately_visible_to_selection_repository(self):
         account = self.connect()
+        self.assertEqual(account['grantedScopes'], ['libtv:account:read'])
+        fresh_service = ProviderService(StorageAuthRepository(self.store), self.codec, self.oauth,
+            identity_verifier=self.verifier, clock=self.clock)
+        self.assertEqual(fresh_service.get_account(self.ctx, account['id'])['grantedScopes'], ['libtv:account:read'])
         self.assertEqual(account['identity'], AccountRepository(self.store).get(self.ctx, account['id'])['identity'])
         selections = SelectionRepository(self.store)
         selections.replace_spaces(self.ctx, account['id'], [{'id': 'synthetic-personal', 'kind': 'personal', 'name': '合成个人空间', 'access': 'available'}])

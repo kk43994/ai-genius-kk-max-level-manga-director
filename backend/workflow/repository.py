@@ -10,7 +10,7 @@ from contextlib import contextmanager
 
 from .errors import WorkflowError, conflict, tenant
 
-KINDS = ('projects', 'scripts', 'assets', 'revisions', 'bundles')
+KINDS = ('projects', 'scripts', 'assets', 'revisions', 'bundles', 'starts')
 
 
 class _View:

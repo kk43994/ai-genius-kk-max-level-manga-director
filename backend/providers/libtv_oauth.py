@@ -261,7 +261,7 @@ class LibTVOAuth:
         body = response.data
         access, refresh = body.get('access_token'), body.get('refresh_token')
         expires = body.get('expires_in')
-        scope = body.get('scope', ' '.join(self.config.scopes))
+        scope = body.get('scope', (previous or {}).get('scope', ' '.join(self.config.scopes)))
         if (not isinstance(access, str) or not access or len(access) > 32768
                 or not re.fullmatch(r'[A-Za-z0-9._~+/\-]+=*', access)
                 or str(body.get('token_type', '')).lower() != 'bearer'

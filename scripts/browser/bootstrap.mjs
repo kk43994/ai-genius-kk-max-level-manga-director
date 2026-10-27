@@ -112,16 +112,17 @@ events.addEventListener('shell:action',event=>{
     event.preventDefault();const dialog=document.getElementById('shell-info-dialog');
     document.getElementById('shell-info-title').textContent='使用资产实验室';
     const body=document.getElementById('shell-info-body');body.replaceChildren();
-    for(const text of ['先创建项目，导入 TXT、Markdown 或 DOCX 剧本，也可以手工建立角色、场景和道具清单。',
+    for(const text of ['粘贴剧本或导入 TXT、Markdown、DOCX，点击开始制作。工作台按剧本标记建立项目和资产初稿，核对清单后继续。',
       '工作区主所有者用于找回本站资料；创作账号与个人、团队空间用于明确新任务归属。切换选择不会改动历史任务。',
       '制作顺序是 MJ 风格 → Image2 资产 → Nano 精修。每一步先审核，再使用已确认版本继续；返修始终追溯原始 Image2。',
       '下载只包含已审核的成果。更新页面会先保存草稿，处理中的任务或下载会阻止刷新。',
-      config.mode==='local-client'?'本地版可点击“授权 LibTV”连接自己的账号。当前仅读取账号信息，收费生成和视频尚未开放。':'当前为集成预览，可以整理项目与保存草稿。官方连接、收费生成和视频尚未开放。']){
+      config.mode==='local-client'?'首次连接读取账号信息；制作需要在账号管理中另行开启创作权限。当前版本的收费生成与视频仍未开放。':'当前为集成预览，可以整理项目与保存草稿。官方连接、收费生成和视频尚未开放。']){
       const paragraph=document.createElement('p');paragraph.textContent=text;body.append(paragraph);
     }
     if(!dialog.open)dialog.showModal();
   }
 });
+events.addEventListener('workflow:connect',()=>openAccounts());
 events.addEventListener('provider-accounts:changed',event=>{
   const items=event.detail.items || []; shell.setView({connectionState:items.some(item=>item.authorization?.state==='connected')?'connected':'disconnected'});
 });
@@ -197,7 +198,7 @@ try {
   document.getElementById('update-root').replaceChildren();
   if(config.mode==='local-client') {
     const root=document.getElementById('update-root');
-    const note=document.createElement('p');note.textContent='本地连接预览 '+currentBuild.version+' · 仅开放 LibTV 账号读取，生成和自动安装更新尚未开放。';
+    const note=document.createElement('p');note.textContent='本地工作台 '+currentBuild.version+' · 支持剧本初稿拆解；创作权限需单独授权，图片生成与自动安装更新尚未开放。';
     const stop=document.createElement('button');stop.type='button';stop.textContent='退出本地工作台';
     stop.addEventListener('click',async()=>{
       stop.disabled=true;

@@ -35,21 +35,23 @@ def register_routes(router, services):
 
     def authorize(ctx, params):
         def run():
-            value = body(ctx, ('provider', 'returnPath', 'intent', 'purpose', 'hasUnsavedChanges', 'workspaceLabel'))
+            value = body(ctx, ('provider', 'returnPath', 'intent', 'purpose', 'hasUnsavedChanges', 'workspaceLabel', 'authorizationProfile'))
             owner_purpose = value.get('purpose') in ('bind_owner', 'recover_workspace') or value.get('intent') in ('bind_owner', 'recover')
             if value.get('provider', 'libtv' if owner_purpose else None) != 'libtv':
                 raise AuthError('VALIDATION_FAILED')
             return provider().begin_authorization(ctx, returnPath=value.get('returnPath', '/'),
                 intent=value.get('intent', 'connect'), purpose=value.get('purpose'),
                 hasUnsavedChanges=value.get('hasUnsavedChanges'),
-                workspaceLabel=value.get('workspaceLabel', '我的工作区'))
+                workspaceLabel=value.get('workspaceLabel', '我的工作区'),
+                authorizationProfile=value.get('authorizationProfile', 'account'))
         return respond(ctx, run)
 
     def reauthorize(ctx, params):
         def run():
-            value = body(ctx, ('expectedVersion', 'returnPath'))
+            value = body(ctx, ('expectedVersion', 'returnPath', 'authorizationProfile'))
             return provider().begin_authorization(ctx, providerAccountId=params['id'],
-                expectedVersion=value.get('expectedVersion'), returnPath=value.get('returnPath', '/'))
+                expectedVersion=value.get('expectedVersion'), returnPath=value.get('returnPath', '/'),
+                authorizationProfile=value.get('authorizationProfile', 'account'))
         return respond(ctx, run)
 
     def remove(ctx, params):

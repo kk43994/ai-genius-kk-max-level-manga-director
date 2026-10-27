@@ -31,6 +31,10 @@ def register_routes(router, services):
         router.add(method, '/api/v1' + path, handler)
 
     add('GET', '/workflow/capabilities', lambda c, p, b, q: workflow.capabilities())
+    from .quickstart import start, analyze
+    add('POST', '/workflow/start', lambda c, p, b, q: start(workflow, c, b))
+    add('POST', '/projects/{projectId}/scripts/{scriptId}/analyze', lambda c, p, b, q:
+        analyze(workflow, c, p['projectId'], p['scriptId'], b))
     add('GET', '/projects', lambda c, p, b, q: workflow.list_projects(c))
     add('POST', '/projects', lambda c, p, b, q: workflow.create_project(c, b))
     add('GET', '/projects/{projectId}', lambda c, p, b, q: workflow.get_project(c, p['projectId']))
