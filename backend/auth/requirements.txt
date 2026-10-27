@@ -1,0 +1,2 @@
+# Used only for server-side authenticated encryption; tested 2026-10-27.
+cryptography==50.0.2
