@@ -59,7 +59,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(501, {'error': '客户版模块尚未接入',
                                     'code': 'NOT_IMPLEMENTED', 'retryable': False})
         if route in ('/', '/index.html'):
-            route = '/dashixiong-scene-studio/asset-lab.html'
+            # Preserve the document's directory so its relative JS/CSS URLs resolve.
+            self.send_response(302)
+            self.send_header('Location', '/dashixiong-scene-studio/asset-lab.html')
+            self.send_header('Content-Length', '0')
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            return
         prefix = '/dashixiong-scene-studio/'
         if not route.startswith(prefix):
             return self.reply(404, {'error': '资源不存在', 'code': 'NOT_FOUND'})
@@ -110,4 +116,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

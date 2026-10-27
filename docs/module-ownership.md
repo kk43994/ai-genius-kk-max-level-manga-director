@@ -20,4 +20,3 @@
 后端统一模块边界：模块导出 `register_routes(router, services)`，调用 `router.add(method, pattern, handler)`；handler 接收 `RequestContext` 与参数，返回 `Response`。由第 10 会话提供最终 HTTP adapter，第 3 会话提供持久化/站点 session，第 2 会话提供 provider service。框架可选，但不得改变线上的 v1 JSON 契约；没有接入的路由保持明确 NOT_IMPLEMENTED，严禁静默假成功。
 
 前端模块导出 `mount({root, api, events, session})`，返回 `{unmount}`；动态状态通过 `events`（EventTarget）发 `session:changed`、`provider-accounts:changed`、`selection:changed`、`tasks:changed`、`release:changed`。第 5 会话提供 `#account-root`、`#task-root`、`#update-root` 容器，第 10 会话装配。第 8 会话将 legacy 调用集中迁到 api-client，不自行定义第二套账户状态。
-

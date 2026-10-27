@@ -31,4 +31,3 @@ python3 -m backend.app --port 8870
 从本仓库的已提交基线创建独立工作副本，不在用户主目录的 Git 中工作。各模块约定见 `docs/module-ownership.md` 和 `docs/api-contract.md`。运行数据必须配置到发布代码之外的 `ASSET_LAB_DATA_DIR`；发布和刷新升级应保留客户项目、素材、授权与未完成任务。示例 `.env.example` 只用于解释配置，不包含真实域名或凭据，也不被此离线入口自动读取。
 
 正式视频生成保持暂停；本轮不得提交任何收费任务。官方远程接入是否满足独立网站需求，以 `docs/libtv-official-evidence.md` 的实际证据为准。
-
