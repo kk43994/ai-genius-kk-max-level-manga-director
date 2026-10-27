@@ -56,7 +56,8 @@ async function listAllTasks() {
 }
 async function safety() {
   const tasks = await listAllTasks();
-  return {hasUnsavedChanges:drafts.hasPending() || pendingWrites > 0 || workflow.getState().busy,
+  const state = workflow.getState();
+  return {hasUnsavedChanges:drafts.hasPending() || pendingWrites > 0 || state.busy || Boolean(state.saveError),
     activeTasks:tasks.filter(task => running.has(task.status)).length, activeDownloads};
 }
 async function refreshTasks() {
