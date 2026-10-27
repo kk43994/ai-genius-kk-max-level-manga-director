@@ -492,7 +492,8 @@ class Application:
                     return_paths=tuple(dict.fromkeys(("/", config.public_base_path))),
                     allow_loopback_development=config.public_origin.startswith("http:")))
                 self.services.providers = module.ProviderService(
-                    StorageAuthRepository(self.services.storage), AesGcmSecretCodec({"v1": key}, "v1"), oauth)
+                    StorageAuthRepository(self.services.storage), AesGcmSecretCodec({"v1": key}, "v1"), oauth,
+                    workspace_recovery=self.services.get("workspace_recovery"))
         if name == "spaces" and isinstance(self.services.spaces, UnavailableService):
             selections = self.services.get("selections")
             if selections is None and not isinstance(self.services.storage, UnavailableService):
@@ -540,6 +541,8 @@ class Application:
             report = getattr(self.services.get(name), "readiness", None)
             try:
                 result = report() if callable(report) else {}
+                if name == "providers" and not isinstance(self.services.providers, UnavailableService):
+                    result = {"ready": False, "reason": "public_oauth_callback_unverified"}
                 if name in {"spaces", "workflow", "tasks"} and not isinstance(self.services.get(name), UnavailableService):
                     result = {"ready": True, "reason": "module_wired"}
                 if name == "releases" and self.services.releases is not None and not isinstance(self.services.releases, UnavailableService):
