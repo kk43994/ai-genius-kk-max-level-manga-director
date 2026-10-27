@@ -19,10 +19,26 @@ AUTH_CODES = frozenset({
     "PROVIDER_IDENTITY_MISMATCH", "AUTHORIZATION_REQUIRED", "SPACE_UNAVAILABLE",
 })
 
+PREPARATION_CODES = {
+    "PROVIDER_SCOPE_REQUIRED":"原账号缺少此操作所需权限，请先核对授权范围。",
+    "PROVIDER_SCOPE_UNAVAILABLE":"原账号缺少此操作所需权限，请先核对授权范围。",
+    "PROVIDER_TOOL_SCHEMA_REQUIRED":"此步骤的官方工具定义尚未核实。",
+    "PROVIDER_RESPONSE_CONTRACT_REQUIRED":"此步骤的官方响应结构尚未完成核实与适配。",
+    "MODEL_CONTRACT_UNVERIFIED":"官方模型参数结构尚未核实。",
+    "MODEL_BINDING_REQUIRED":"MJ、Image2 或 Nano 的准确模型与参数映射尚未配置。",
+    "PROJECT_BINDING_REQUIRED":"本站项目与原账号空间中的官方项目映射尚未核实。",
+    "REFERENCE_ROUTE_SCHEMA_REQUIRED":"参考图上传、节点与连线协议尚未核实。",
+    "TRANSFER_HOST_UNVERIFIED":"官方媒体服务器及传输要求尚未核实。",
+    "GENERATION_DISABLED":"当前版本禁止收费生成和外部写入。",
+}
+
 
 def provider_failure(exc, *, attempted=False):
     # Never stringify an upstream exception: it may contain tokens/signed URLs.
     code = getattr(exc, "code", None)
+    if code in PREPARATION_CODES:
+        return ("needs_attention", {"code":code,"message":PREPARATION_CODES[code],
+            "retryable":False,"details":{"submissionAttempted":bool(attempted)}})
     if code in AUTH_CODES:
         return ("blocked_authorization", {
             "code": "ORIGINAL_AUTHORIZATION_REQUIRED",

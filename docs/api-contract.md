@@ -1,6 +1,6 @@
 # 客户网页版接入契约 v1
 
-状态：供第 2–10 会话实现的约定，不代表接口已经可用。当前基线只实现 README 列出的离线兼容读取，其余接口返回 501。客户最终只需浏览器；正式视频暂停，当前开发/验收不得产生收费任务。
+状态：客户集成候选版已装配本文业务接口、主账号找回与正式生成适配器；具体可用边界见 README 和 /ready。生产协议映射、创作授权、公网 callback、收费实测分别未通过，不能把接口存在视为真实生成可用。客户最终只需浏览器；正式视频暂停，本轮不产生收费任务。
 
 ## 1. 标识与安全边界
 
@@ -15,7 +15,7 @@
 
 ## 2. HTTP 与模块调用
 
-最终公共接口统一 `/api/v1/`；JSON UTF-8、时间 UTC ISO-8601、内部 ID 为不透明字符串。GET 无写入业务副作用（首次站点 session 引导除外）。Cookie 会话的变更请求带 `X-CSRF-Token`；创建/提交任务带 `Idempotency-Key`。同键同正文返回同结果，同键不同正文返回 409；幂等记录在进程/发布重启后保留。
+最终公共接口统一 `/api/v1/`；JSON UTF-8、时间 UTC ISO-8601、内部 ID 为不透明字符串。GET 无写入业务副作用（首次站点 session 引导除外）。Cookie 会话的变更请求带 `X-CSRF-Token` 和发起编辑时的 `X-Asset-Lab-Session`，后者必须等于当前 Cookie 所属 session.id；缺少或不匹配返回 409 WORKSPACE_CONTEXT_CHANGED。该字段只做上下文比较，不能授予访问权或指定 tenant。创建/提交任务另带 `Idempotency-Key`。同键同正文返回同结果，同键不同正文返回 409；幂等记录在进程/发布重启后保留。
 
 上面的路径相对站点安装前缀。若第 9 会话采用候选 `/asset-lab/`，配置 `ASSET_LAB_BASE_PATH=/asset-lab`，外部路径为 `/asset-lab/api/v1/...`，公共 adapter 去前缀后匹配本文路由。OAuth redirect URI 必须包含实际前缀并经官方准入；前端从统一 bootstrap 的 basePath 构造资源/API URL，不能硬写根目录。这是部署适配约定，不是已上线地址。
 
@@ -44,6 +44,8 @@ router.add("GET", "/api/v1/tasks/{taskId}", handler)
 ## 3. 站点 session / 当前选择
 
 `GET /session` → `{session:{id,expiresAt},tenant:{id},csrfToken,selection,features}`。首次匿名引导分配全新隔离 tenant；后续 Cookie 恢复。匿名会话不是已验证邮箱/手机号，产品如要求跨设备找回需另设站点身份验证。
+
+当前响应还包含 workspace。主账号恢复使用 backend/sessions/OWNER_RECOVERY.md 与 frontend/accounts/OWNER_UI.md 的明确确认契约。workspaceOwnerAuthorization 默认 false，生成账号不授予工作区所有权。POST /session/anonymous 是唯一无旧 CSRF 的显式匿名创建入口：精确 Origin、X-Asset-Lab-Action:new-anonymous-workspace 和 body {confirmNewWorkspace:true} 缺一不可，且现有有效 Cookie 返回 409；不接受 tenant 或 provider 身份。只会建立新的空白工作区，进入旧工作区仍需新鲜 owner OAuth。
 
 ```json
 {"providerAccountId":null,"spaceId":null,"revision":0}

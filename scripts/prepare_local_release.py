@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,15 +16,20 @@ from backend.storage import SCHEMA_VERSION
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--version',default='0.1.0-preview.1')
+    parser.add_argument('--version',default='0.1.0-preview.3')
+    parser.add_argument('--min-compatible-client',default='0.1.0-preview.3')
     parser.add_argument('--port',type=int,default=8892)
     parser.add_argument('--base-path',default='/asset-lab/')
     args=parser.parse_args()
     if args.port in {8768,8870}:parser.error('Reserved port')
+    source_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+    if subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip():
+        parser.error('Commit the candidate before packaging; the source tree must be clean')
     source=hashlib.sha256()
+    source.update((ROOT/'requirements.txt').read_bytes())
     for folder in ('backend','frontend','scripts'):
         for path in sorted((ROOT/folder).rglob('*')):
-            if path.is_file() and path.suffix in {'.py','.mjs','.js','.css','.html'} and 'legacy' not in path.parts:
+            if path.is_file() and path.suffix in {'.py','.mjs','.js','.css','.html','.json'} and 'legacy' not in path.parts:
                 source.update(path.relative_to(ROOT).as_posix().encode());source.update(path.read_bytes())
     build_id='integration-'+source.hexdigest()[:16]
     work=ROOT.parent/'work/release-preview';work.mkdir(parents=True,exist_ok=True)
@@ -34,8 +40,8 @@ def main():
           'testCommand':[sys.executable,'-m','unittest','discover','-s','tests/integration','-q'],
           'release':{'schemaVersion':1,'product':'asset-lab-customer','channel':'preview',
             'version':args.version,'buildId':build_id,'publishedAt':datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-            'apiVersion':1,'dataSchemaVersion':SCHEMA_VERSION,'minCompatibleClient':'0.1.0-preview.1',
-            'releaseNotes':['客户版集成预览：项目、草稿、账号面板、任务归属及版本更新接线。','真实图片适配与公网授权仍须独立验收；收费提交和视频保持关闭。'],
+            'apiVersion':1,'dataSchemaVersion':SCHEMA_VERSION,'minCompatibleClient':args.min_compatible_client,
+            'releaseNotes':['客户版集成候选：主账号找回、会话上下文保护及正式生成适配器已接线。','生产响应映射与创作授权仍待核实，公网回调尚未获准；收费提交和视频保持关闭。'],
             'reloadRequired':True,'entryUrl':args.base_path,'integrity':{'algorithm':'sha256','value':None}},
           'origin':f'http://127.0.0.1:{args.port}','basePath':args.base_path}
     spec_path=work/(args.version+'--'+build_id+'.build-spec.json');spec_path.write_text(json.dumps(spec,ensure_ascii=False,indent=2))
@@ -50,6 +56,7 @@ def main():
     release.atomic_link(channel/'current',candidate)
     report={'bundle':str(bundle),'sha256':checksum,'releaseDirectory':str(candidate),
             'releaseRoot':str(runtime),'verified':True,'sourceDigest':source.hexdigest(),
+            'sourceCommit':source_commit,'workingTreeCleanAtBuild':True,
             'scope':'isolated loopback preview; not public deployment or official generation acceptance'}
     (work/'latest-local-build.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
     print(json.dumps(report,indent=2))

@@ -1,4 +1,4 @@
-# 公共装配与验收接口 · 检查点 2
+# 公共装配与验收接口 · 集成候选版
 
 业务 HTTP 契约仍以 `docs/api-contract.md` 为准。本文件补充第 10 会话已经实现的 Python adapter 细节，避免模块自行猜测。当前已装配全部现有模块并验收真实本地持久化；合成 provider 测试不计入官方账号或真实生成验收。
 
@@ -79,6 +79,10 @@ sessions.verify_csrf(ctx, presented_token) -> bool
 
 ## 检查点 2 已验证与边界
 
-真实 HTTP 集成 48 项通过；新测试覆盖项目跨租户读取、持久化草稿 CAS/重启、未开放授权的服务器拦截、callback 子路径和严格头、唯一 bootstrap 与发布资源、schema 不符时禁止创建数据库。前端纯逻辑 46 项通过。Chrome 已实测项目草稿刷新、三类资产清单、390px 抽屉搜索保持，以及实际解包服务 preview.1 → preview.2 保存后升级。版本与存储通过不代表官方图片生成或公网部署通过。
+此前检查点已通过真实 HTTP 48 项、前端纯逻辑 46 项，并在 Chrome 实测项目草稿刷新、三类资产清单、390px 抽屉搜索保持及实际解包服务 preview.1 → preview.2 保存后升级。候选版追加主账号回调/确认、过期会话显式引导、写入上下文竞态保护与生成适配器注入；最新数量以最终 all-checks.json 为准。
+
+写入必须携带 X-Asset-Lab-Session，并与 Cookie 会话比较。前端会话边界暂停新业务请求、等候已有请求、丢弃旧上下文回包，owner 确认仍可执行。服务端比较和 Store 事务中的 session 校验覆盖新项目草稿/创建，无需浏览器提供 tenant。原会话已撤销时，刚通过路由检查但尚未落盘的写入仍被拒绝。
+
+GenerationAdapter 由 ProviderService 构造参数真实注入；journal 与任务桥共用 Store/TaskRepository，原 owner context 仅来自当前可信 HTTP 请求。发布包包含其运行时 JSON schema。所有生产 ResponseContracts、RecipeBinding 和 allowed_hosts 仍为空，收费与外部写入关闭，不能拿测试的合成映射开放生成。/ready 将生产协议/配置、创作 scope、公网 callback、收费实测分开报告。
 
 持久化授权 AEAD key 与任务确认签名 key 均从 Store 的服务器秘密子密钥通过不同固定 HMAC label 派生，不是浏览器 csrfToken；服务重启不随机换钥。所有实际凭据仍由 Store 的加密 secrets 机制隔离。

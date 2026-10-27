@@ -493,9 +493,14 @@ class Application:
                     redirect_uri=config.public_origin + callback_base + "/oauth/libtv/callback",
                     return_paths=tuple(dict.fromkeys(("/", config.public_base_path))),
                     allow_loopback_development=config.public_origin.startswith("http:")))
+                from .tasks.adapters import StoreTaskRepository
+                from .integration_generation import make_adapter
+                self.services.task_repository = StoreTaskRepository(self.services.storage,
+                    selection_reader=self.services.selections._get)
+                self.services.generation = make_adapter(self.services,self.services.task_repository)
                 self.services.providers = module.ProviderService(
                     StorageAuthRepository(self.services.storage), AesGcmSecretCodec({"v1": key}, "v1"), oauth,
-                    workspace_recovery=self.services.get("workspace_recovery"))
+                    workspace_recovery=self.services.get("workspace_recovery"),operation_adapter=self.services.generation)
         if name == "spaces" and isinstance(self.services.spaces, UnavailableService):
             selections = self.services.get("selections")
             if selections is None and not isinstance(self.services.storage, UnavailableService):
@@ -518,7 +523,7 @@ class Application:
                     and not isinstance(self.services.workflow, UnavailableService)):
                 from .tasks.adapters import StoreTaskRepository, SelectionAdapter, SpaceAdapter
                 from .workflow import WorkflowOutputStore
-                repository = StoreTaskRepository(self.services.storage,
+                repository = self.services.get("task_repository") or StoreTaskRepository(self.services.storage,
                     selection_reader=self.services.selections._get)
                 key = hmac.digest(self.services.storage._csrf_key, b"asset-lab/task-confirmation/v1", "sha256")
                 self.services.tasks = module.TaskService(repository=repository,
@@ -558,13 +563,17 @@ class Application:
             except Exception:
                 checks[name] = {"ready": False, "reason": "readiness_check_failed"}
         ready = all(v["ready"] for v in checks.values())
+        from .integration_generation import release_gates
         return Response(200 if ready else 503, {
             "ready": ready, "customerReady": False, "checks": checks,
             "acceptance": {"officialPublicCallback": False, "verifiedIdentitySpacesModels": False,
                            "realTwoAccountIsolation": False, "publicDeployment": False},
-            "generation": {"adapterInstalled": False, "creatorScopeVerified": False,
-                           "paidRunVerified": False, "paidSubmissionEnabled": False,
-                           "reason": "official_generation_adapter_pending"},
+            "ownerRecovery": {"serviceInstalled":self.services.get("workspace_recovery") is not None,
+                "uiHooksConnected":True,"publicEnabled":False,"realUserBindingVerified":False},
+            "officialReadEvidence": {"scope":"separate_isolated_local_instance", "readOnlyOAuthVerified":True,
+                "stableIdentityVerified":True,"personalTeamSpacesVerified":True,"balanceState":"unknown",
+                "credentialsImported":False,"evidence":"backend/auth/OFFICIAL_READ_EVIDENCE.md"},
+            "generation": release_gates(self.services.get("generation")),
             "reason": "customer_acceptance_pending" if ready else "modules_not_ready"})
 
     def authenticate(self, ctx):
@@ -620,7 +629,9 @@ class Application:
             if ctx.method == "POST" and ctx.path == API_PREFIX + "/tasks/prepare":
                 if not re.fullmatch(r"[A-Za-z0-9._:-]{1,200}", ctx.headers.get("Idempotency-Key", "")):
                     raise APIError(422, "IDEMPOTENCY_KEY_REQUIRED", "创建任务需要有效的幂等标识")
-        result = route.handler(ctx, params)
+        from .integration_generation import request_scope
+        with request_scope(ctx):
+            result = route.handler(ctx, params)
         if isinstance(result, Response):
             response = result
         # Framework-neutral modules may define their own Response dataclass.

@@ -1,5 +1,7 @@
 # LibTV 官方远程接入核验 · 2026-10-27
 
+> 后续已取得新的正式证据：用户在第 2 隔离实例批准了 account-read OAuth，callback/token exchange、account_user.user.uuid 重读、doctor 身份一致及个人/团队空间均已验证；余额仍未知，search_models 因缺 project:read 被拒绝。候选公网 callback 连同 application_type=web 仍被 DCR 拒绝。当前结论以 `backend/auth/OFFICIAL_READ_EVIDENCE.md` 和交付包中的 `libtv-local-read-verification.json` 为准。下文保留早期公开发现阶段的时间点记录，其中“尚未进行真实只读授权/身份读取”已由上述后续证据更新；无真人 owner 绑定、上传、收费生成或公网部署。
+
 结论：官方确实提供 HTTP Remote MCP 与逐使用者 OAuth 授权；公开发现链可访问，足以支持按标准实现服务端网站适配器的方案设计。**自建网站尚不可宣布可用**：第 2 授权会话已验证一个 HTTP loopback 回调注册成功，而候选公网回调 `https://kk666.best/asset-lab/api/v1/oauth/libtv/callback` 被拒绝。本会话只读核对了其请求/响应，没有重复注册。未找到官方明确的 loopback-only 规定或已证实的白名单申请流程，因此不能泛化为所有公网网站都不支持。真实用户授权、稳定身份字段、空间/额度工具与双账号隔离仍未验证；没有调用生成或收费任务。
 
 本会话直接协议探测时间：北京时间 2026-10-27 16:36–16:37；同日追加核对授权会话的注册证据。来源为官方 GitHub 仓库、官方服务公开 GET/OPTIONS 响应、授权会话保存的无秘密注册摘要及 MCP 官方规范；没有读取浏览器/账号凭据。

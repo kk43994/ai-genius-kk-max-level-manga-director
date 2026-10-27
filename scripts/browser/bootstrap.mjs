@@ -82,6 +82,7 @@ async function refreshTasks() {
       const label=document.createElement('strong'); label.textContent=task.recipe+' · '+({draft:'待确认',queued:'排队中',running:'生成中',downloading:'收取中',completed:'文件已收取',blocked_authorization:'需原账号授权',failed:'失败',cancelled:'已取消',unknown_submission:'提交状态待核验'}[task.status] || task.status);
       const owner=document.createElement('small'); owner.textContent=(task.ownership.accountLabelAtCreation || task.ownership.providerAccountId)+' / '+(task.ownership.spaceNameAtCreation || task.ownership.spaceId);
       item.append(label,owner);
+      if(task.error?.message){const error=document.createElement('p');error.textContent=task.error.message;item.append(error);}
       if(task.canRecover) {const button=document.createElement('button');button.textContent='查询原任务并收取';button.addEventListener('click',async()=>{button.disabled=true;try{await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version}});events.dispatchEvent(new CustomEvent('tasks:changed'));}catch(error){display(error.message);}finally{button.disabled=false;}});item.append(button);}
       root.append(item);
     }

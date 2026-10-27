@@ -2,7 +2,7 @@
 
 公共入口已装配 SQLite 存储、本站会话、LibTV 授权生命周期、账号与空间选择、项目工作流、任务归属与恢复、版本更新。前端只有一个 bootstrap，共享 API client 和事件通道。项目与草稿可以保存、刷新和重启恢复，角色、场景、道具分别保留制作与人工审核记录。
 
-**当前仍是集成预览，customerReady=false。** 收费提交、正式视频和未验收的网页授权入口由服务器关闭。真实图片 provider 的模型、准备、提交、查询、上传、下载适配尚待后续模块提交；这与创作 scope 尚未取得、收费实测尚未进行是不同缺项。协调会话确认另一隔离实例已完成本机官方只读授权；该实例的凭据不复制到本仓库或发布包。公网回调准入、两个真实身份隔离和公网部署尚待独立验收。
+**当前是集成候选版，customerReady=false。** 正式 GenerationAdapter 已注入 ProviderService，并与同一 Store、TaskRepository、WorkflowService 接线；模型、准备、提交、查询、参考图和下载的协议流程已有实现。生产响应字段映射、准确模型绑定、项目到空间映射与媒体域名证据尚未补齐，不能开放真实生成。创作 scope、公网 callback 和收费实测是另外三个未通过的门槛。另一隔离实例已完成本机官方只读授权；该实例的凭据没有复制到本仓库或发布包。
 
 客户最终通过网址操作，无需 Codex 或 CLI。以下命令只给开发和部署人员使用。8768 与 8870 是原工作台和基线端口，禁止此副本占用。
 
@@ -26,14 +26,17 @@ python3 -m venv .venv
 ## 已装配行为
 
 - tenantId/siteSessionId 仅从安全 Cookie 查服务端会话。项目、任务、文件下载、审核、草稿都校验工作区归属；浏览器不能指定其他租户。
-- 写入验证 Origin、CSRF、字段白名单、对象版本、任务幂等。未知异常只记录随机请求号和异常类型，不记录 OAuth code/state、URL 或 Cookie。
-- 主所有者恢复使用独立服务，与创作用账号分开。只有新鲜官方身份验证、意图校验和必要确认成功后才能轮换会话。授权 hook 和 UI 的后续提交完成前，不宣称客户已能找回。
+- 写入验证 Origin、CSRF、发起时的 X-Asset-Lab-Session、字段白名单、对象版本、任务幂等。Cookie 轮换后即使拿到新 CSRF，旧页面发起的新项目创建或无 projectId 草稿仍返回 WORKSPACE_CONTEXT_CHANGED；已通过 HTTP 检查的请求在 Store 事务中再次验证 session，轮换竞态不会跨工作区落盘。
+- 主所有者服务和 UI 已接入真实草稿检查、强制服务器保存凭据、旧上下文暂停与会话轮换。界面只在 workspaceOwnerAuthorization 明确为 true 时允许操作；当前为 false。外部会话改变时保留旧输入供用户核对，不把旧草稿保存到新工作区。真人 owner 绑定/找回尚未执行。
+- 过期 Cookie 不静默生成新工作区。POST /session/anonymous 只接受同源显式新建动作与专用请求头，拒绝替换有效会话，不授予旧工作区访问权。
 - 导入 TXT/MD/DOCX 或手工整理清单，导入不等于模型分析。MJ 风格、Image2 资产、Nano 精修逐阶段人工审核；返修追溯原始 Image2。
 - 任务 owner 和工作流快照固定持久化。切换当前账号不改变历史任务，恢复只查询原回执，不重提生成。源换版时阻止旧结果混入当前资产。
 - PUT /drafts/browser 保存新项目、计划、提示词、审核备注及待应用选择，采用 CAS。更新必须收到服务器保存确认，本机缓存不能代替确认。冲突保留双方副本并阻止自动覆盖。
 - 版本模块使用页面构建时写入的标记，定期或手动提示。检查不会自动刷新；客户点击后再次检查草稿、任务、下载。页面与服务不兼容时拦截业务写入，仍可保存草稿。
 
 health=200 只表示进程存活。ready 报告模块装配和官方授权、双真实账号、公网部署、生成门槛，未满足时保持 503。模块测试、合成 provider 或本地升级不代表客户成品完成。
+
+官方只读证据见 backend/auth/OFFICIAL_READ_EVIDENCE.md。已确认 account_user.user.uuid 稳定、个人与团队空间投影；余额无字段，仍为 unknown。search_models 因缺 project:read 被拒绝。精确候选 callback 在标准 DCR 和 application_type=web 下都被拒绝；这不证明所有公网 OAuth 都不支持。生成缺项详见 backend/generation/EVIDENCE.md。
 
 ## 检查与打包
 

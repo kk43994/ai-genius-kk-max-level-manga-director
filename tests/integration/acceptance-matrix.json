@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "checkpoint": "integrated-local-preview-2",
+  "checkpoint": "integrated-candidate-3",
   "policy": {
     "allowPaidSubmission": false,
     "videoGeneration": false
@@ -12,7 +12,9 @@
     "pending_official": "Requires real official evidence; fake cannot satisfy",
     "pending_deployment": "Owned by release session; local HTTP is not deployment",
     "passed_local_integration": "Actual local store/HTTP with synthetic provider contracts; no official generation proof",
-    "passed_module_contract": "Module tests on actual Store or synthetic official shapes; not a real account test"
+    "passed_module_contract": "Module tests on actual Store or synthetic official shapes; not a real account test",
+    "pending_protocol": "Production response mapping/model/media evidence still missing; adapter code is wired",
+    "passed_official_read_only": "Human-approved account-read evidence from module 2 isolation; credentials not imported"
   },
   "cases": [
     {
@@ -55,7 +57,7 @@
       "id": "U01",
       "scenario": "root/subpath route tests and integrated Chrome subpath page; 390px drawer preserves search and no document overflow",
       "status": "passed_browser_preview",
-      "evidence": "external checkpoint evidence/chrome-root.png and chrome-subpath.png"
+      "evidence": "Final blank-entry/mobile screenshots plus earlier synthetic project/drawer screenshots; URL and data state recorded in report"
     },
     {
       "id": "S01",
@@ -236,7 +238,7 @@
     },
     {
       "id": "U02",
-      "scenario": "Chrome completes all synthetic customer flows on root and subpath, narrow layout, failure recovery, reopen and manual review",
+      "scenario": "Component browser fixtures cover synthetic customer states; integrated Chrome verifies project/draft, account gating, narrow layout and update flow",
       "status": "passed_module_contract",
       "modules": [
         5,
@@ -245,7 +247,7 @@
         8,
         9
       ],
-      "evidence": "module suites; see checkpoint report for browser versus synthetic scope"
+      "evidence": "Component fixture reports and explicitly scoped integrated Chrome screenshots; not every official flow in one browser run"
     },
     {
       "id": "O01",
@@ -258,12 +260,13 @@
     },
     {
       "id": "O02",
-      "scenario": "real authorized token exchange and official stable subject, spaces and model reading confirmed without paid submission",
-      "status": "pending_official",
+      "scenario": "Human-approved loopback account-read OAuth, stable subject and personal/team spaces",
+      "status": "passed_official_read_only",
       "modules": [
         2,
         4
-      ]
+      ],
+      "evidence": "backend/auth/OFFICIAL_READ_EVIDENCE.md; final copied libtv-local-read-verification.json; models require project:read"
     },
     {
       "id": "O03",
@@ -287,24 +290,48 @@
     {
       "id": "S04",
       "scenario": "Owner recovery requires fresh official proof and confirmation; generator accounts do not grant workspace ownership",
-      "status": "pending_official",
-      "evidence": "storage synthetic proof tests passed; auth/UI hook increments pending"
+      "status": "passed_local_integration",
+      "evidence": "test_owner_http.py, test_session_boundary.py, owner UI fixture reports; real Store with synthetic official OAuth responses"
     },
     {
       "id": "G01",
-      "scenario": "Official image adapter model/prepare/submit/lookup/upload/download is implemented and wired",
-      "status": "pending_modules",
+      "scenario": "Official request adapter and Store/Task/Workflow ports are implemented and actually injected",
+      "status": "passed_local_integration",
       "modules": [
         1,
         2
       ],
-      "evidence": "BoundProviderClient currently unavailable; separate from creator scope or paid-run evidence"
+      "evidence": "tests/generation plus test_generation_composition.py; production responses not verified"
     },
     {
       "id": "R05",
       "scenario": "Old immutable frontend saves last input to SQLite then user-triggered reload restores it on actual next release",
       "status": "passed_local_integration",
       "evidence": "external evidence/chrome-version-updated-full.png; preview.1 to preview.2 on loopback only"
+    },
+    {
+      "id": "S05",
+      "scenario": "Old context with new Cookie and CSRF cannot create a project or unnamed project draft; writes already authenticated before rotation fail at Store transaction",
+      "status": "passed_local_integration",
+      "evidence": "test_session_boundary.py; session-boundary.test.mjs"
+    },
+    {
+      "id": "O04",
+      "scenario": "Real human owner binding and workspace recovery",
+      "status": "pending_official",
+      "evidence": "Not executed; public owner UI disabled"
+    },
+    {
+      "id": "G02",
+      "scenario": "Verified model, project/space, upload, canvas, task/delivery response mappings and media hosts",
+      "status": "pending_protocol",
+      "evidence": "backend/generation/EVIDENCE.md"
+    },
+    {
+      "id": "G03",
+      "scenario": "Additional creator scopes and one explicitly authorized real paid image run",
+      "status": "pending_official",
+      "evidence": "Not requested/executed; account-read only external grant; all paid submission disabled"
     }
   ]
 }
