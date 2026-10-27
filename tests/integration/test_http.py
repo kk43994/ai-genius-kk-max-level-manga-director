@@ -1,5 +1,7 @@
 """Real HTTP adapter tests with synthetic principals; no provider or customer data."""
 import contextlib
+from copy import deepcopy
+from datetime import datetime, timezone
 import http.client
 import io
 import json
@@ -29,6 +31,51 @@ class FixtureSessions:
         return {"ready": True}
 
 
+class FixtureSpaceProvider:
+    """Only supplies synthetic adapter contracts, never official wire responses."""
+    def __init__(self):
+        self.scopes = []
+        self.explicit_zero = False
+
+    def get_account(self, ctx, account_id):
+        if account_id != "pa-" + ctx.tenantId.removeprefix("tenant-"):
+            raise APIError(404, "NOT_FOUND", "合成账号不存在")
+        return {"id": account_id, "provider": "libtv", "tenantId": ctx.tenantId,
+                "identity": {"issuer": "https://mcp.liblib.tv/", "subject": "subject-" + account_id,
+                             "verified": True, "displayName": "合成身份"},
+                "authorization": {"state": "connected"}, "removedAt": None}
+
+    def account_client_for(self, ctx, owner):
+        assert owner["spaceId"] is None
+        return self.bound(ctx, owner, account_only=True)
+
+    def client_for(self, ctx, owner):
+        assert owner["spaceId"] in {"personal", "team"}
+        return self.bound(ctx, owner, account_only=False)
+
+    def bound(self, ctx, owner, account_only):
+        account = self.get_account(ctx, owner["providerAccountId"])
+        assert owner["tenantId"] == ctx.tenantId
+        assert owner["providerSubject"] == account["identity"]["subject"]
+        self.scopes.append(deepcopy(owner))
+        provider = self
+        class AccountReader:
+            def identity(self):
+                return deepcopy(account["identity"])
+            def list_spaces(self):
+                return {"items": [{"id": "personal", "kind": "personal", "name": "合成个人", "access": "available"},
+                                  {"id": "team", "kind": "team", "name": "合成团队", "access": "available"}], "nextCursor": None}
+        class SpaceReader(AccountReader):
+            def quota(self, space_id):
+                assert space_id == owner["spaceId"]
+                if not provider.explicit_zero:
+                    return {"planName": "合成套餐", "planCredits": 999}
+                return {"providerAccountId": account["id"], "spaceId": space_id,
+                        "state": "known", "remaining": 0, "unit": "credits", "buckets": [],
+                        "source": "official", "observedAt": datetime.now(timezone.utc).isoformat()}
+        return AccountReader() if account_only else SpaceReader()
+
+
 class HTTPTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -52,13 +99,15 @@ class HTTPTests(unittest.TestCase):
             server.server_close()
             thread.join(timeout=2)
 
-    def start(self, base="/", api=None, fixtures=True):
+    def start(self, base="/", api=None, fixtures=True, modules=(), providers=None):
         config = Config(self.temp_path / "data", port=0, public_base_path=base, api_base=api,
                         frontend_dir=self.frontend, max_request_bytes=512)
         services = Services(config)
         if fixtures:
             services.sessions = FixtureSessions()
-        app = create_app(config, services=services, modules=())
+        if providers is not None:
+            services.providers = providers
+        app = create_app(config, services=services, modules=modules)
         def write(ctx, params):
             self.mutations.append((ctx.tenantId, ctx.json))
             return {"tenantId": ctx.tenantId, "csrfVerified": ctx.csrfVerified}
@@ -289,6 +338,49 @@ class HTTPTests(unittest.TestCase):
         _, _, body = self.json_request("/api/v1/ready")
         self.assertEqual(body["data"]["checks"]["providers"]["reason"], "service_not_ready")
         self.assertNotIn("secret-url", json.dumps(body))
+
+    def test_framework_neutral_response_does_not_double_wrap_envelope(self):
+        self.app.router.add("GET", "/api/v1/foreign-response", lambda c, p: types.SimpleNamespace(
+            status=200, body={"data": {"value": 1}, "meta": {"requestId": "module-id"}}, headers={}), public=True)
+        status, headers, body = self.json_request("/api/v1/foreign-response")
+        self.assertEqual((status, body["data"]), (200, {"value": 1}))
+        self.assertEqual(body["meta"]["requestId"], headers["X-Request-Id"])
+
+    def test_assembled_spaces_without_provider_returns_explicit_unavailable(self):
+        app, origin = self.start(modules=(("spaces", "backend.spaces"),))
+        status, _, body = self.json_request("/api/v1/provider-accounts/pa-alpha/spaces", identity="alpha", origin=origin)
+        self.assertEqual((status, body["error"]["code"]), (503, "PROVIDER_CAPABILITY_UNAVAILABLE"))
+        self.assertEqual(app.modules["spaces"], "loaded")
+
+    def test_real_space_routes_on_subpath_use_account_scope_before_selection(self):
+        provider = FixtureSpaceProvider()
+        app, origin = self.start("/asset-lab/", modules=(("spaces", "backend.spaces"),), providers=provider)
+        status, _, body = self.json_request("/asset-lab/api/v1/provider-accounts/pa-alpha/spaces", identity="alpha", origin=origin)
+        self.assertEqual(status, 200)
+        self.assertEqual([v["kind"] for v in body["data"]["items"]], ["personal", "team"])
+        self.assertTrue(provider.scopes)
+        self.assertTrue(all(o["spaceId"] is None for o in provider.scopes))
+        status, _, body = self.json_request("/asset-lab/api/v1/provider-accounts/pa-alpha/spaces", identity="beta", origin=origin)
+        self.assertEqual((status, body["error"]["code"]), (404, "NOT_FOUND"))
+
+    def test_real_quota_routes_keep_unknown_and_explicit_zero_distinct(self):
+        provider = FixtureSpaceProvider()
+        app, origin = self.start(modules=(("spaces", "backend.spaces"),), providers=provider)
+        path = "/api/v1/provider-accounts/pa-alpha/spaces/team/quota"
+        status, _, body = self.json_request(path, identity="alpha", origin=origin)
+        self.assertEqual((status, body["data"]["state"], body["data"]["remaining"]), (200, "unknown", None))
+        provider.explicit_zero = True
+        status, _, body = self.json_request(path, identity="alpha", origin=origin)
+        self.assertEqual((status, body["data"]["state"], body["data"]["remaining"]), (200, "known", 0))
+        self.assertTrue(all(o["tenantId"] == "tenant-alpha" and o["providerAccountId"] == "pa-alpha" for o in provider.scopes))
+        self.assertTrue(any(o["spaceId"] == "team" for o in provider.scopes))
+
+    def test_space_selection_without_storage_does_not_fake_persistence(self):
+        provider = FixtureSpaceProvider()
+        app, origin = self.start(modules=(("spaces", "backend.spaces"),), providers=provider)
+        status, _, body = self.json_request("/api/v1/selection", method="PUT", identity="alpha", origin=origin,
+                                           body={"providerAccountId": "pa-alpha", "spaceId": "personal", "expectedRevision": 0})
+        self.assertEqual((status, body["error"]["code"]), (503, "PROVIDER_CAPABILITY_UNAVAILABLE"))
 
 
 class ConfigurationTests(unittest.TestCase):

@@ -293,7 +293,7 @@ class Application:
         self.config = config
         self.services = services if services is not None else Services(config)
         self.router, self.modules = Router(), {}
-        imported = []
+        imported = {}
         for name, module_name in modules:
             try:
                 module = importlib.import_module(module_name)
@@ -302,12 +302,25 @@ class Application:
                     raise ConfigurationError(f"Dependency missing in {module_name}") from exc
                 self.modules[name] = "missing"
                 continue
-            imported.append(module)
+            imported[name] = module
             factory = getattr(module, "create_service", None)
             if factory:
                 self.services[name] = factory(self.services)
             self.modules[name] = "loaded"
-        for module in imported:
+        # Modules received before they adopted the optional factory convention are
+        # assembled explicitly here, without editing their independently owned files.
+        if "spaces" in imported and isinstance(self.services.spaces, UnavailableService):
+            selections = self.services.get("selections")
+            if selections is None and not isinstance(self.services.storage, UnavailableService):
+                storage_module = imported.get("storage")
+                selection_repository = getattr(storage_module, "SelectionRepository", None)
+                if selection_repository is None:
+                    raise ConfigurationError("Storage binding must export SelectionRepository")
+                selections = selection_repository(self.services.storage)
+                self.services.selections = selections
+            self.services.spaces = imported["spaces"].SpaceService(
+                providers=self.services.providers, selections=selections, clock=self.services.clock)
+        for module in imported.values():
             register = getattr(module, "register_routes", None)
             if register:
                 register(self.router, self.services)
@@ -394,6 +407,9 @@ class Application:
         result = route.handler(ctx, params)
         if isinstance(result, Response):
             return result
+        # Framework-neutral modules may define their own Response dataclass.
+        if all(hasattr(result, key) for key in ("status", "body", "headers")):
+            return Response(result.status, result.body, dict(result.headers))
         if isinstance(result, dict) and {"status", "body"}.issubset(result):
             return Response(result["status"], result["body"], result.get("headers", {}))
         if isinstance(result, dict):
