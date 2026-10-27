@@ -4,7 +4,7 @@ import {mount as mountAccounts} from '../accounts/index.js';
 import {mount as mountWorkflow} from '../asset-lab.js';
 import {mount as mountUpdates} from '../updates/index.js';
 import {DraftCoordinator} from './drafts.mjs';
-import {createSessionBoundary,inspectWorkspaceDrafts,saveWorkspaceDrafts} from './session-boundary.mjs';
+import {createSessionBoundary,inspectWorkspaceDrafts,saveWorkspaceDrafts} from './workspace-context.mjs';
 
 const config = JSON.parse(document.getElementById('asset-lab-config').textContent);
 const currentBuild = JSON.parse(document.getElementById('asset-lab-build').textContent);

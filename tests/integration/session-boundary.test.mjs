@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createSessionBoundary,inspectWorkspaceDrafts,saveWorkspaceDrafts} from '../../scripts/browser/session-boundary.mjs';
+import {createSessionBoundary,inspectWorkspaceDrafts,saveWorkspaceDrafts} from '../../scripts/browser/workspace-context.mjs';
 
 test('rotation waits for existing writes and blocks new business writes but allows confirmation',async()=>{
   let finish;const calls=[];
