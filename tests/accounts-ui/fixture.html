@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>账号模块 · 合成交互验收</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../../frontend/accounts/accounts.css">
+  <style>
+    body { margin: 0; padding: 28px 20px; background: #f3f5ef; color: #26372d; font: 14px/1.7 -apple-system,"PingFang SC",sans-serif; }
+    [hidden] { display:none !important; }
+    main { max-width: 1000px; margin: auto; }
+    .fixture-tools { display:flex; flex-wrap:wrap; gap:8px; margin: 16px 0; }
+    .fixture-tools button { padding:8px 12px; border:1px solid #b9c8b9; border-radius:7px; background:#fff; font:inherit; }
+    .fixture-note { color: #647061; font-size: 12px; }
+    #outside-draft { box-sizing:border-box; width:100%; margin:12px 0 18px; padding:12px; min-height:70px; border:1px solid #cbd7ca; border-radius:8px; font:inherit; }
+    #test-results { white-space:pre-wrap; background:#fff; padding:20px; border-radius:12px; margin-top:20px; }
+  </style>
+</head>
+<body><main>
+  <p class="fixture-note">开发验收 · 全部账号、余额与授权结果均为合成数据 · 不连接官方服务、不提交生成</p>
+  <div class="fixture-tools" id="fixture-tools">
+    <button data-fixture="empty">首次授权</button><button data-fixture="connected">多账号与团队</button><button data-fixture="unconfigured">授权未开放</button>
+    <button data-fixture="complete">模拟授权完成</button><button data-fixture="cancel">模拟官方取消</button><button data-fixture="expire">模拟过期</button><button data-fixture="fail">模拟失败</button>
+  </div>
+  <label for="outside-draft">其他模块未保存的剧本输入（验证账号操作不影响它）</label>
+  <textarea id="outside-draft" placeholder="在此输入测试文字"></textarea>
+  <div id="account-root"></div>
+  <pre id="test-results" hidden></pre>
+</main><script type="module" src="./fixture.js"></script></body></html>

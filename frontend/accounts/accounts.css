@@ -1,0 +1,86 @@
+.al-accounts {
+  --aa-ink: #26372d;
+  --aa-muted: #5e6d63;
+  --aa-line: #d9e2d9;
+  --aa-accent: #345d49;
+  --aa-light: #f1f5ef;
+  color: var(--aa-ink);
+  font: 14px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  min-width: 0;
+}
+.al-accounts *, .al-accounts *::before, .al-accounts *::after { box-sizing: border-box; }
+.al-accounts [hidden] { display: none !important; }
+.al-accounts .al-accounts__panel { padding: clamp(18px, 3vw, 32px); background: #fff; border: 1px solid var(--aa-line); border-radius: 20px; }
+.al-accounts h2, .al-accounts h3, .al-accounts h4, .al-accounts p { margin: 0; }
+.al-accounts h2 { color: var(--aa-ink); font-size: 24px; font-weight: 650; line-height: 1.35; }
+.al-accounts h3 { color: var(--aa-ink); font-size: 15px; font-weight: 650; }
+.al-accounts h4 { color: var(--aa-ink); font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.al-accounts .al-accounts__header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.al-accounts .al-accounts__brand { display: grid; place-items: center; height: 46px; width: 46px; border: 1px solid #cedbce; border-radius: 14px; color: var(--aa-accent); background: var(--aa-light); font: 600 27px/1 Georgia, serif; }
+.al-accounts .al-accounts__heading { flex: 1; min-width: 130px; }
+.al-accounts .al-accounts__eyebrow { color: var(--aa-muted); font-size: 11px; letter-spacing: .08em; margin-bottom: 4px; }
+.al-accounts .al-accounts__intro { color: var(--aa-muted); margin-top: 16px; }
+.al-accounts .al-accounts__button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border: 1px solid #ccd8cd; border-radius: 9px; background: #fff; color: #314d3c; font: inherit; font-size: 13px; font-weight: 550; line-height: 1.5; text-decoration: none; cursor: pointer; box-shadow: none; transition: background .15s ease; white-space: normal; }
+.al-accounts .al-accounts__button:hover:not(:disabled) { background: #edf3ec; }
+.al-accounts .al-accounts__button--primary { background: var(--aa-accent); border-color: var(--aa-accent); color: #fff; }
+.al-accounts .al-accounts__button--primary:hover:not(:disabled) { background: #264b39; }
+.al-accounts .al-accounts__button--quiet { border-color: transparent; background: transparent; }
+.al-accounts .al-accounts__button--danger { color: #fff; background: #923f35; border-color: #923f35; }
+.al-accounts .al-accounts__button--danger:hover:not(:disabled) { color: #fff; background: #753027; }
+.al-accounts .al-accounts__button:disabled { cursor: not-allowed; opacity: .48; }
+.al-accounts :is(button, a, select, [tabindex]):focus-visible { outline: 3px solid #6998d5; outline-offset: 3px; }
+.al-accounts .al-accounts__notice, .al-accounts .al-accounts__error { margin-top: 18px; padding: 13px 16px; border-radius: 10px; border: 1px solid #e3d4a9; background: #fbf7ec; color: #70552a; overflow-wrap: anywhere; }
+.al-accounts .al-accounts__error { background: #fcf0ed; border-color: #e8c7bf; color: #8b392e; }
+.al-accounts .al-accounts__status { color: #355c44; font-size: 13px; }
+.al-accounts .al-accounts__status:not(:empty) { padding-top: 14px; }
+.al-accounts .al-accounts__attempt { padding: 20px; margin-top: 20px; border: 1px solid #c8d8c7; border-radius: 12px; background: #f5f8f1; }
+.al-accounts .al-accounts__attempt > p { color: var(--aa-muted); margin: 9px 0 14px; }
+.al-accounts .al-accounts__row, .al-accounts .al-accounts__section-heading { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.al-accounts .al-accounts__section-heading { justify-content: space-between; margin: 26px 0 12px; }
+.al-accounts .al-accounts__muted { color: var(--aa-muted); font-size: 12px; }
+.al-accounts .al-accounts__badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; color: #6f5829; background: #f5ecd4; font-size: 11px; line-height: 1.5; white-space: nowrap; }
+.al-accounts .al-accounts__badge[data-state="connected"] { color: #315e41; background: #e4f0e3; }
+.al-accounts .al-accounts__badge:is([data-state="error"], [data-state="failed"], [data-state="revoked"]) { color: #8b3c30; background: #f7e3dd; }
+.al-accounts .al-accounts__current-tag { color: var(--aa-muted); font-size: 11px; }
+.al-accounts .al-accounts__list { display: grid; gap: 10px; }
+.al-accounts .al-accounts__card { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 16px; border: 1px solid var(--aa-line); border-radius: 12px; background: #fff; }
+.al-accounts .al-accounts__card--selected { border-color: #adc3ac; background: #fbfdf8; }
+.al-accounts .al-accounts__avatar { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto; color: #42694e; background: #eaf0e4; border-radius: 50%; font-size: 16px; }
+.al-accounts .al-accounts__card-info { flex: 1; min-width: 160px; }
+.al-accounts .al-accounts__card-info p { color: var(--aa-muted); font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
+.al-accounts .al-accounts__actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.al-accounts .al-accounts__empty { display: grid; justify-items: center; text-align: center; padding: 28px 18px; background: #f8faf6; border: 1px dashed #ccd9c9; border-radius: 12px; }
+.al-accounts .al-accounts__empty > span { font-size: 32px; line-height: 1.3; color: #739368; margin-bottom: 8px; }
+.al-accounts .al-accounts__empty p { font-size: 12px; color: var(--aa-muted); margin-top: 5px; }
+.al-accounts .al-accounts__selection { margin: 24px 0 0; padding: 22px; border: 1px solid var(--aa-line); border-radius: 12px; background: #fcfdfb; }
+.al-accounts .al-accounts__current { font-size: 12px; color: var(--aa-muted); margin: 7px 0 18px; overflow-wrap: anywhere; }
+.al-accounts .al-accounts__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.al-accounts .al-accounts__fields > div { min-width: 0; }
+.al-accounts label { color: #465847; display: block; font-size: 12px; font-weight: 600; margin: 0 0 7px; }
+.al-accounts select { display: block; width: 100%; min-height: 44px; border: 1px solid #cbd7ca; border-radius: 8px; padding: 10px 32px 10px 11px; font: inherit; font-size: 13px; color: var(--aa-ink); background: #fff; }
+.al-accounts select:disabled { color: #738174; background: #f0f3ee; cursor: not-allowed; }
+.al-accounts .al-accounts__field-note { color: var(--aa-muted); font-size: 11px; line-height: 1.7; margin-top: 7px; overflow-wrap: anywhere; }
+.al-accounts .al-accounts__quota { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 18px 0; margin-top: 15px; border-top: 1px solid #e0e7dd; }
+.al-accounts .al-accounts__quota > div { min-width: 0; }
+.al-accounts .al-accounts__quota strong { font-size: 22px; font-weight: 600; line-height: 1.4; }
+.al-accounts .al-accounts__quota > button { flex: 0 0 auto; }
+.al-accounts .al-accounts__selection-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-top: 16px; border-top: 1px solid #e0e7dd; }
+.al-accounts .al-accounts__selection-footer > p { color: var(--aa-muted); font-size: 11px; max-width: 440px; }
+.al-accounts .al-accounts__selection-footer > button { flex: 0 0 auto; }
+.al-accounts .al-accounts__dialog { max-width: min(480px, calc(100vw - 32px)); width: 480px; margin: auto; padding: 26px; border: 1px solid var(--aa-line); border-radius: 16px; color: var(--aa-ink); background: #fff; box-shadow: 0 20px 70px #13271c33; font: inherit; }
+.al-accounts .al-accounts__dialog::backdrop { background: #20362980; backdrop-filter: blur(3px); }
+.al-accounts .al-accounts__dialog > p { margin: 12px 0; color: var(--aa-muted); font-size: 13px; }
+.al-accounts .al-accounts__dialog .al-accounts__actions { margin-top: 22px; justify-content: flex-end; }
+@media (max-width: 620px) {
+  .al-accounts .al-accounts__button { min-height: 44px; }
+  .al-accounts .al-accounts__header { gap: 8px; }
+  .al-accounts .al-accounts__header > button { flex: 1; }
+  .al-accounts .al-accounts__heading { flex-basis: calc(100% - 60px); }
+  .al-accounts .al-accounts__fields { grid-template-columns: 1fr; }
+  .al-accounts .al-accounts__card > .al-accounts__actions { width: 100%; justify-content: flex-end; }
+  .al-accounts .al-accounts__selection { padding: 16px; }
+  .al-accounts .al-accounts__selection-footer { flex-direction: column; align-items: stretch; gap: 12px; }
+  .al-accounts .al-accounts__quota { gap: 6px; }
+  .al-accounts .al-accounts__quota strong { font-size: 20px; }
+}
+@media (prefers-reduced-motion: reduce) { .al-accounts .al-accounts__button { transition: none; } }
