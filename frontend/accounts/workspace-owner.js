@@ -87,7 +87,7 @@ export function mountWorkspaceOwner({ root, api, events, session, publicBasePath
     text('workspace', workspace()?.label || '当前临时工作区');
     text('explanation', bound ? `已绑定经过官方验证的 LibTV 主账号${workspace().boundAt ? ` · ${timeLabel(workspace().boundAt)}` : ''}。换浏览器或会话失效后，请用这个主账号找回。`
       : '当前工作区依赖这个浏览器的临时会话。请在清除 Cookie 或会话到期前绑定主账号；从未绑定且会话已丢失时，无法安全自动找回。');
-    text('availability', !ready() ? '工作区主账号授权暂未开放，或草稿保存／会话同步尚未接入。开放前请保留当前浏览器会话。' : isBlocked() ? blockedReason() || '请先完成当前账号操作。' : '每次绑定或找回都会重新验证官方主账号身份；只申请读取身份的权限。');
+    text('availability', !ready() ? '工作区账号授权暂未开放。请暂时保留当前浏览器会话；开放后可绑定账号并找回工作区。' : isBlocked() ? blockedReason() || '请先完成当前账号操作。' : '每次绑定或找回都会重新验证官方主账号身份；只申请读取身份的权限。');
     buttons.bind.disabled = !ready() || bound || active() || isBlocked();
     buttons.bind.textContent = bound ? '主账号已绑定' : '绑定主账号';
     buttons.recover.disabled = !ready() || active() || isBlocked();

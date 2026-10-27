@@ -41,7 +41,7 @@ def main():
           'release':{'schemaVersion':1,'product':'asset-lab-customer','channel':'preview',
             'version':args.version,'buildId':build_id,'publishedAt':datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
             'apiVersion':1,'dataSchemaVersion':SCHEMA_VERSION,'minCompatibleClient':args.min_compatible_client,
-            'releaseNotes':['客户版集成候选：主账号找回、会话上下文保护及正式生成适配器已接线。','生产响应映射与创作授权仍待核实，公网回调尚未获准；收费提交和视频保持关闭。'],
+            'releaseNotes':['优化项目保存与工作区找回体验，新增版本更新提醒。','图片生成功能暂未开放，可先整理项目与资产清单。'],
             'reloadRequired':True,'entryUrl':args.base_path,'integrity':{'algorithm':'sha256','value':None}},
           'origin':f'http://127.0.0.1:{args.port}','basePath':args.base_path}
     spec_path=work/(args.version+'--'+build_id+'.build-spec.json');spec_path.write_text(json.dumps(spec,ensure_ascii=False,indent=2))
