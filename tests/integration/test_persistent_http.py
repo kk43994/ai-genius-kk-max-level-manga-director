@@ -60,6 +60,8 @@ class PersistentHTTPTests(unittest.TestCase):
             headers["Cookie"] = cookie
         if csrf:
             headers["X-CSRF-Token"] = csrf
+        if cookie and cookie in getattr(self,'browser_sessions',{}):
+            headers['X-Asset-Lab-Session']=self.browser_sessions[cookie]
         if method != "GET":
             headers["Origin"] = origin or app.config.public_origin
         if body is not None:
@@ -68,6 +70,9 @@ class PersistentHTTPTests(unittest.TestCase):
         conn.request(method, path, body, headers)
         response = conn.getresponse()
         result = response.status, dict(response.getheaders()), json.loads(response.read())
+        if result[0]==200 and path.endswith('/session'):
+            if not hasattr(self,'browser_sessions'):self.browser_sessions={}
+            self.browser_sessions[result[1]['Set-Cookie'].split(';',1)[0]]=result[2]['data']['session']['id']
         conn.close()
         return result
 

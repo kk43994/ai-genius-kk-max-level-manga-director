@@ -427,6 +427,8 @@ class Application:
         if not isinstance(self.services.storage, UnavailableService):
             from .integration_drafts import register_routes as register_drafts
             register_drafts(self.router, self.services)
+            from .integration_sessions import register_routes as register_anonymous
+            register_anonymous(self.router, self.services)
         for method, paths in PLACEHOLDERS.items():
             for path in paths:
                 full_path = API_PREFIX + path
@@ -541,7 +543,7 @@ class Application:
             report = getattr(self.services.get(name), "readiness", None)
             try:
                 result = report() if callable(report) else {}
-                if name == "providers" and not isinstance(self.services.providers, UnavailableService):
+                if name == "providers" and self.modules.get("auth") == "loaded" and not isinstance(self.services.providers, UnavailableService):
                     result = {"ready": False, "reason": "public_oauth_callback_unverified"}
                 if name in {"spaces", "workflow", "tasks"} and not isinstance(self.services.get(name), UnavailableService):
                     result = {"ready": True, "reason": "module_wired"}
@@ -587,11 +589,12 @@ class Application:
                 raise APIError(410, "LEGACY_API_DISABLED", "旧工作台接口未在客户版启用")
             return self.static(ctx)
         route, params = self.router.match(ctx.method, ctx.path)
-        if ctx.path not in {API_PREFIX + "/health", API_PREFIX + "/ready"}:
+        anonymous_bootstrap = ctx.method == "POST" and ctx.path == API_PREFIX + "/session/anonymous"
+        if not anonymous_bootstrap and ctx.path not in {API_PREFIX + "/health", API_PREFIX + "/ready"}:
             self.authenticate(ctx)
         if not route.public and not ctx.siteSessionId:
             raise APIError(401, "SESSION_REQUIRED", "请重新打开页面以恢复本站会话")
-        if ctx.method not in SAFE_METHODS:
+        if ctx.method not in SAFE_METHODS and not anonymous_bootstrap:
             if ctx.origin != self.config.public_origin:
                 raise APIError(403, "ORIGIN_FAILED", "请求来源不受信任，请在本站页面重试")
             if not ctx.siteSessionId:
@@ -601,8 +604,12 @@ class Application:
             if not token or not callable(verify) or verify(ctx, token) is not True:
                 raise APIError(403, "CSRF_FAILED", "页面校验已失效，请刷新后重试")
             ctx.csrfVerified = True
+            if isinstance(self.services.sessions, SessionHTTPAdapter):
+                expected_session = ctx.headers.get("X-Asset-Lab-Session", "")
+                if not expected_session or not hmac.compare_digest(expected_session, ctx.siteSessionId):
+                    raise APIError(409, "WORKSPACE_CONTEXT_CHANGED", "工作区会话已改变；旧页面的写入未执行，请同步工作区")
             if ctx.path == API_PREFIX + "/provider-accounts/authorize" or re.fullmatch(r"/api/v1/provider-accounts/[^/]+/reauthorize", ctx.path):
-                raise APIError(503, "PROVIDER_UNCONFIGURED", "官方网页授权与身份读取尚未完成验收，连接暂未开放")
+                raise APIError(503, "PROVIDER_UNCONFIGURED", "本站正式回调尚未通过验证，官方网页连接暂未开放")
             if "tenantId" in ctx.json:
                 raise APIError(422, "VALIDATION_FAILED", "客户归属由本站会话确定，不能从请求指定")
             if route.capability == "videoGeneration" or (ctx.path == API_PREFIX + "/tasks/prepare"
@@ -706,7 +713,7 @@ def decode_request(handler, request_id):
             raise ValueError()
     except (UnicodeError, ValueError) as exc:
         raise APIError(400, "INVALID_REQUEST", "请求地址或参数无效") from exc
-    for name in ("Host", "Content-Length", "Content-Type", "Origin", "X-CSRF-Token", "Idempotency-Key", "Cookie"):
+    for name in ("Host", "Content-Length", "Content-Type", "Origin", "X-CSRF-Token", "X-Asset-Lab-Session", "X-Asset-Lab-Action", "Idempotency-Key", "Cookie"):
         if len(handler.headers.get_all(name, [])) > 1:
             raise APIError(400, "INVALID_REQUEST", "请求头重复")
     headers = Headers(handler.headers.items())

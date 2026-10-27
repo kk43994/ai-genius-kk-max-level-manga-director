@@ -16,7 +16,7 @@ export class DraftCoordinator {
   snapshot() {
     const workflow = parse(this.storage.getItem(this.workflowKey)) || {};
     const raw = parse(this.storage.getItem(this.accountKey));
-    const draft = raw?.draft;
+    const draft = this.readAccountDraft ? this.readAccountDraft() : raw?.draft;
     return {workflow, accountSelection: draft ? {
       providerAccountId: draft.providerAccountId ?? null, spaceId: draft.spaceId ?? null,
     } : null};
@@ -52,9 +52,10 @@ export class DraftCoordinator {
         || (key==='new-project' && Object.values(value || {}).some(text=>String(text).trim()))));
   }
   hasPending() { return this.conflict || Boolean(this.pendingSave) || ((this.version>0 || this.hasContent()) && encode(this.snapshot()) !== this.ack); }
-  changed() { clearTimeout(this.timer); this.onState(this); this.timer = setTimeout(() => this.save().catch(() => {}), 800); }
+  changed() { clearTimeout(this.timer); this.onState(this); if(!this.paused) this.timer = setTimeout(() => this.save().catch(() => {}), 800); }
   async save({force=false}={}) {
     clearTimeout(this.timer);
+    if(this.paused) throw new Error('工作区会话正在切换，旧工作区草稿已暂停提交。');
     if (this.pendingSave) { await this.pendingSave; return this.save({force}); }
     if (this.conflict) throw new Error(this.error);
     if (!force && !this.version && !this.hasContent()) return {saved:true,savedDrafts:[]};
@@ -73,5 +74,7 @@ export class DraftCoordinator {
       throw error;
     } finally { this.pendingSave = null; this.onState(this); }
   }
-  destroy() { clearTimeout(this.timer); }
+  pause() { this.paused=true; clearTimeout(this.timer); }
+  resume() { this.paused=false; if(this.hasPending())this.changed(); }
+  destroy() { this.pause(); }
 }

@@ -486,7 +486,9 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   const ready = refresh({ rereadSession: !session });
   return {
     ready, refresh,
-    getDirtyState: () => ({ dirty: dirty || Boolean(busy) || ownerModule.getDirtyState().dirty, reason: busy ? '账号操作尚未完成，请稍候' : dirty ? '账号或空间选择尚未应用' : ownerModule.getDirtyState().reason }),
+    // The integration persists this live value even when optional localStorage fails.
+    getDraftSelection: () => dirty ? {providerAccountId:draft.providerAccountId, spaceId:draft.spaceId} : null,
+    getDirtyState: () => ({ dirty: dirty || Boolean(busy) || ownerModule.getDirtyState().dirty, ownerActive:ownerModule.isActive(), reason: busy ? '账号操作尚未完成，请稍候' : dirty ? '账号或空间选择尚未应用' : ownerModule.getDirtyState().reason }),
     flush: async () => { if (busy) throw fail('ACCOUNT_OPERATION_IN_PROGRESS'); await ownerModule.flush(); saveLocal(); },
     unmount() {
       if (disposed) return;

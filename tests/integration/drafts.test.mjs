@@ -41,3 +41,14 @@ test('owner confirmation can request a fresh durable draft receipt',async()=>{
   const f=setup({version:4,content});await f.drafts.load();const saving=f.drafts.save({force:true});
   assert.equal(f.calls[0].body.expectedVersion,4);f.ack(5);assert.equal((await saving).savedDrafts[0].version,5);f.drafts.destroy();
 });
+test('live account input is saved even if optional account cache did not update',async()=>{
+  const f=setup();await f.drafts.load();
+  f.drafts.readAccountDraft=()=>({providerAccountId:'live-account',spaceId:'live-space'});
+  assert.equal(f.storage.getItem(f.drafts.accountKey),null);assert.equal(f.drafts.hasPending(),true);
+  const saving=f.drafts.save();f.ack(1);await saving;
+  assert.deepEqual(f.calls[0].body.content.accountSelection,{providerAccountId:'live-account',spaceId:'live-space'});f.drafts.destroy();
+});
+test('paused old workspace cannot autosave with a rotated Cookie',async()=>{
+  const f=setup();await f.drafts.load();f.drafts.pause();
+  await assert.rejects(f.drafts.save({force:true}),/暂停提交/);assert.equal(f.calls.length,0);f.drafts.destroy();
+});

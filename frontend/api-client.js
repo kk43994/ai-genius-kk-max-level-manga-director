@@ -19,7 +19,7 @@ export function createApiClient({ publicBasePath = '/', apiBase, csrfToken = nul
   const endpoint = basePath(apiBase ?? `${publicBase}/api/v1`, 'apiBase');
   if (!endpoint) throw new TypeError('apiBase must identify the API path');
   if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl is required');
-  let csrf = null;
+  let csrf = null, context = null;
   function setCsrfToken(value) {
     if (value !== null && (typeof value !== 'string' || /[\r\n]/.test(value))) throw new TypeError('Invalid CSRF token');
     csrf = value || null;
@@ -36,7 +36,7 @@ export function createApiClient({ publicBasePath = '/', apiBase, csrfToken = nul
     }
     return `${endpoint}${path}`;
   }
-  async function request(path, { method = 'GET', body, idempotencyKey, signal, responseType = 'json' } = {}) {
+  async function request(path, { method = 'GET', body, idempotencyKey, signal, responseType = 'json', expectedSessionId = context } = {}) {
     const url = requestUrl(path);
     method = method.toUpperCase();
     if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'].includes(method)) throw new TypeError('Unsupported request method');
@@ -46,6 +46,7 @@ export function createApiClient({ publicBasePath = '/', apiBase, csrfToken = nul
     if (writing && !csrf) throw new ApiError('会话尚未准备好，请重新载入后再试。', { code: 'CSRF_TOKEN_REQUIRED' });
     const headers = new Headers({ Accept: responseType === 'blob' ? 'application/octet-stream, application/json' : 'application/json' });
     if (writing) headers.set('X-CSRF-Token', csrf);
+    if (writing && expectedSessionId) headers.set('X-Asset-Lab-Session', expectedSessionId);
     if (idempotencyKey !== undefined) headers.set('Idempotency-Key', idempotencyKey);
     if (body !== undefined) headers.set('Content-Type', 'application/json');
     let response;
@@ -72,10 +73,24 @@ export function createApiClient({ publicBasePath = '/', apiBase, csrfToken = nul
       });
     }
     if (!envelope || !Object.hasOwn(envelope, 'data')) throw new ApiError('服务响应与当前版本不兼容。', { code: 'INVALID_RESPONSE', status: response.status });
-    if (path.split('?')[0] === '/session' && typeof envelope.data?.csrfToken === 'string') setCsrfToken(envelope.data.csrfToken);
+    if (path.split('?')[0] === '/session' && typeof envelope.data?.csrfToken === 'string') {
+      setCsrfToken(envelope.data.csrfToken); context=envelope.data?.session?.id || null;
+    }
     return envelope.data;
   }
-  return Object.freeze({ request, setCsrfToken, publicBasePath: `${publicBase}/`, apiBase: endpoint });
+  async function bootstrapAnonymousSession() {
+    // Explicit anonymous creation is the sole session-less write; it grants no old data access.
+    const response=await fetchImpl(requestUrl('/session/anonymous'), {method:'POST',credentials:'same-origin',
+      cache:'no-store',redirect:'error',headers:{'Content-Type':'application/json','Accept':'application/json',
+        'X-Asset-Lab-Action':'new-anonymous-workspace'},body:JSON.stringify({confirmNewWorkspace:true})});
+    const envelope=await response.json();
+    if(!response.ok)throw new ApiError(envelope.error?.message || '临时会话建立失败',
+      {code:envelope.error?.code || 'SESSION_REQUIRED',status:response.status});
+    if(!envelope.data?.session?.id || !envelope.data?.csrfToken)throw new ApiError('临时会话返回无效',{code:'INVALID_RESPONSE'});
+    setCsrfToken(envelope.data.csrfToken);context=envelope.data.session.id;
+    return envelope.data;
+  }
+  return Object.freeze({ request, setCsrfToken, bootstrapAnonymousSession, publicBasePath: `${publicBase}/`, apiBase: endpoint });
 }
 
 export default createApiClient;

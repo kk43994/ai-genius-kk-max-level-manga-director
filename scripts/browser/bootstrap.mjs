@@ -4,6 +4,7 @@ import {mount as mountAccounts} from '../accounts/index.js';
 import {mount as mountWorkflow} from '../asset-lab.js';
 import {mount as mountUpdates} from '../updates/index.js';
 import {DraftCoordinator} from './drafts.mjs';
+import {createSessionBoundary,inspectWorkspaceDrafts,saveWorkspaceDrafts} from './session-boundary.mjs';
 
 const config = JSON.parse(document.getElementById('asset-lab-config').textContent);
 const currentBuild = JSON.parse(document.getElementById('asset-lab-build').textContent);
@@ -21,17 +22,24 @@ const openAccounts=()=>{if(!accountDialog.open)accountDialog.showModal();};
 accountButton.addEventListener('click',openAccounts);closeAccounts.addEventListener('click',()=>accountDialog.close());
 accountDialog.addEventListener('close',()=>accountButton.focus());
 let readOnly = false, activeDownloads = 0, pendingWrites = 0, switchingWorkspace=false;
-let workflow, accounts, drafts, shell, session;
+let workflow, accounts, drafts, shell, session, updates;
 const status = document.createElement('div'); status.className = 'integration-notice'; status.setAttribute('role','status');
 const save = document.createElement('button'); save.type='button'; save.textContent='保存当前草稿';
 const message = document.createElement('span'); status.append(message, save);
 document.getElementById('update-root').before(status);
 function display(messageText) { message.textContent = messageText; }
-const api = {...transport, async request(path, options = {}) {
+function freezeEditing(value) {
+  for(const id of ['workflow-root','task-root','update-root','warehouseList','importScript','scriptSelect']) {
+    const node=document.getElementById(id);if(node)node.inert=value;
+  }
+  save.disabled=value;
+}
+const boundary=createSessionBoundary(transport,{onChanged:()=>{drafts?.pause();freezeEditing(true);}});
+const api = {...boundary.api, async request(path, options = {}) {
   const write = !['GET','HEAD'].includes((options.method || 'GET').toUpperCase());
   if (readOnly && write && path !== '/drafts/browser') throw new ApiError('页面版本需要更新；请先保存草稿，再刷新。',{code:'CLIENT_VERSION_INCOMPATIBLE'});
   if (write) pendingWrites++;
-  try { return await transport.request(path,options); }
+  try { return await boundary.api.request(path,options); }
   finally { if(write) pendingWrites--; }
 }};
 
@@ -57,7 +65,7 @@ async function listAllTasks() {
 async function safety() {
   const tasks = await listAllTasks();
   const state = workflow.getState();
-  return {hasUnsavedChanges:drafts.hasPending() || pendingWrites > 0 || state.busy || Boolean(state.saveError),
+  return {hasUnsavedChanges:boundary.frozen || accounts.getDirtyState().ownerActive || drafts.hasPending() || pendingWrites > 0 || state.busy || Boolean(state.saveError),
     activeTasks:tasks.filter(task => running.has(task.status)).length, activeDownloads};
 }
 async function refreshTasks() {
@@ -116,14 +124,50 @@ events.addEventListener('shell:action',event=>{
 events.addEventListener('provider-accounts:changed',event=>{
   const items=event.detail.items || []; shell.setView({connectionState:items.some(item=>item.authorization?.state==='connected')?'connected':'disconnected'});
 });
-events.addEventListener('session:changed',event=>{
-  const next=event.detail.session || event.detail;
-  if(session && next?.tenant?.id && next.tenant.id !== session.tenant.id){
-    // Owner UI waits for the server's cookie rotation before this event.
-    switchingWorkspace=true; drafts.destroy(); location.assign(config.publicBasePath); return;
-  }
-});
 events.addEventListener('tasks:changed',()=>void refreshTasks());
+
+function reloadWorkspace() {
+  switchingWorkspace=true;drafts?.destroy();workflow?.unmount();accounts?.unmount();updates?.unmount();
+  location.assign(config.publicBasePath);
+}
+function workspaceRecoveryHooks() {
+  return {
+    enabled:session?.features?.workspaceOwnerAuthorization===true,
+    inspectDrafts:async()=>inspectWorkspaceDrafts({workflow,drafts,pendingWrites}),
+    // Do not call accounts.flush here: its owner dialog is currently saving.
+    saveDrafts:()=>saveWorkspaceDrafts({workflow,drafts}),
+    async beforeSessionRotation() {
+      if(activeDownloads)throw new Error('文件正在收取，请完成后再切换工作区。');
+      drafts.pause();freezeEditing(true);
+      try {
+        const resume=await boundary.freeze();
+        return async()=>{resume();if(!boundary.frozen){drafts.resume();freezeEditing(false);}};
+      } catch(error) {
+        if(!boundary.frozen){drafts.resume();freezeEditing(false);}
+        throw error;
+      }
+    },
+    async onSessionRotated({session:next,preserveUnsavedInputs=false}) {
+      boundary.hold();drafts.pause();freezeEditing(true);
+      if(!preserveUnsavedInputs){reloadWorkspace();return;}
+      // Retain old-tenant input locally and visibly; never write it with the new Cookie.
+      await workflow.flushDrafts();
+      const previous=JSON.parse(localStorage.getItem(drafts.accountKey)||'null') || {};
+      previous.draft=accounts.getDraftSelection();localStorage.setItem(drafts.accountKey,JSON.stringify(previous));
+      accounts.unmount();updates?.unmount();if(accountDialog.open)accountDialog.close();
+      display('会话已在别处改变。本页输入已保留在原工作区的浏览器草稿中；请核对后载入当前工作区。');
+      const button=document.createElement('button');button.type='button';button.textContent='保留本页草稿并载入当前工作区';
+      button.addEventListener('click',reloadWorkspace,{once:true});status.append(button);
+      accountButton.disabled=true;
+      // The owner module is unmounted, so it cannot emit events into the retained editor.
+    },
+    async bootstrapSession() {
+      // Freeze old requests before intentionally creating an empty anonymous workspace.
+      drafts?.pause();freezeEditing(true);boundary.hold();
+      return transport.bootstrapAnonymousSession();
+    },
+  };
+}
 
 try {
   session=await api.request('/session');
@@ -134,7 +178,8 @@ try {
     const label=document.getElementById('saveStatus'); if(label)label.textContent=state.error?'草稿待处理':state.hasPending()?'正在保存草稿':'草稿已保存';
   }});
   await drafts.load();
-  accounts=mountAccounts({root:document.getElementById('account-root'),api,events,session,publicBasePath:config.publicBasePath,getSafetyState:safety,saveDraft});
+  accounts=mountAccounts({root:document.getElementById('account-root'),api,events,session,publicBasePath:config.publicBasePath,workspaceRecovery:workspaceRecoveryHooks()});
+  drafts.readAccountDraft=()=>accounts.getDraftSelection();
   workflow=mountWorkflow({root:document.getElementById('workflow-root'),api,events,session,...config,storage:drafts.adapter});
   await Promise.all([accounts.ready,workflow.ready]);
   drafts.onState(drafts);
@@ -144,7 +189,7 @@ try {
   });
   await refreshTasks();
   document.getElementById('update-root').replaceChildren();
-  mountUpdates({root:document.getElementById('update-root'),api,events,session,currentBuild,getSafetyState:safety,saveDraft,publicBasePath:config.publicBasePath});
+  updates=mountUpdates({root:document.getElementById('update-root'),api,events,session,currentBuild,getSafetyState:safety,saveDraft,publicBasePath:config.publicBasePath});
   window.addEventListener('beforeunload',event=>{if(!switchingWorkspace && (drafts.hasPending() || pendingWrites || activeDownloads)){event.preventDefault();event.returnValue='';}});
   if(!drafts.conflict) void drafts.save().catch(()=>{});
 } catch(error) {

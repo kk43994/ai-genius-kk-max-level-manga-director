@@ -58,6 +58,7 @@ def verify(bundle):
             headers={}
             if cookie:headers['Cookie']=cookie
             if csrf:headers['X-CSRF-Token']=csrf
+            if csrf:headers['X-Asset-Lab-Session']=session['session']['id']
             if method!='GET':headers['Origin']=f'http://127.0.0.1:{port}'
             if body is not None:headers['Content-Type']='application/json';body=json.dumps(body)
             connection.request(method,path,body,headers);response=connection.getresponse();raw=response.read()

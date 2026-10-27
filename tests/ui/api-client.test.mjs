@@ -13,11 +13,14 @@ test('root and subpath deployment resolve without domain-root leakage', async ()
 });
 test('session CSRF stays in memory and writes preserve caller idempotency', async () => {
   const requests=[];
-  const api=createApiClient({fetchImpl:async(url,init)=>{requests.push({url,init});return ok(url.endsWith('/session')?{csrfToken:'synthetic-csrf'}:{id:'synthetic-task'});}});
+  const api=createApiClient({fetchImpl:async(url,init)=>{requests.push({url,init});return ok(url.endsWith('/session')?{csrfToken:'synthetic-csrf',session:{id:'synthetic-context'}}:{id:'synthetic-task'});}});
   await api.request('/session');
   await api.request('/tasks/prepare',{method:'POST',body:{projectId:'example'},idempotencyKey:'synthetic-key'});
   const req=requests[1];assert.equal(req.init.headers.get('X-CSRF-Token'),'synthetic-csrf');assert.equal(req.init.headers.get('Idempotency-Key'),'synthetic-key');assert.deepEqual(JSON.parse(req.init.body),{projectId:'example'});
   assert.equal('csrfToken' in api,false);
+  assert.equal(req.init.headers.get('X-Asset-Lab-Session'),'synthetic-context');
+  await api.request('/projects',{method:'POST',body:{name:'old'},expectedSessionId:'original-context'});
+  assert.equal(requests[2].init.headers.get('X-Asset-Lab-Session'),'original-context');
 });
 test('unsafe destinations and missing CSRF are blocked before fetch', async () => {
   let calls=0;const api=createApiClient({fetchImpl:async()=>{calls++;return ok({});}});

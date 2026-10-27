@@ -35,16 +35,23 @@ class ComposedHTTPTests(unittest.TestCase):
         thread = threading.Thread(target=lambda:self.server.serve_forever(poll_interval=.01),daemon=True)
         thread.start(); self.servers.append((self.server,thread))
 
-    def request(self, path, method='GET', *, cookie=None, csrf=None, body=None, absolute=False):
+    def request(self, path, method='GET', *, cookie=None, csrf=None, body=None, absolute=False, extra_headers=None):
         client=http.client.HTTPConnection('127.0.0.1',self.server.server_port,timeout=4)
         headers={}
         if cookie: headers['Cookie']=cookie
         if method!='GET': headers['Origin']=self.app.config.public_origin
         if csrf: headers['X-CSRF-Token']=csrf
+        if cookie and hasattr(self,'browser_sessions') and cookie in self.browser_sessions:
+            headers['X-Asset-Lab-Session']=self.browser_sessions[cookie]
+        headers.update(extra_headers or {})
         if body is not None: headers['Content-Type']='application/json';body=json.dumps(body)
         client.request(method,path if absolute else self.app.config.api_base+path,body,headers)
         response=client.getresponse();status=response.status;headers=dict(response.getheaders());raw=response.read();client.close()
-        return status,headers,json.loads(raw) if headers.get('Content-Type','').startswith('application/json') else raw
+        result=json.loads(raw) if headers.get('Content-Type','').startswith('application/json') else raw
+        if status==200 and path=='/session':
+            if not hasattr(self,'browser_sessions'):self.browser_sessions={}
+            self.browser_sessions[headers['Set-Cookie'].split(';',1)[0]]=result['data']['session']['id']
+        return status,headers,result
 
     def session(self):
         status,headers,body=self.request('/session');self.assertEqual(status,200)

@@ -13,7 +13,7 @@ from backend.storage.core import checked_id, field, opaque_id, utc
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}\Z")
 DEFAULT_FEATURES = {"providerAuthorization": False, "imageGeneration": False,
                     "videoGeneration": False, "scriptAnalysis": False,
-                    "persistentProjects": False}
+                    "persistentProjects": False, "workspaceOwnerAuthorization": False}
 
 
 @dataclass(frozen=True)
