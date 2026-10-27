@@ -1,0 +1,2 @@
+# Integration HTTP adapter and smoke tests use only Python >= 3.10 standard library.
+# Optional module dependencies must be declared and validated when their commits merge.

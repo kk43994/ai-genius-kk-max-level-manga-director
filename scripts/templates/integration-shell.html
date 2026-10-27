@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>资产实验室 · 客户版集成预览</title>
+  <style>
+    :root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#1f302c;background:#f3f5f1}*{box-sizing:border-box}body{margin:0}header,main,footer{max-width:1120px;margin:auto;padding:24px 32px}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #dce2dc}a{color:#315b49}h1{font-size:38px;letter-spacing:-1.5px;margin:16px 0}h2{font-size:19px;margin:0 0 10px}p{line-height:1.8;color:#62736b}.brand{font-weight:700;font-size:18px}.brand span{color:#69816e;font-weight:400;font-size:13px;margin-left:10px}.badge{font-size:12px;border:1px solid #d7dfce;border-radius:999px;padding:7px 11px;color:#5c6e54;background:#e9eee3}.hero{padding:30px 0 24px}.eyebrow{font-size:11px;letter-spacing:2px;color:#688062}.hero p{max-width:640px}.cards{display:grid;grid-template-columns:1.1fr 1fr;gap:20px}.card{background:#fff;border:1px solid #dfe5dd;border-radius:18px;padding:28px}.status{font-size:13px;color:#85714b;background:#f4efe3;border-radius:9px;padding:12px 14px;line-height:1.7}.empty{border:1px dashed #d5ddd3;border-radius:12px;text-align:center;padding:30px 16px;margin:22px 0}.empty strong{display:block;font-size:17px;margin-bottom:8px}.empty p{font-size:13px;margin:0}.step{display:flex;gap:12px;padding:17px 0;border-bottom:1px solid #edf0e9}.step:last-child{border:0;padding-bottom:0}.num{display:grid;place-items:center;flex:0 0 29px;height:29px;border:1px solid #dbe4d7;border-radius:50%;font-size:12px;color:#6c8065}.step b{font-size:14px}.step p{font-size:12px;margin:5px 0 0;line-height:1.6}.footnote{font-size:12px;margin-top:24px}footer{font-size:12px;color:#7c897c;display:flex;justify-content:space-between;padding-top:30px;padding-bottom:40px}@media(max-width:700px){header,main,footer{padding-left:20px;padding-right:20px}.cards{grid-template-columns:1fr}h1{font-size:31px}.card{padding:22px}.brand span{display:none}footer{display:block;line-height:2}}
+  </style>
+</head>
+<body>
+  <header><div class="brand">资产实验室 <span>LibTV 客户工作台</span></div><span class="badge">集成预览 · 尚未就绪</span></header>
+  <main>
+    <section class="hero"><span class="eyebrow">FROM STORY TO ASSETS</span><h1>让每一份资产，经过你的确认。</h1><p>从剧本或手工清单开始，逐步制作角色、场景与道具。每一步保留人工审核，账号与任务归属始终清晰。</p></section>
+    <div class="cards">
+      <section class="card"><h2>你的工作空间</h2><p>新客户从空白项目开始。</p><div class="empty"><strong>暂无项目与已连接账号</strong><p>账号授权、项目保存和制作模块正在集成。</p></div><div class="status" role="status">当前只提供集成预览。尚未连接 LibTV 官方账号，保存、授权与生成操作尚不可用。</div><p class="footnote">此预览不会读取本机登录信息。额度状态：未知。</p></section>
+      <section class="card"><h2>逐步制作，逐步审核</h2><div class="step"><span class="num">01</span><div><b>剧本与资产清单</b><p>导入剧本或手工整理人物、场景、道具。</p></div></div><div class="step"><span class="num">02</span><div><b>MJ 风格探索</b><p>确认视觉方向后，再进入规范资产制作。</p></div></div><div class="step"><span class="num">03</span><div><b>Image2 资产制作</b><p>审核每一版输出，记录保留与返修意见。</p></div></div><div class="step"><span class="num">04</span><div><b>Nano 精修与下载</b><p>沿用原始 Image2 来源，审核通过后交付。</p></div></div></section>
+    </div>
+    <p class="footnote">收费生成在服务端禁用，正式视频生成继续暂停。客户版功能完成后，客户只需通过网址使用。</p>
+  </main>
+  <footer><span>客户版集成骨架 · 0.1.0-integration.1</span><span><a href="{{API_BASE}}/health">服务存活状态</a> · <a href="{{API_BASE}}/ready">模块就绪状态</a></span></footer>
+</body>
+</html>

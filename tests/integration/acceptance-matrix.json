@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "integration-skeleton-1",
+  "policy": {"allowPaidSubmission": false, "videoGeneration": false},
+  "statusMeaning": {
+    "passed_adapter_fixture": "HTTP adapter tested with synthetic principals only",
+    "passed_browser_preview": "Chrome confirmed preview and routing only",
+    "pending_modules": "Requires module commits before business acceptance",
+    "pending_official": "Requires real official evidence; fake cannot satisfy",
+    "pending_deployment": "Owned by release session; local HTTP is not deployment"
+  },
+  "cases": [
+    {"id":"H01","scenario":"health is live while missing modules make ready 503; customerReady remains false","status":"passed_adapter_fixture","evidence":"test_http.py"},
+    {"id":"H02","scenario":"private routes require server session; forged tenant header/body cannot widen context","status":"passed_adapter_fixture","evidence":"test_http.py"},
+    {"id":"H03","scenario":"invalid Origin/CSRF never reach a write handler","status":"passed_adapter_fixture","evidence":"test_http.py"},
+    {"id":"H04","scenario":"paid submission and video remain blocked at server; task prepare requires idempotency key","status":"passed_adapter_fixture","evidence":"test_http.py"},
+    {"id":"H05","scenario":"malformed/oversized JSON, duplicate headers/query, host mismatch, traversal and symlinks rejected","status":"passed_adapter_fixture","evidence":"test_http.py"},
+    {"id":"H06","scenario":"OAuth callback query and unexpected error secrets are not reflected/logged","status":"passed_adapter_fixture","evidence":"test_http.py"},
+    {"id":"U01","scenario":"root and /asset-lab/ mounts render empty preview; readiness link uses configured apiBase","status":"passed_browser_preview","evidence":"external checkpoint evidence/chrome-root.png and chrome-subpath.png"},
+    {"id":"S01","scenario":"two real storage tenants cannot read/update project/task/blob/download/review objects across boundaries","status":"pending_modules","modules":[3,7,8]},
+    {"id":"S02","scenario":"refresh, close/reopen and process restart preserve same session and project; expired session does not silently expose old tenant","status":"pending_modules","modules":[3,5]},
+    {"id":"S03","scenario":"CAS conflicts preserve edits; task plus ownership plus idempotency are one transaction across restart","status":"pending_modules","modules":[3,7,8]},
+    {"id":"P01","scenario":"two provider identities and personal/team spaces never share quota/client/selection caches","status":"pending_modules","modules":[2,4,6]},
+    {"id":"P02","scenario":"quota unknown/stale/unavailable displayed honestly; plan credits never become remaining balance","status":"pending_modules","modules":[4,6]},
+    {"id":"P03","scenario":"account_client_for validates tenant/account/subject, permits identity/spaces only, rejects quota/models/generation before space binding","status":"pending_modules","modules":[2,4]},
+    {"id":"P04","scenario":"wrong-subject reauthorization rejected; removal preserves task and file ownership; no global CLI fallback","status":"pending_modules","modules":[2,3,7]},
+    {"id":"T01","scenario":"prepare fixes owner; selection switch does not retarget old draft, running task or recovery","status":"pending_modules","modules":[4,7]},
+    {"id":"T02","scenario":"same idempotency key/body returns original result, changed body conflicts, timeout recovers original receipt without resubmit","status":"pending_modules","modules":[3,7]},
+    {"id":"T03","scenario":"revoked authorization blocks pending task, preserves receipts and does not claim remote stop/refund","status":"pending_modules","modules":[2,7]},
+    {"id":"W01","scenario":"TXT/MD/DOCX import and manual character/scene/prop plan persist; unconfigured analysis stays unavailable","status":"pending_modules","modules":[3,5,8]},
+    {"id":"W02","scenario":"each MJ/Image2/Nano revision awaits human approval before becoming next-stage source","status":"pending_modules","modules":[7,8]},
+    {"id":"W03","scenario":"Nano repair traces original Image2 revision; changed sources invalidate downstream output","status":"pending_modules","modules":[8]},
+    {"id":"W04","scenario":"only approved revisions export; ZIP CRC/hash checked, ownership enforced, no credentials or signed URLs in manifest","status":"pending_modules","modules":[7,8]},
+    {"id":"R01","scenario":"version and release notes, semantic comparison, startup/manual/visibility polling; offline is not up-to-date","status":"pending_modules","modules":[5,9]},
+    {"id":"R02","scenario":"refresh waits for saved drafts, preserves unsaved conflicts/projects/assets/grants/tasks; incompatible version permits save/read only","status":"pending_modules","modules":[3,5,7,8,9]},
+    {"id":"U02","scenario":"Chrome completes all synthetic customer flows on root and subpath, narrow layout, failure recovery, reopen and manual review","status":"pending_modules","modules":[5,6,7,8,9]},
+    {"id":"O01","scenario":"official accepts exact approved public HTTPS callback and intended client registration parameters","status":"pending_official","modules":[2,9]},
+    {"id":"O02","scenario":"real authorized token exchange and official stable subject, spaces and model reading confirmed without paid submission","status":"pending_official","modules":[2,4]},
+    {"id":"O03","scenario":"two real official identities plus personal/team switching, refresh/revoke and same-subject reauthorization verified","status":"pending_official","modules":[2,4,6]},
+    {"id":"D01","scenario":"kelao public domain/TLS/service/data persistence, version deployment, migration backup and compatible rollback verified","status":"pending_deployment","modules":[9,10]}
+  ]
+}
