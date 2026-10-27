@@ -274,7 +274,8 @@ class AuthorizationTests(unittest.TestCase):
         self.assertEqual(account['identity'], client.identity())
         for name in ('submit', 'prepare', 'quota', 'download', 'list_models'):
             self.assertFalse(hasattr(client, name))
-        self.assertCode('PROVIDER_CAPABILITY_UNAVAILABLE', client.list_spaces)
+        # The official reader is now wired; this fixture deliberately has no MCP grant.
+        self.assertCode('PROVIDER_AUTHORIZATION_REQUIRED', client.list_spaces)
 
     def test_old_client_ignores_current_selection_and_caller_dict_mutation(self):
         account = self.connect()

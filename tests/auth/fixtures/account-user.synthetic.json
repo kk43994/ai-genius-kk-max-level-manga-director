@@ -1,0 +1,45 @@
+{
+  "user": {
+    "uuid": "00000000-0000-4000-8000-000000000001",
+    "id": 100001,
+    "nickname": "合成测试用户"
+  },
+  "activeAccountId": 200001,
+  "activeTeamId": null,
+  "accounts": {
+    "accounts": [
+      {
+        "accountId": 200001,
+        "accountName": "合成账号 A",
+        "accountType": 1,
+        "ownerType": 1,
+        "ownerUuid": "00000000-0000-4000-8000-000000000001",
+        "isActive": true,
+        "owner": true,
+        "teamRole": null,
+        "source": null,
+        "memberAccount": {
+          "memberName": "合成套餐 A",
+          "accountLevel": 1,
+          "effective": true
+        }
+      },
+      {
+        "accountId": 200002,
+        "accountName": "合成账号 B",
+        "accountType": 2,
+        "ownerType": 2,
+        "ownerUuid": "00000000-0000-4000-8000-000000000002",
+        "isActive": false,
+        "owner": true,
+        "teamRole": 1,
+        "source": null,
+        "memberAccount": {
+          "memberName": "合成套餐 B",
+          "accountLevel": 1,
+          "effective": true
+        }
+      }
+    ]
+  }
+}

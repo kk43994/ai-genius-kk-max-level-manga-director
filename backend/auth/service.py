@@ -13,8 +13,10 @@ from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 from .errors import AuthError, field, require_context
-from backend.providers.libtv_oauth import ClientRegistration, ISSUER
-from backend.providers.libtv_identity import UnavailableIdentityVerifier, VerifiedIdentity
+from backend.providers.libtv_oauth import ClientRegistration, ISSUER, SCOPES
+from backend.providers.libtv_identity import LIBTV_ACCOUNT_IDENTITY, ReadOnlyMCPIdentityVerifier, VerifiedIdentity
+from backend.providers.libtv_account import LibTVAccountReader
+from backend.providers.libtv_bound_tools import BoundMCPTools
 
 
 def utc(value):
@@ -38,12 +40,19 @@ def mutate_context(ctx):
 
 class ProviderService:
     def __init__(self, repository, secret_codec, oauth, *, identity_verifier=None,
-                 registration=None, clock=time.time, on_account_removed=None):
+                 registration=None, clock=time.time, on_account_removed=None, workspace_recovery=None,
+                 account_reader=None, operation_adapter_factory=None, operation_adapter=None):
+        if operation_adapter is not None and operation_adapter_factory is not None:
+            raise AuthError('PROVIDER_UNCONFIGURED')
         self.repository, self.codec, self.oauth = repository, secret_codec, oauth
-        self.verifier = identity_verifier or UnavailableIdentityVerifier()
+        self.verifier = identity_verifier or ReadOnlyMCPIdentityVerifier(oauth.http, LIBTV_ACCOUNT_IDENTITY)
         self.registration = registration
         self.clock = clock
         self.on_account_removed = on_account_removed or getattr(repository, 'affected_task_ids', None)
+        self.workspace_recovery = workspace_recovery
+        self.account_reader = account_reader or LibTVAccountReader(oauth.http, clock=clock)
+        self.operation_adapter_factory = operation_adapter_factory
+        self.operation_adapter = operation_adapter
 
     def readiness(self):
         # Registration acceptance alone does not verify a real customer identity.
@@ -86,7 +95,7 @@ class ProviderService:
                 'authorization': {'state': state,
                                   'expiresAt': utc(account['expiresAtEpoch']) if account['expiresAtEpoch'] else None,
                                   'lastVerifiedAt': account['lastVerifiedAt'], 'reason': account.get('reason')},
-                'capabilities': {'authorize': True, 'spaces': False, 'quota': False},
+                'capabilities': {'authorize': True, 'spaces': bool(self.account_reader.available), 'quota': False},
                 'removedAt': account['removedAt']}
 
     def list_accounts(self, ctx):
@@ -102,9 +111,12 @@ class ProviderService:
 
     def _attempt_result(self, attempt):
         status = attempt['status']
-        return {'status': 'pending' if status == 'exchanging' else status,
-                'providerAccountId': attempt.get('providerAccountId'),
-                'error': AuthError(attempt['error']).public() if attempt.get('error') else None}
+        result = {'status': 'pending' if status == 'exchanging' else status,
+                  'providerAccountId': attempt.get('providerAccountId'),
+                  'error': AuthError(attempt['error']).public() if attempt.get('error') else None}
+        if attempt.get('workspaceIntentId'):
+            result.update(intent=attempt['intent'], workspaceIntentId=attempt['workspaceIntentId'])
+        return result
 
     def get_attempt(self, ctx, id):
         require_context(ctx)
@@ -137,10 +149,22 @@ class ProviderService:
             raise AuthError('PROVIDER_UNCONFIGURED')
         return client
 
-    def begin_authorization(self, ctx, providerAccountId=None, returnPath='/', expectedVersion=None):
+    def begin_authorization(self, ctx, providerAccountId=None, returnPath='/', expectedVersion=None,
+                            intent='connect', purpose=None, hasUnsavedChanges=None, workspaceLabel='我的工作区'):
         tenant, session = mutate_context(ctx)
         if returnPath not in self.oauth.config.return_paths:
             raise AuthError('VALIDATION_FAILED')
+        if purpose is not None:
+            purposes = {'provider_account': 'connect', 'bind_owner': 'bind_owner', 'recover_workspace': 'recover'}
+            if purpose not in purposes or (intent != 'connect' and intent != purposes[purpose]):
+                raise AuthError('VALIDATION_FAILED')
+            intent = purposes[purpose]
+        if (intent not in ('connect', 'bind_owner', 'recover')
+                or (intent != 'connect' and (providerAccountId is not None or expectedVersion is not None))
+                or (hasUnsavedChanges is not None and type(hasUnsavedChanges) is not bool)):
+            raise AuthError('VALIDATION_FAILED')
+        if intent != 'connect' and self.workspace_recovery is None:
+            raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
         with self.repository.transaction(ctx) as raw:
             state = self._state(ctx, raw)
             self._expire(state)
@@ -157,23 +181,43 @@ class ProviderService:
         nonce, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(64)
         attempt_id, now = 'oa_' + secrets.token_urlsafe(18), self.clock()
         expires = now + self.oauth.config.attempt_ttl_seconds
-        sealed = self.codec.seal({'verifier': verifier, 'metadata': metadata, 'client': client.secret_value()},
-                                 binding=binding(tenant, 'attempt', attempt_id))
-        with self.repository.transaction(ctx) as raw:
-            state = self._state(ctx, raw)
-            self._expire(state)
-            if sum(a['status'] in ('pending', 'exchanging') for a in state['attempts'].values()) >= self.oauth.config.max_pending_attempts:
-                raise AuthError('AUTHORIZATION_BUSY')
-            if providerAccountId is not None and self._account(state, providerAccountId)['version'] != expectedVersion:
-                raise AuthError('VERSION_CONFLICT')
-            state['attempts'][attempt_id] = {'id': attempt_id, 'stateHash': digest(nonce),
-                'sessionHash': digest(session), 'status': 'pending', 'error': None,
-                'createdAt': utc(now), 'expiresAtEpoch': expires, 'returnPath': returnPath,
-                'targetAccountId': providerAccountId, 'targetSubject': target_subject,
-                'targetVersion': expectedVersion, 'providerAccountId': None, 'private': sealed,
-                'accountVersions': {k: a['version'] for k, a in state['accounts'].items()}}
-        return {'attemptId': attempt_id, 'authorizationUrl': self.oauth.authorization_url(metadata, client, nonce, verifier),
-                'expiresAt': utc(expires)}
+        owner_request = None
+        if intent != 'connect':
+            owner_request = self.workspace_recovery.begin(ctx,
+                purpose='bind_owner' if intent == 'bind_owner' else 'recover_workspace',
+                authorization_attempt_id=attempt_id, oauth_state_hash=digest(nonce),
+                has_unsaved_changes=hasUnsavedChanges, workspace_label=workspaceLabel)
+        try:
+            private = {'verifier': verifier, 'metadata': metadata, 'client': client.secret_value()}
+            if owner_request:
+                private['ownerIntent'] = {'id': owner_request.intent_id, 'nonce': owner_request.nonce}
+            sealed = self.codec.seal(private, binding=binding(tenant, 'attempt', attempt_id))
+            authorization_url = self.oauth.authorization_url(metadata, client, nonce, verifier)
+            with self.repository.transaction(ctx) as raw:
+                state = self._state(ctx, raw)
+                self._expire(state)
+                if sum(a['status'] in ('pending', 'exchanging') for a in state['attempts'].values()) >= self.oauth.config.max_pending_attempts:
+                    raise AuthError('AUTHORIZATION_BUSY')
+                if providerAccountId is not None and self._account(state, providerAccountId)['version'] != expectedVersion:
+                    raise AuthError('VERSION_CONFLICT')
+                state['attempts'][attempt_id] = {'id': attempt_id, 'stateHash': digest(nonce),
+                    'sessionHash': digest(session), 'status': 'pending', 'error': None,
+                    'createdAt': utc(now), 'expiresAtEpoch': expires, 'returnPath': returnPath,
+                    'targetAccountId': providerAccountId, 'targetSubject': target_subject,
+                    'targetVersion': expectedVersion, 'providerAccountId': None, 'private': sealed,
+                    'intent': intent, 'workspaceIntentId': owner_request.intent_id if owner_request else None,
+                    'accountVersions': {k: a['version'] for k, a in state['accounts'].items()}}
+        except Exception:
+            if owner_request:
+                try:
+                    self.workspace_recovery.cancel(ctx, owner_request.intent_id)
+                except Exception:
+                    pass  # TTL still bounds an orphan when storage itself is down.
+            raise
+        result = {'attemptId': attempt_id, 'authorizationUrl': authorization_url, 'expiresAt': utc(expires)}
+        if owner_request:
+            result.update(intent=intent, workspaceIntent=owner_request.public())
+        return result
 
     def cancel_authorization(self, ctx, id):
         _, session = mutate_context(ctx)
@@ -185,7 +229,11 @@ class ProviderService:
                 raise AuthError('NOT_FOUND')
             if attempt['status'] in ('pending', 'exchanging'):
                 attempt.update(status='failed', error='AUTHORIZATION_CANCELLED', private=None)
-            return self._attempt_result(attempt)
+            owner_intent = attempt.get('workspaceIntentId') if attempt.get('error') == 'AUTHORIZATION_CANCELLED' else None
+            result = self._attempt_result(attempt)
+        if owner_intent and self.workspace_recovery is not None:
+            self.workspace_recovery.cancel(ctx, owner_intent)
+        return result
 
     def _callback(self, callback):
         if not isinstance(callback, dict):
@@ -218,6 +266,47 @@ class ProviderService:
                 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
                 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'"}}
 
+    def _complete_owner(self, ctx, saved, private, client, tokens, identity, code_exchanged_at, identity_verified_at):
+        """Consume OAuth before the last old-session operation, which may rotate it.
+
+        Workspace proof and generation-account authorization are separate. A
+        successful identity proof never implicitly attaches a provider grant.
+        """
+        from backend.sessions.recovery import FreshOwnerProof
+        with self.repository.transaction(ctx) as raw:
+            state = self._state(ctx, raw)
+            self._expire(state)
+            attempt = state['attempts'][saved['id']]
+            if attempt['status'] != 'exchanging':
+                raise AuthError('AUTHORIZATION_CANCELLED')
+            attempt.update(status='completed', providerAccountId=None, private=None, error=None)
+            saved = copy.deepcopy(attempt)
+        proof = FreshOwnerProof(authorization_attempt_id=saved['id'], oauth_state_hash=saved['stateHash'],
+            site_session_id=field(ctx, 'siteSessionId'), issuer=identity.issuer, subject=identity.subject,
+            code_exchanged_at=code_exchanged_at, identity_verified_at=identity_verified_at,
+            grant_type='authorization_code', state_verified=True, pkce_verified=True,
+            authoritative_identity_read=True)
+        response = self._redirect(saved)
+        workspace_status = 'failed'
+        try:
+            result = self.workspace_recovery.accept_verified_authorization(ctx,
+                intent_id=private['ownerIntent']['id'], nonce=private['ownerIntent']['nonce'], proof=proof)
+            workspace_status = result.data['status']
+            if result.session is not None:
+                response['headers']['Set-Cookie'] = result.session.set_cookie
+        except Exception:
+            # Never touch old ctx after the hook: it may have rotated the session.
+            # Workspace status is separate from the already completed identity proof.
+            workspace_status = 'failed'
+        finally:
+            try:
+                self.oauth.revoke(private['metadata'], client, tokens)
+            except Exception:
+                pass  # A revocation outage must not discard a rotated session cookie.
+        response['headers']['Location'] += '&' + urlencode({
+            'workspaceIntent': private['ownerIntent']['id'], 'workspaceStatus': workspace_status})
+        return response
+
     def complete_authorization(self, ctx, callback):
         tenant, session = require_context(ctx)
         callback = self._callback(callback)
@@ -245,7 +334,9 @@ class ProviderService:
                 raise AuthError('AUTHORIZATION_STATE_INVALID')
             client = ClientRegistration(**private['client'])
             tokens = self.oauth.exchange(private['metadata'], client, callback['code'], private['verifier'], self.clock())
+            code_exchanged_at = self.clock()
             identity = self.verifier.verify(tokens)
+            identity_verified_at = self.clock()
             if (not isinstance(identity, VerifiedIdentity) or identity.issuer != ISSUER
                     or not identity.minimal_read_verified or not isinstance(identity.subject, str)
                     or not identity.subject or len(identity.subject) > 512
@@ -253,6 +344,9 @@ class ProviderService:
                 raise AuthError('PROVIDER_IDENTITY_UNAVAILABLE')
             if saved['targetSubject'] and identity.subject != saved['targetSubject']:
                 raise AuthError('PROVIDER_IDENTITY_MISMATCH')
+            if saved.get('intent', 'connect') != 'connect':
+                return self._complete_owner(ctx, saved, private, client, tokens, identity,
+                                            code_exchanged_at, identity_verified_at)
             with self.repository.transaction(ctx) as raw:
                 state = self._state(ctx, raw)
                 self._expire(state)
@@ -387,6 +481,21 @@ class ProviderService:
         self._bundle_for(ctx, ownership, require_space=False)
         return BoundAccountClient(self, ctx, ownership)
 
+    def _spaces_for(self, ctx, ownership):
+        bundle, identity = self._bundle_for(ctx, ownership, require_space=False)
+        result = self.account_reader.list_spaces(bundle['tokens'], expected_subject=identity['subject'])
+        self._bundle_for(ctx, ownership, require_space=False)  # A concurrent removal wins over a late read.
+        return result
+
+    def _assert_space(self, ctx, ownership):
+        self._bundle_for(ctx, ownership)
+        spaces = self._spaces_for(ctx, ownership)['items']
+        selected = next((row for row in spaces if row['id'] == ownership['spaceId']), None)
+        if (selected is None or selected['access'] != 'available'
+                or (ownership.get('spaceKind') is not None and selected['kind'] != ownership['spaceKind'])):
+            raise AuthError('OWNERSHIP_MISMATCH')
+        return selected
+
 
 class BoundAccountClient:
     """Only identity/space discovery before a space is selected. No generation API."""
@@ -402,8 +511,7 @@ class BoundAccountClient:
         return identity
 
     def list_spaces(self):
-        self._service._bundle_for(self._ctx, self._owner, require_space=False)
-        raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
+        return self._service._spaces_for(self._ctx, self._owner)
 
 
 class BoundProviderClient:
@@ -418,8 +526,64 @@ class BoundProviderClient:
         _, identity = self._service._bundle_for(self._ctx, self._owner)
         return identity
 
-    def _unavailable(self, *args, **kwargs):
+    def list_spaces(self):
         self._service._bundle_for(self._ctx, self._owner)
-        raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
+        return self._service._spaces_for(self._ctx, self._owner)
 
-    list_spaces = quota = list_models = prepare = submit = lookup = download = _unavailable
+    def _authorize(self, required_scopes):
+        if (not isinstance(required_scopes, (set, frozenset, list, tuple))
+                or not required_scopes or any(not isinstance(s, str) for s in required_scopes)
+                or not set(required_scopes) <= SCOPES):
+            raise AuthError('PROVIDER_SCOPE_UNAVAILABLE')
+        bundle, _ = self._service._bundle_for(self._ctx, self._owner)
+        granted = frozenset(bundle['tokens'].get('scope', '').split())
+        if not set(required_scopes) <= granted:
+            raise AuthError('PROVIDER_SCOPE_UNAVAILABLE')
+        self._service._assert_space(self._ctx, self._owner)
+        try:
+            from backend.generation.types import AuthorizedMCP
+        except ImportError:
+            raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE') from None
+        tools = BoundMCPTools(self._service, self._ctx, self._owner)
+        def call_tool(name, arguments):
+            # The generation contract accepts an MCP result envelope. The inner
+            # dictionary has already passed the standard tool-result parser.
+            result = tools.call_tool(name, arguments, space_id=self._owner['spaceId'])
+            return {'structuredContent': result, 'isError': False}
+        return AuthorizedMCP(ownership=copy.deepcopy(self._owner), granted_scopes=granted,
+                             call_tool=call_tool)
+
+    def _invoke(self, operation, *args, **kwargs):
+        bundle, _ = self._service._bundle_for(self._ctx, self._owner)
+        factory = self._service.operation_adapter_factory
+        registered_adapter = self._service.operation_adapter
+        if factory is None and registered_adapter is None:
+            raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
+        scope = {'quota': 'libtv:account:read', 'list_models': 'libtv:project:read', 'get_model': 'libtv:project:read',
+                 'prepare': 'libtv:project:read', 'submit': 'libtv:task:write',
+                 'lookup': 'libtv:project:read', 'download': 'libtv:project:read'}[operation]
+        if scope not in bundle['tokens'].get('scope', '').split():
+            raise AuthError('PROVIDER_SCOPE_UNAVAILABLE')
+        self._service._assert_space(self._ctx, self._owner)
+        if registered_adapter is not None:
+            binder = getattr(registered_adapter, 'bind', None)
+            if not callable(binder):
+                raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
+            adapter = binder(ownership=copy.deepcopy(self._owner), authorize=self._authorize)
+        else:
+            adapter = factory(ownership=copy.deepcopy(self._owner),
+                              tools=BoundMCPTools(self._service, self._ctx, self._owner))
+        method = getattr(adapter, operation, None)
+        if not callable(method):
+            raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
+        result = method(*args, **kwargs)
+        self._service._bundle_for(self._ctx, self._owner)
+        return result
+
+    def quota(self, *args, **kwargs): return self._invoke('quota', *args, **kwargs)
+    def list_models(self, *args, **kwargs): return self._invoke('list_models', *args, **kwargs)
+    def get_model(self, *args, **kwargs): return self._invoke('get_model', *args, **kwargs)
+    def prepare(self, *args, **kwargs): return self._invoke('prepare', *args, **kwargs)
+    def submit(self, *args, **kwargs): return self._invoke('submit', *args, **kwargs)
+    def lookup(self, *args, **kwargs): return self._invoke('lookup', *args, **kwargs)
+    def download(self, *args, **kwargs): return self._invoke('download', *args, **kwargs)

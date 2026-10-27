@@ -1,4 +1,4 @@
-"""Bridge to storage module schema v1 without changing the storage implementation.
+"""Bridge to the stable account projection, verified against Store schema v2.
 
 provider_accounts is the authoritative public projection used by selections.
 Attempt/client/refresh data and usable grants live only in Store's encrypted

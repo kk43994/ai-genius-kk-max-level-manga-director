@@ -89,7 +89,11 @@ def main():
         if not isinstance(arguments, dict):
             parser.error('Arguments must be an object.')
         result = session.read_identity(matches[0], arguments)
+        private.setdefault('reads', {})
+        if private.get('lastRead'):
+            private['reads'][private['lastRead']['tool']] = private['lastRead']['result']
         private['lastRead'] = {'tool': args.read_tool, 'result': result}
+        private['reads'][args.read_tool] = result
         save(private)
         print(json.dumps({'tool': args.read_tool, 'responseShape': shape(result), 'rawValues': 'encrypted-only'}, ensure_ascii=False))
         return
@@ -129,8 +133,12 @@ def main():
         def do_GET(self):
             path = urlsplit(self.path).path
             if path == '/':
-                return self.reply('<p>只验证你自己的 LibTV 官方授权和只读工具目录，不提交图片或视频生成。</p>'
-                    '<p>此页只在本机开放；公网回调和真实身份字段仍需单独验收。</p>'
+                verified = load().get('status') == 'identity_verified'
+                notice = ('<p><strong>本机官方授权与账号身份读取已验证。</strong></p>'
+                          '<p>已完成官方页面确认、回调、令牌兑换及两次一致的账号身份读取。授权仅为账号只读；'
+                          '图片模型查询需要额外权限，未申请。公网客户版回调仍未获准。</p>') if verified else ''
+                return self.reply(notice + '<p>只验证你自己的 LibTV 官方授权和只读工具目录，不提交图片或视频生成。</p>'
+                    '<p>此页只在本机开放；公网客户版回调需另行获准。</p>'
                     f'<form method="post" action="/authorize"><input type="hidden" name="csrf" value="{csrf}">'
                     '<button>打开 LibTV 官方授权</button></form>', set_cookie=True)
             if path != '/api/v1/oauth/libtv/callback':

@@ -9,7 +9,7 @@ PUBLIC_ROUTES = frozenset({('GET', '/api/v1/oauth/libtv/callback')})
 class Response:
     status: int
     body: dict | bytes
-    headers: dict = datafield(default_factory=dict)
+    headers: dict = datafield(default_factory=dict, repr=False)
 
 
 def register_routes(router, services):
@@ -35,10 +35,14 @@ def register_routes(router, services):
 
     def authorize(ctx, params):
         def run():
-            value = body(ctx, ('provider', 'returnPath'))
-            if value.get('provider') != 'libtv':
+            value = body(ctx, ('provider', 'returnPath', 'intent', 'purpose', 'hasUnsavedChanges', 'workspaceLabel'))
+            owner_purpose = value.get('purpose') in ('bind_owner', 'recover_workspace') or value.get('intent') in ('bind_owner', 'recover')
+            if value.get('provider', 'libtv' if owner_purpose else None) != 'libtv':
                 raise AuthError('VALIDATION_FAILED')
-            return provider().begin_authorization(ctx, returnPath=value.get('returnPath', '/'))
+            return provider().begin_authorization(ctx, returnPath=value.get('returnPath', '/'),
+                intent=value.get('intent', 'connect'), purpose=value.get('purpose'),
+                hasUnsavedChanges=value.get('hasUnsavedChanges'),
+                workspaceLabel=value.get('workspaceLabel', '我的工作区'))
         return respond(ctx, run)
 
     def reauthorize(ctx, params):

@@ -1,7 +1,7 @@
 """Identity must come from a verified official read, never a decoded access token.
 
-No tool name/subject field is guessed. Deployers supply an audited contract after
-the official authenticated tool catalogue and identity response are verified.
+The default contract was verified through browser-approved account-read OAuth.
+Alternative contracts still require an explicit audited tool and subject path.
 """
 import json
 from dataclasses import dataclass
@@ -26,7 +26,7 @@ class UnavailableIdentityVerifier:
 
 
 class MCPReadSession:
-    """Small Streamable HTTP reader. This class has no generation operations."""
+    """Small Streamable HTTP session; callers must enforce tool/scope policy."""
     def __init__(self, http, access_token):
         self._http, self._token = http, access_token
         self._session = None
@@ -87,11 +87,11 @@ class MCPReadSession:
                 raise AuthError('PROVIDER_PROTOCOL_ERROR')
         raise AuthError('PROVIDER_PROTOCOL_ERROR')
 
-    def read_identity(self, tool, arguments):
-        # Called only after the exact tool is matched to a server-side audited contract.
+    def call_tool(self, tool, arguments, *, error_code='PROVIDER_PROTOCOL_ERROR'):
+        # Only audited readers or the ownership/scope-bound adapter may call this.
         result = self._rpc('tools/call', {'name': tool['name'], 'arguments': arguments})
         if result.get('isError'):
-            raise AuthError('PROVIDER_IDENTITY_UNAVAILABLE')
+            raise AuthError(error_code)
         if isinstance(result.get('structuredContent'), dict):
             return result['structuredContent']
         content = result.get('content', [])
@@ -104,7 +104,10 @@ class MCPReadSession:
                 raise ValueError()
             return result
         except (ValueError, TypeError):
-            raise AuthError('PROVIDER_IDENTITY_UNAVAILABLE') from None
+            raise AuthError(error_code) from None
+
+    def read_identity(self, tool, arguments):
+        return self.call_tool(tool, arguments, error_code='PROVIDER_IDENTITY_UNAVAILABLE')
 
 
 @dataclass(frozen=True)
@@ -113,6 +116,12 @@ class IdentityReadContract:
     subject_path: tuple
     display_name_path: tuple = ()
     evidence: str = ''
+
+
+LIBTV_ACCOUNT_IDENTITY = IdentityReadContract(
+    'account_user', ('user', 'uuid'), ('user', 'nickname'),
+    'Official https://mcp.liblib.tv/mcp tools/list and account_user; '
+    'browser OAuth libtv:account:read verified 2026-10-27; repeat user.uuid read matched.')
 
 
 class ReadOnlyMCPIdentityVerifier:
@@ -133,7 +142,7 @@ class ReadOnlyMCPIdentityVerifier:
             data = data.get(part)
         return data
 
-    def verify(self, tokens):
+    def read_snapshot(self, tokens):
         session = MCPReadSession(self._http, tokens['access_token'])
         matches = [t for t in session.tools() if t.get('name') == self._contract.tool_name]
         if len(matches) != 1:
@@ -148,6 +157,10 @@ class ReadOnlyMCPIdentityVerifier:
         identity = session.read_identity(tool, {})
         subject = self._path(identity, self._contract.subject_path)
         name = self._path(identity, self._contract.display_name_path) if self._contract.display_name_path else None
-        if not isinstance(subject, str) or not subject or len(subject) > 512:
+        if (not isinstance(subject, str) or not subject or len(subject) > 512
+                or any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in subject)):
             raise AuthError('PROVIDER_IDENTITY_UNAVAILABLE')
-        return VerifiedIdentity(subject=subject, display_name=name if isinstance(name, str) else None)
+        return VerifiedIdentity(subject=subject, display_name=name if isinstance(name, str) else None), identity
+
+    def verify(self, tokens):
+        return self.read_snapshot(tokens)[0]
