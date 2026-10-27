@@ -1,0 +1,2 @@
+# Integration must install this before enabling persistent storage.
+cryptography==50.0.2
