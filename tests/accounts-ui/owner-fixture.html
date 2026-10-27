@@ -1,0 +1,7 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>工作区主账号与找回 · 合成验收</title><link rel="icon" href="data:,"><link rel="stylesheet" href="../../frontend/accounts/accounts.css">
+<style>body{margin:0;padding:24px 20px;background:#f3f5ef;color:#26372d;font:14px/1.7 -apple-system,"PingFang SC",sans-serif}main{max-width:1000px;margin:auto}[hidden]{display:none!important}.fixture-tools{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.fixture-tools button{padding:9px 12px;border:1px solid #bacaba;border-radius:8px;background:#fff;font:inherit}.note{font-size:12px;color:#647061}textarea{box-sizing:border-box;width:100%;min-height:70px;padding:12px;margin:8px 0 18px;border:1px solid #bdccbd;border-radius:8px;font:inherit}#owner-results{white-space:pre-wrap;background:#fff;padding:20px;border-radius:10px}</style></head>
+<body><main><p class="note">开发验收 · 全部主账号、工作区与授权响应均为合成数据 · 不连接官方服务</p>
+<div class="fixture-tools" id="owner-tools"><button data-scenario="reset">重置合成工作区</button><button data-scenario="verified">模拟官方验证完成</button><button data-scenario="notfound">模拟无主账号记录</button><button data-scenario="wrong">模拟主账号不匹配</button><button data-scenario="expired">模拟站点会话失效</button></div>
+<label for="owner-draft">当前尚未保存的剧本输入</label><textarea id="owner-draft" placeholder="填写后找回，会要求先保存当前内容"></textarea>
+<div id="account-root"></div><pre id="owner-results" hidden></pre></main><script type="module" src="./owner-fixture.js"></script></body></html>

@@ -34,7 +34,7 @@ export async function runSuite({ mount, makeFake, makeAccount, delay }) {
     assert(ref('identity').value === 'pa_a' && ref('space').value === 'a_personal', 'selection not restored');
     assert(ref('quota-value').textContent === '余额未知', 'unknown balance misrepresented');
     assert(!model.calls.some(c => c.method === 'PUT'), 'mount changed selection');
-    assert(root.querySelectorAll('[role="status"]').length === 1 && ref('error').getAttribute('role') === 'alert', 'missing accessible live feedback');
+    assert(ref('status').getAttribute('role') === 'status' && ref('error').getAttribute('role') === 'alert', 'missing accessible live feedback');
   });
 
   await test('账号与空间分开选择；真实 0 保留；双击仅提交一次；外围输入不变', async () => {
@@ -202,6 +202,7 @@ export async function runSuite({ mount, makeFake, makeAccount, delay }) {
     current.unmount();
     localStorage.setItem(`asset-lab:accounts:v1:${model.session.tenant.id}`, JSON.stringify({ attempt: {
       attemptId: 'expired_link', status: 'pending', expiresAt: new Date(Date.now() - 60000).toISOString(), paused: false,
+      siteSessionId: model.session.session.id,
     } }));
     model.accounts = [makeAccount('pa_a', '临近到期前完成的账号')];
     model.attempt = { status: 'completed', providerAccountId: 'pa_a', error: null };

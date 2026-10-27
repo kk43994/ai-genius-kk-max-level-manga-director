@@ -20,6 +20,20 @@
 .al-accounts .al-accounts__heading { flex: 1; min-width: 130px; }
 .al-accounts .al-accounts__eyebrow { color: var(--aa-muted); font-size: 11px; letter-spacing: .08em; margin-bottom: 4px; }
 .al-accounts .al-accounts__intro { color: var(--aa-muted); margin-top: 16px; }
+.al-accounts .al-accounts__generation-title { padding-top: 22px; margin-top: 24px; border-top: 1px solid var(--aa-line); }
+.al-accounts .al-accounts__owner { margin-top: 24px; padding: 20px; background: #f5f8f1; border: 1px solid #cadbc9; border-radius: 12px; }
+.al-accounts .al-accounts__owner-name { font-size: 16px; font-weight: 600; margin: 10px 0 4px; overflow-wrap: anywhere; }
+.al-accounts .al-accounts__owner-note { font-size: 12px; color: var(--aa-muted); margin: 7px 0 12px; overflow-wrap: anywhere; }
+.al-accounts .al-accounts__owner-label { max-width: 450px; margin: 16px 0 12px; }
+.al-accounts .al-accounts__owner-label input { box-sizing: border-box; width: 100%; min-height: 42px; padding: 9px 12px; font: inherit; border: 1px solid #c4d3c3; border-radius: 8px; background: #fff; color: var(--aa-ink); }
+.al-accounts .al-accounts__owner-attempt { margin-top: 20px; padding-top: 18px; border-top: 1px solid #d6e0d2; }
+.al-accounts .al-accounts__owner-confirmation { margin-top: 18px; padding: 18px; background: #fff; border: 1px solid var(--aa-line); border-radius: 10px; }
+.al-accounts .al-accounts__owner-source { margin-bottom: 14px; font-size: 12px; color: #425d47; overflow-wrap: anywhere; }
+.al-accounts .al-accounts__owner-drafts { margin: 18px 0; padding: 14px; background: #f6f8f3; border-radius: 8px; font-size: 12px; }
+.al-accounts .al-accounts__owner-drafts ul { padding-left: 20px; margin: 6px 0; overflow-wrap: anywhere; }
+.al-accounts .al-accounts__owner-ack { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; font-weight: 500; margin: 14px 0; cursor: pointer; }
+.al-accounts .al-accounts__owner-ack input { width: 18px; height: 18px; margin: 2px 0 0; flex: 0 0 auto; accent-color: var(--aa-accent); }
+.al-accounts .al-accounts__owner-confirmation > .al-accounts__button { margin-top: 14px; }
 .al-accounts .al-accounts__button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border: 1px solid #ccd8cd; border-radius: 9px; background: #fff; color: #314d3c; font: inherit; font-size: 13px; font-weight: 550; line-height: 1.5; text-decoration: none; cursor: pointer; box-shadow: none; transition: background .15s ease; white-space: normal; }
 .al-accounts .al-accounts__button:hover:not(:disabled) { background: #edf3ec; }
 .al-accounts .al-accounts__button--primary { background: var(--aa-accent); border-color: var(--aa-accent); color: #fff; }
@@ -79,6 +93,7 @@
   .al-accounts .al-accounts__fields { grid-template-columns: 1fr; }
   .al-accounts .al-accounts__card > .al-accounts__actions { width: 100%; justify-content: flex-end; }
   .al-accounts .al-accounts__selection { padding: 16px; }
+  .al-accounts .al-accounts__owner, .al-accounts .al-accounts__owner-confirmation { padding: 14px; }
   .al-accounts .al-accounts__selection-footer { flex-direction: column; align-items: stretch; gap: 12px; }
   .al-accounts .al-accounts__quota { gap: 6px; }
   .al-accounts .al-accounts__quota strong { font-size: 20px; }

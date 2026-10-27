@@ -1,5 +1,6 @@
 import { accountLabels, accountState, accountName, validSelection, sameSelection, selectable,
   officialAuthorizationUrl, publicReturnPath, attemptState, activeAttempt, publicAttemptError, timeLabel, quotaPresentation, errorText } from './state.js';
+import { mountWorkspaceOwner } from './workspace-owner.js';
 
 let mountCount = 0;
 const e = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -7,7 +8,7 @@ const idPath = value => encodeURIComponent(value);
 const freshKey = () => globalThis.crypto?.randomUUID?.() || `accounts-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /** Mount only into the shell's account-root; never replace any project/workflow content. */
-export function mount({ root, api, events = new EventTarget(), session = null, publicBasePath = '/', pollInterval = 2500 }) {
+export function mount({ root, api, events = new EventTarget(), session = null, publicBasePath = '/', pollInterval = 2500, workspaceRecovery = {} }) {
   if (!root?.ownerDocument || typeof api?.request !== 'function') throw new TypeError('accounts.mount requires root and api.request');
   const document = root.ownerDocument;
   const win = document.defaultView;
@@ -22,12 +23,13 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   let attempt = null, authorizationUrl = null, popup = null, timer = null, polling = false;
   let storageKey = null, initializedTenant = false, removal = null, restoreFocus = null;
   let optionsSignature = '', spacesSignature = '', cardsSignature = '';
+  let ownerModule = null;
   const defaults = { providerAccountId: null, spaceId: null, revision: 0 };
   const selection = () => validSelection(snapshot?.selection) ? snapshot.selection : defaults;
   const currentAccount = () => accounts.find(a => a.id === draft.providerAccountId);
   const currentSpace = () => spaces.find(s => s.id === draft.spaceId);
   const canAuthorize = () => snapshot?.features?.providerAuthorization === true;
-  const blocked = () => Boolean(busy || loading || activeAttempt(attempt));
+  const blocked = () => Boolean(busy || loading || activeAttempt(attempt) || ownerModule?.isActive());
   const emit = (name, detail) => events.dispatchEvent(new win.CustomEvent(name, { detail: { ...detail, source } }));
   const request = (path, options) => api.request(path, options);
   const fail = code => Object.assign(new Error(code), { code });
@@ -41,7 +43,9 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
         <button type="button" data-action="refresh" class="al-accounts__button al-accounts__button--quiet">刷新状态</button>
         <button type="button" data-action="add" class="al-accounts__button al-accounts__button--primary">＋ 添加账号</button>
       </header>
-      <p class="al-accounts__intro">在 LibTV 官方页面登录并授权，完成后回到这里选择工作空间。</p>
+      <div data-view="owner-root"></div>
+      <h3 class="al-accounts__generation-title">生成账号</h3>
+      <p class="al-accounts__intro">以下账号用于资产制作。在 LibTV 官方页面登录授权，再选择个人或团队空间；添加生成账号不会绑定工作区主账号。</p>
       <p class="al-accounts__notice" data-view="notice" hidden></p>
       <div data-view="status" class="al-accounts__status" role="status" aria-live="polite" aria-atomic="true"></div>
       <div data-view="error" class="al-accounts__error" role="alert" aria-atomic="true" hidden></div>
@@ -78,6 +82,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     if (!storageKey) return true;
     let previous = null, applied = true;
     try { previous = JSON.parse(win.localStorage.getItem(storageKey) || 'null')?.attempt || null; } catch { /* Optional storage. */ }
+    if (previous?.siteSessionId !== snapshot?.session?.id) previous = null;
     // Saving an unrelated draft or unmounting an older tab must never erase another
     // tab's in-progress authorization. Terminal results also cannot regress to pending.
     if (updateAttempt && previous && ((activeAttempt(previous) && previous.attemptId !== attempt?.attemptId)
@@ -87,6 +92,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     const storedAttempt = updateAttempt ? attempt : previous;
     const record = { draft: dirty ? { ...draft } : null, attempt: storedAttempt ? {
       attemptId: storedAttempt.attemptId, expiresAt: storedAttempt.expiresAt, status: storedAttempt.status,
+      siteSessionId: storedAttempt.siteSessionId,
       paused: Boolean(storedAttempt.paused), accountId: storedAttempt.accountId || null,
       error: publicAttemptError(storedAttempt.error),
     } : null };
@@ -103,6 +109,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
         dirty = !sameSelection(draft, selection());
       }
       if (record?.attempt && typeof record.attempt.attemptId === 'string'
+          && record.attempt.siteSessionId === snapshot?.session?.id
           && record.attempt.attemptId.length <= 256 && Number.isFinite(Date.parse(record.attempt.expiresAt))) {
         attempt = { ...record.attempt };
       }
@@ -113,18 +120,28 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     if (!validSelection(next?.selection) || typeof next?.tenant?.id !== 'string') throw fail('INVALID_RESPONSE');
     const nextKey = `asset-lab:accounts:v1:${next.tenant.id}`;
     const changedTenant = storageKey !== nextKey;
-    if (changedTenant) {
+    const changedSession = Boolean(snapshot?.session?.id && next.session?.id !== snapshot.session.id);
+    if (changedSession && storageKey) {
+      try {
+        const previous = JSON.parse(win.localStorage.getItem(storageKey) || 'null');
+        if (previous) win.localStorage.setItem(storageKey, JSON.stringify({ draft: previous.draft || null, attempt: null }));
+      } catch { /* Preserve drafts; only obsolete authorization attempts are cleared. */ }
+    }
+    if (changedTenant || changedSession) {
       epoch++; refreshSequence++; spaceSequence++; quotaSequence++;
       clearTimeout(timer); timer = null; attempt = null; authorizationUrl = null;
       closePopup(); closeRemove(); accounts = []; spaces = []; quota = null; selectedSpaceLabel = null; error = ''; status = '';
-      dirty = false; initializedTenant = false; busy = null; polling = false;
+      if (changedTenant) { dirty = false; initializedTenant = false; }
+      busy = null; polling = false;
     }
     snapshot = { ...next, selection: { ...(!changedTenant && next.selection.revision < selection().revision
       ? selection() : next.selection) } };
     storageKey = nextKey;
+    api.setCsrfToken?.(next.csrfToken);
     if (!dirty) draft = { ...selection() };
     if (!initializedTenant) { restoreLocal(); initializedTenant = true; }
     if (changedTenant && activeAttempt(attempt)) schedulePoll(0);
+    ownerModule?.setSession(snapshot);
   }
 
   function render() {
@@ -138,7 +155,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     notice = !canAuthorize() ? 'LibTV 网页授权暂未开放。已保存的项目与素材可继续查看；入口开放后可直接在网页添加账号。' : '';
     refs.notice.hidden = !notice; text('notice', notice);
     buttons.add.disabled = blocked() || !canAuthorize();
-    buttons.refresh.disabled = Boolean(loading || busy);
+    buttons.refresh.disabled = Boolean(loading || busy || ownerModule?.isActive());
     refs.accounts.setAttribute('aria-busy', String(loading));
     text('count', loading ? '正在读取…' : `${accounts.length} 个账号`);
     const cards = accounts.map(a => {
@@ -173,6 +190,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     refs.quota.setAttribute('aria-busy', String(quotaLoading));
     buttons.quota.disabled = blocked() || spacesLoading || quotaLoading || !selectable(account, space);
     renderAttempt();
+    ownerModule?.render();
   }
 
   function renderAttempt() {
@@ -319,12 +337,12 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
         // from starting another attempt while the first tab's POST is in flight.
         let persisted;
         try { persisted = JSON.parse(win.localStorage.getItem(storageKey) || 'null')?.attempt; } catch { /* Optional storage. */ }
-        if (persisted?.attemptId && activeAttempt(persisted)) {
+        if (persisted?.attemptId && persisted.siteSessionId === snapshot?.session?.id && activeAttempt(persisted)) {
           attempt = persisted; throw fail('AUTHORIZATION_IN_PROGRESS');
         }
         const value = await request(path, { method: 'POST', body, idempotencyKey: freshKey() });
         if (!disposed && localEpoch === epoch && typeof value?.attemptId === 'string' && Number.isFinite(Date.parse(value.expiresAt))) {
-          attempt = { attemptId: value.attemptId, expiresAt: value.expiresAt, status: 'pending', accountId, paused: false };
+          attempt = { attemptId: value.attemptId, expiresAt: value.expiresAt, status: 'pending', accountId, paused: false, siteSessionId: snapshot.session.id };
           if (!saveLocal(true)) throw fail('AUTHORIZATION_IN_PROGRESS');
         }
         return value;
@@ -335,7 +353,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
       }) : await begin();
       if (disposed || localEpoch !== epoch) return;
       if (typeof result?.attemptId !== 'string' || !Number.isFinite(Date.parse(result.expiresAt))) throw fail('INVALID_RESPONSE');
-      attempt = { attemptId: result.attemptId, expiresAt: result.expiresAt, status: 'pending', accountId, paused: false };
+      attempt = { attemptId: result.attemptId, expiresAt: result.expiresAt, status: 'pending', accountId, paused: false, siteSessionId: snapshot.session.id };
       if (!saveLocal(true)) throw fail('AUTHORIZATION_IN_PROGRESS');
       authorizationUrl = officialAuthorizationUrl(result.authorizationUrl);
       if (activeAttempt(attempt)) {
@@ -460,15 +478,20 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   events.addEventListener('session:changed', onSession); events.addEventListener('selection:changed', onSelection);
   events.addEventListener('provider-accounts:changed', onAccounts);
   win.addEventListener('focus', onFocus); win.addEventListener('storage', onStorage);
+  ownerModule = mountWorkspaceOwner({ root: refs['owner-root'], api, events, session, publicBasePath: returnPath,
+    hooks: workspaceRecovery, pollInterval, onStateChange: render,
+    isBlocked: () => Boolean(busy || loading || activeAttempt(attempt) || dirty),
+    blockedReason: () => dirty ? '账号或空间选择尚未应用。请先应用或恢复原选择，再绑定／找回工作区。' : '请先完成当前生成账号操作。' });
   render();
   const ready = refresh({ rereadSession: !session });
   return {
     ready, refresh,
-    getDirtyState: () => ({ dirty: dirty || Boolean(busy), reason: busy ? '账号操作尚未完成，请稍候' : dirty ? '账号或空间选择尚未应用' : null }),
-    flush: async () => { if (busy) throw fail('ACCOUNT_OPERATION_IN_PROGRESS'); saveLocal(); },
+    getDirtyState: () => ({ dirty: dirty || Boolean(busy) || ownerModule.getDirtyState().dirty, reason: busy ? '账号操作尚未完成，请稍候' : dirty ? '账号或空间选择尚未应用' : ownerModule.getDirtyState().reason }),
+    flush: async () => { if (busy) throw fail('ACCOUNT_OPERATION_IN_PROGRESS'); await ownerModule.flush(); saveLocal(); },
     unmount() {
       if (disposed) return;
       saveLocal(); disposed = true; epoch++; clearTimeout(timer); closePopup(); closeRemove();
+      ownerModule.unmount();
       root.removeEventListener('click', onClick); root.removeEventListener('change', onChange); root.removeEventListener('submit', onSubmit);
       events.removeEventListener('session:changed', onSession); events.removeEventListener('selection:changed', onSelection);
       events.removeEventListener('provider-accounts:changed', onAccounts); refs['remove-dialog'].removeEventListener('cancel', onDialogCancel);

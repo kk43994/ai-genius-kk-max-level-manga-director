@@ -2,6 +2,8 @@
 
 此模块独占 `frontend/accounts/` 与 `tests/accounts-ui/`。没有改公共 HTML、shell、公共 CSS、API 客户端或生产后端。所有演示账号、授权结果、额度均为合成数据，不能作为真实 OAuth 或两个真实身份隔离验收。
 
+新增工作区主账号绑定/找回分区，与生成账号分开。owner purpose 的实际请求、保存草稿、过期会话 adapter、Cookie 轮换接线见 [OWNER_UI.md](./OWNER_UI.md)。默认关闭 owner 能力，必须由集成层明确提供已就绪配置与必要钩子。
+
 ## 集成入口
 
 加载 `accounts/accounts.css`，在视觉 shell 的 `#account-root` 上挂载 ESM 模块；资源 URL 相对部署目录解析。传入统一的 `api` 客户端与 EventTarget，不用 window 配置变量。
@@ -68,9 +70,9 @@ await accountModule.flush();  // 正在进行写请求时抛 ACCOUNT_OPERATION_I
 
 用户点击时预开空窗口并清除 opener；后端返回有效链接后跳转官方。弹窗被拦截则显示带 `noopener noreferrer` 的官方链接。无需客户安装 CLI、复制 token 或敲命令。模块不依赖 postMessage 或 URL query 来认定完成，只查询本站授权 attempt。
 
-现有 v1 契约 **没有取消 attempt 的写接口**。因此“取消等待”仅停止本页自动检查并关闭本页打开的授权窗口，不声称服务器授权被撤销。pending 尝试保留，避免用户误发第二次；可继续查询。只有后端 failed 的 `ACCESS_DENIED / access_denied / OAUTH_ACCESS_DENIED / AUTHORIZATION_CANCELLED / AUTHORIZATION_DENIED` 才显示“已在官方页面取消授权”。链接本地过期仍可核对之前是否已完成。
+初版 v1 契约没有取消 attempt 的写接口。生成账号流程的“取消等待”继续保持原语义：仅停止本页自动检查并关闭本页打开的授权窗口，不声称服务器授权被撤销。pending 尝试保留，避免用户误发第二次；可继续查询。后续第 2 模块已实现取消端点；新的工作区 owner 流程按 OWNER_UI.md 调用该端点和工作区 intent 取消端点。只有后端 failed 的 `ACCESS_DENIED / access_denied / OAUTH_ACCESS_DENIED / AUTHORIZATION_CANCELLED / AUTHORIZATION_DENIED` 才显示“已在官方页面取消授权”。链接本地过期仍可核对之前是否已完成。
 
-若产品需要“取消后旧官方回调绝不生效”，最小待补接口是租户绑定、原子消费 attempt state 的 `POST /authorization-attempts/{id}/cancel`，并补充 `cancelled` 终态；需由授权和契约负责人确认后实现。当前模块没有调用不存在的接口。
+第 2 模块的取消结果沿用 `failed + AUTHORIZATION_CANCELLED`，无需伪造新增状态。生成账号“取消等待”与工作区“取消，留在当前工作区”的文案和实际行为保持区分。
 
 ## 保留输入与竞态控制
 
