@@ -1,28 +1,87 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#202723">
-<title>资产研究室 · AI 漫剧工作台</title><link rel="stylesheet" href="asset-lab.css"><link rel="stylesheet" href="asset-lab-canvas.css"></head>
-<body>
-<header class="topbar">
-  <div class="workspace-brand"><span class="brand-symbol">◈</span><div><b>资产研究室</b><small>AI 漫剧工作台</small></div></div>
-  <div class="project-switch"><label class="sr-only" for="scriptSelect">当前剧本</label><select id="scriptSelect"><option value="legacy">尚未选择剧本</option></select><button id="importScript">＋ 导入剧本</button></div>
-  <div class="top-actions"><span id="saveStatus">正在连接</span><button id="accountButton"><i class="connection-dot"></i><span id="connectionLabel">LibTV</span></button><button id="taskButton">任务 <b id="taskCount">0</b></button><button id="helpButton" class="icon-button" aria-label="使用说明">?</button></div>
-</header>
-<aside class="warehouse" aria-label="资产仓库">
-  <div class="warehouse-heading"><div><span class="caption">ASSET LIBRARY</span><h2>资产仓库 <span id="warehouseCount">0</span></h2></div><button id="toggleWarehouse" class="icon-button" aria-label="收起资产仓库" aria-expanded="true">‹</button></div>
-  <label class="warehouse-search"><span class="sr-only">搜索资产档案</span><input id="warehouseSearch" type="search" placeholder="搜索人物、场景、道具档案…"></label>
-  <div id="warehouseFilters" class="warehouse-filters" aria-label="资产分类"></div>
-  <div class="warehouse-scope"><label><input id="includeHistory" type="checkbox">包含历史项目档案</label><span id="warehouseScope"></span></div>
-  <div id="warehouseList" class="warehouse-list"></div>
-  <div class="warehouse-footer"><span id="selectionCount">进入档案，勾选已定版图片</span><button id="batchClean" disabled>Nano2 批量洗图</button><small>角色 / 场景 / 道具 · 各自保留完整版本</small></div>
-</aside>
-<div class="app">
-  <nav id="steps" class="workflow-index" aria-label="定位工作流工序"><button id="showWarehouse" class="icon-button" aria-label="展开资产仓库">›</button><span>制作流程</span><button data-nav="script">01 剧本 / 清单</button><i>→</i><button data-nav="style">02 MJ 风格</button><i>→</i><button data-nav="asset">03 Image2 资产</button><i>→</i><button data-nav="clean">04 Nano2 清理</button><i>→</i><button data-nav="review">05 审核 <b id="reviewCount">0</b></button><i>→</i><button data-nav="export">06 打包</button></nav>
-  <main id="main" tabindex="-1"><div class="loading"><span></span>正在整理你的素材与制作记录…</div></main>
-</div>
-<input id="scriptFile" type="file" accept=".docx,.txt,.md" hidden>
-<dialog id="dialog" aria-labelledby="dialogTitle"><div class="dialog-top"><div><span class="caption" id="dialogEyebrow">ASSET LAB</span><h2 id="dialogTitle"></h2></div><button id="closeDialog" class="icon-button" aria-label="关闭弹窗">×</button></div><div id="dialogBody"></div></dialog>
-<div id="toast" role="status" aria-live="polite"></div>
-<div id="taskSignal" aria-live="polite"></div>
-<script type="module" src="asset-lab.js"></script>
-</body></html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f7f3">
+  <meta name="description" content="从剧本到角色、场景与道具，在同一个工作台制作、审核和交付。">
+  <title>资产实验室 · 创作工作台</title>
+  <link rel="icon" href="shell/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="asset-lab.css">
+  <link rel="stylesheet" href="asset-lab-canvas.css">
+  <link rel="stylesheet" href="asset-lab-tokens.css">
+  <link rel="stylesheet" href="asset-lab-customer.css">
+</head>
+<body class="customer-shell" data-connection-state="unknown" data-workspace-state="empty">
+  <a class="skip-link" href="#workspace-main">跳到制作区</a>
+  <svg class="lab-symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="icon-library" viewBox="0 0 24 24"><path d="M3 4h5v16H3zM8 4h5v16H8zM15 4l4-1 4 16-4 1z"/></symbol>
+    <symbol id="icon-tasks" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="17" rx="3"/><path d="M9 3h6v4H9zM8 12h8M8 16h5"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <a class="workspace-brand" href="#workspace-main" aria-label="资产实验室，跳到制作区"><img class="brand-mark" src="shell/mark.svg" alt="" width="36" height="36"><span><b>资产实验室</b><small>ASSET LAB / 创作工作台</small></span></a>
+    <div class="topbar-divider" aria-hidden="true"></div>
+    <div class="workspace-context"><span class="context-dot" aria-hidden="true"></span><span>我的工作台</span></div>
+    <!-- Module 6 replaces only account-root contents. -->
+    <div id="account-root" class="account-mount" aria-label="LibTV 账号、空间与连接状态"><div class="account-fallback"><span class="connection-status"><i class="connection-dot" aria-hidden="true"></i><span>尚未连接</span></span><span class="space-placeholder">未选择空间</span><button id="accountButton" class="lab-button compact" type="button" disabled aria-describedby="accountFallbackNote"><span id="connectionLabel">连接 LibTV</span></button><span id="accountFallbackNote" class="sr-only">账号模块尚未接入，授权连接暂不可用。</span></div></div>
+    <button id="taskButton" class="lab-icon-button activity-trigger" type="button" aria-label="打开任务与审核" aria-controls="activity-dialog" aria-haspopup="dialog"><svg class="lab-icon" aria-hidden="true"><use href="#icon-tasks"/></svg><span>任务</span><b id="taskCount" class="count-badge">0</b></button>
+    <button id="helpButton" class="lab-icon-button help-button" type="button" aria-label="打开使用说明">?</button>
+  </header>
+
+  <div class="workspace-grid">
+    <div id="library-dock" class="library-dock">
+      <aside id="library-panel" class="warehouse" aria-labelledby="library-title">
+        <div class="warehouse-heading"><div><span class="caption">PROJECT LIBRARY</span><h2 id="library-title">剧本与资产</h2></div><button id="toggleWarehouse" class="lab-icon-button" type="button" aria-label="收起剧本与资产" aria-expanded="true" aria-controls="library-panel">‹</button></div>
+        <div id="project-root" class="project-switch"><label for="scriptSelect">当前项目</label><select id="scriptSelect"><option value="legacy">新建你的第一个项目</option></select><button id="importScript" class="lab-button secondary" type="button"><svg class="lab-icon" aria-hidden="true"><use href="#icon-plus"/></svg>导入剧本</button></div>
+        <div class="library-section-label"><h3>资产清单</h3><span id="warehouseCount" class="count-badge">0</span></div>
+        <label class="warehouse-search"><span class="sr-only">搜索角色、场景或道具</span><input id="warehouseSearch" type="search" placeholder="搜索角色、场景或道具" autocomplete="off"></label>
+        <div id="warehouseFilters" class="warehouse-filters" aria-label="资产分类"><button type="button" class="active" data-warehouse-filter="all" aria-pressed="true">全部</button><button type="button" data-warehouse-filter="character" aria-pressed="false">角色</button><button type="button" data-warehouse-filter="scene" aria-pressed="false">场景</button><button type="button" data-warehouse-filter="prop" aria-pressed="false">道具</button></div>
+        <div class="warehouse-scope"><label><input id="includeHistory" type="checkbox">包含历史项目</label><span id="warehouseScope">当前项目</span></div>
+        <div id="warehouseList" class="warehouse-list"><div class="library-empty"><span class="empty-line-icon" aria-hidden="true">＋</span><h3>你的故事，从这里开始</h3><p>导入剧本或填写清单，<br>角色、场景与道具会在这里归档。</p></div></div>
+        <div class="warehouse-footer"><span id="selectionCount">选择已审核的图片，继续精修</span><button id="batchClean" class="lab-button secondary" type="button" disabled>Nano 精修选中资产</button><small>每个资产，保留完整的创作版本</small></div>
+      </aside>
+    </div>
+
+    <main id="workspace-main" class="app" tabindex="-1" aria-label="资产制作工作区">
+      <div class="workspace-toolbar"><button id="showWarehouse" class="lab-icon-button" type="button" aria-label="打开剧本与资产" aria-controls="library-dialog" aria-haspopup="dialog"><svg class="lab-icon" aria-hidden="true"><use href="#icon-library"/></svg><span>剧本与资产</span></button><div class="workspace-breadcrumb"><span>工作台</span><span aria-hidden="true">/</span><b id="workspace-title">开始创作</b></div><span id="saveStatus" class="save-status" role="status">等待载入</span></div>
+
+      <section id="welcome-root" class="welcome" aria-labelledby="welcome-title">
+        <div class="welcome-copy"><span class="eyebrow">A SPACE FOR YOUR NEXT STORY</span><h1 id="welcome-title">让故事，<br>成为可用的资产<span class="accent-period">。</span></h1><p>从一个角色，到一整个世界。<br>在这里确定风格、制作资产，把每个细节审核到位。</p><div class="welcome-actions"><button class="lab-button primary" type="button" data-shell-action="connect"><svg class="lab-icon" aria-hidden="true"><use href="#icon-plus"/></svg>连接 LibTV 账号</button><button class="lab-button text-button" type="button" data-shell-action="manual-plan">先整理资产清单 <span aria-hidden="true">↗</span></button></div><p class="welcome-note">通过 LibTV 官方页面授权 · 个人与团队空间分别管理</p></div>
+        <div class="welcome-art" aria-hidden="true"><div class="art-grid"></div><div class="art-orbit"></div><span class="art-caption">A STORY, TAKING SHAPE.</span><div class="concept-card concept-scene"><span>02 / SCENE</span><div class="concept-arch"></div><b>一个世界</b></div><div class="concept-card concept-character"><span>01 / CHARACTER</span><div class="concept-person"><i></i></div><b>一个角色</b></div><div class="concept-card concept-prop"><span>03 / PROP</span><div class="concept-object"></div><b>一个细节</b></div><div class="art-label"><i></i>从想法，到资产</div></div>
+      </section>
+
+      <section id="getting-started" class="getting-started" aria-labelledby="getting-started-title"><div class="section-title"><h2 id="getting-started-title">你的第一条制作流程</h2><span>每一步，都由你确认</span></div><ol class="start-grid"><li><span class="start-number">01</span><h3>带入你的故事</h3><p>导入剧本，或手工整理<br>角色、场景与道具。</p><span class="start-meta">TXT · MD · DOCX</span></li><li><span class="start-number">02</span><h3>一步步做出资产</h3><p>先锁定视觉风格，<br>再制作资产、保真精修。</p><span class="start-meta">MJ → Image2 → Nano</span></li><li><span class="start-number">03</span><h3>审核后，再交付</h3><p>比较版本，标注返修，<br>下载你确认过的成果。</p><span class="start-meta">人工审核 · 版本保留</span></li></ol></section>
+
+      <!-- Module 8 owns workflow-root and its legacy main target. -->
+      <div id="workflow-root" class="workflow-mount"><nav id="steps" class="workflow-index" aria-label="制作流程"><span>制作流程</span><button type="button" data-nav="script">01 清单</button><i aria-hidden="true">›</i><button type="button" data-nav="style">02 MJ 风格</button><i aria-hidden="true">›</i><button type="button" data-nav="asset">03 Image2</button><i aria-hidden="true">›</i><button type="button" data-nav="clean">04 Nano</button><i aria-hidden="true">›</i><button type="button" data-nav="review">05 审核 <b id="reviewCount">0</b></button><i aria-hidden="true">›</i><button type="button" data-nav="export">06 下载</button></nav><div id="main" tabindex="-1"><div class="loading" role="status">正在载入项目与制作记录…</div></div></div>
+      <footer class="workspace-footer"><span class="footer-flower" aria-hidden="true">✳</span><span>每个结果都值得被认真看一眼。</span><span class="video-pause">视频生成已暂停</span></footer>
+    </main>
+
+    <div id="activity-dock" class="activity-dock"><aside id="activity-panel" class="activity-panel" aria-labelledby="activity-title"><div class="activity-heading"><div><span class="caption">KEEP CREATING</span><h2 id="activity-title">任务与审核</h2></div><svg class="lab-icon" aria-hidden="true"><use href="#icon-tasks"/></svg></div>
+      <!-- Modules 7 and 8 own these individual roots. -->
+      <div id="task-root" class="task-mount"><div class="task-empty"><span class="empty-line-icon" aria-hidden="true"><svg class="lab-icon" aria-hidden="true"><use href="#icon-tasks"/></svg></span><h3>创作进展，尽在这里</h3><p>任务开始后，可以在这里查看进度，继续处理返回的结果。</p></div></div>
+      <div id="review-summary-root" class="review-summary-mount"><div class="review-reminder"><span class="review-reminder-icon" aria-hidden="true">✓</span><div><h3>你的审核，是下一步的起点</h3><p>每个阶段的结果经你确认后，才能继续下一步。</p></div></div></div>
+      <div class="ownership-note"><span aria-hidden="true">↳</span><p>切换账号与空间后，已有任务仍保留原来的归属。</p></div>
+    </aside></div>
+  </div>
+
+  <!-- Module 9: persistent, outside the replaceable workflow. -->
+  <footer id="update-root" class="update-mount" aria-label="版本与更新"><div class="release-fallback"><span>资产实验室 · 客户版</span><span class="release-divider" aria-hidden="true">·</span><span>版本信息待载入</span></div></footer>
+  <div id="shell-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <dialog id="library-dialog" class="shell-drawer library-drawer" aria-labelledby="library-dialog-title"><div class="drawer-heading"><h2 id="library-dialog-title">剧本与资产</h2><button class="lab-icon-button" type="button" data-shell-close aria-label="关闭剧本与资产"><svg class="lab-icon" aria-hidden="true"><use href="#icon-close"/></svg></button></div><div id="library-dialog-body" class="drawer-body"></div></dialog>
+  <dialog id="activity-dialog" class="shell-drawer" aria-labelledby="activity-dialog-title"><div class="drawer-heading"><h2 id="activity-dialog-title">任务与审核</h2><button class="lab-icon-button" type="button" data-shell-close aria-label="关闭任务与审核"><svg class="lab-icon" aria-hidden="true"><use href="#icon-close"/></svg></button></div><div id="activity-dialog-body" class="drawer-body"></div></dialog>
+  <dialog id="review-drawer" class="shell-drawer review-drawer" aria-labelledby="review-drawer-title"><div class="drawer-heading"><div><span class="caption">REVIEW & REFINE</span><h2 id="review-drawer-title">审核与返修</h2></div><button class="lab-icon-button" type="button" data-shell-close aria-label="关闭审核与返修"><svg class="lab-icon" aria-hidden="true"><use href="#icon-close"/></svg></button></div><div id="review-root" class="drawer-body"><div class="task-empty"><h3>选择一个结果，开始审核</h3><p>原始版本与审核记录会保留在项目中。</p></div></div></dialog>
+  <dialog id="shell-info-dialog" class="shell-info-dialog" aria-labelledby="shell-info-title"><div class="drawer-heading"><h2 id="shell-info-title">准备开始</h2><button class="lab-icon-button" type="button" data-shell-close aria-label="关闭说明"><svg class="lab-icon" aria-hidden="true"><use href="#icon-close"/></svg></button></div><div id="shell-info-body" class="drawer-body"></div></dialog>
+
+  <input id="scriptFile" type="file" accept=".docx,.txt,.md" hidden>
+  <dialog id="dialog" aria-labelledby="dialogTitle"><div class="dialog-top"><div><span class="caption" id="dialogEyebrow">ASSET LAB</span><h2 id="dialogTitle"></h2></div><button id="closeDialog" class="lab-icon-button" type="button" aria-label="关闭弹窗">×</button></div><div id="dialogBody"></div></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="taskSignal" aria-live="polite"></div>
+  <script type="module" src="shell/bootstrap.js"></script>
+  <script type="module" src="asset-lab.js"></script>
+</body>
+</html>

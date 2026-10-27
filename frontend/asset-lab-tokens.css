@@ -1,0 +1,42 @@
+/* Feature modules may use --lab-* without owning the shell. */
+:root {
+  color-scheme: light;
+  --lab-bg: #f6f7f3;
+  --lab-surface: #ffffff;
+  --lab-surface-soft: #eef2eb;
+  --lab-ink: #243c32;
+  --lab-muted: #647568;
+  --lab-line: #e0e5dc;
+  --lab-line-strong: #c8d2c4;
+  --lab-accent: #285840;
+  --lab-accent-hover: #1c4531;
+  --lab-accent-soft: #e5eddc;
+  --lab-lime: #dcebc5;
+  --lab-warning: #826127;
+  --lab-warning-soft: #fff3d9;
+  --lab-danger: #a03e32;
+  --lab-focus: #286e93;
+  --lab-radius-sm: 8px;
+  --lab-radius: 12px;
+  --lab-radius-lg: 20px;
+  --lab-shadow: 0 12px 35px rgb(33 54 40 / 8%);
+  --lab-header: 78px;
+  --lab-library: 256px;
+  --lab-activity: 284px;
+  --lab-space-1: 4px;
+  --lab-space-2: 8px;
+  --lab-space-3: 12px;
+  --lab-space-4: 16px;
+  --lab-space-6: 24px;
+  --lab-font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --ink: var(--lab-ink);
+  --muted: var(--lab-muted);
+  --paper: var(--lab-bg);
+  --line: var(--lab-line);
+  --green: var(--lab-accent);
+  --gold: var(--lab-warning);
+  --soft: var(--lab-surface-soft);
+  --red: var(--lab-danger);
+  --warehouse-width: var(--lab-library);
+  --header-height: var(--lab-header);
+}

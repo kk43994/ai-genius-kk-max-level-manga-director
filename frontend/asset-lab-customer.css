@@ -1,0 +1,322 @@
+/* Load after preserved workflow CSS. Only the customer shell opts into these rules. */
+html { scroll-padding-top: 110px; }
+.customer-shell { font: 14px/1.5 var(--lab-font); color: var(--lab-ink); background: var(--lab-bg); }
+.customer-shell [hidden], .lab-symbols { display: none !important; }
+.customer-shell :where(button, a, input, select, textarea, summary):focus-visible { outline: 3px solid var(--lab-focus); outline-offset: 3px; }
+.customer-shell :where(input, select, textarea) { font-size: 14px; }
+.customer-shell :where(button, a, summary) { -webkit-tap-highlight-color: transparent; }
+.customer-shell :where(button, input, select, textarea) { max-width: 100%; }
+.customer-shell button { font-size: 13px; }
+.customer-shell button:disabled { opacity: 1; color: #788475; border-color: #e0e5dc; background: #f0f2ed; }
+.customer-shell .skip-link { position: fixed; z-index: 1000; top: 12px; left: 12px; padding: 12px 18px; border-radius: 8px; background: var(--lab-ink); color: #fff; transform: translateY(-180%); }
+.customer-shell .skip-link:focus { transform: translateY(0); }
+.lab-icon { display: inline-block; flex: 0 0 auto; width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
+.customer-shell .lab-button, .customer-shell .lab-icon-button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 42px; padding: 10px 16px; border: 1px solid var(--lab-line-strong); border-radius: var(--lab-radius-sm); font-size: 13px; line-height: 1.4; font-weight: 550; background: var(--lab-surface); color: var(--lab-ink); }
+.customer-shell .lab-button.primary { border-color: var(--lab-accent); background: var(--lab-accent); color: #fff; box-shadow: 0 3px 8px rgb(40 88 64 / 9%); }
+.customer-shell .lab-button.primary:hover { background: var(--lab-accent-hover); }
+.customer-shell .lab-button.secondary { background: #fff; }
+.customer-shell .lab-button.text-button { border-color: transparent; background: transparent; color: var(--lab-accent); padding-inline: 8px; }
+.customer-shell .lab-button.compact { min-height: 38px; padding: 8px 12px; }
+.customer-shell .lab-icon-button { padding: 8px; min-width: 40px; min-height: 40px; font-size: 14px; background: transparent; border-color: transparent; }
+.customer-shell .lab-icon-button:hover { background: var(--lab-surface-soft); }
+.count-badge { display: inline-grid; place-items: center; padding: 2px 6px; min-width: 20px; min-height: 20px; border-radius: 5px; font-size: 11px; font-weight: 550; background: var(--lab-surface-soft); color: var(--lab-muted); }
+.customer-shell .caption, .customer-shell .eyebrow { font-size: 10px; letter-spacing: 1.7px; font-weight: 550; color: var(--lab-muted); }
+
+/* Global account and space context. */
+.customer-shell .topbar { position: sticky; inset: 0 0 auto; z-index: 20; min-height: 78px; height: auto; padding: 12px 24px; display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 22px; background: #fdfefa; border-bottom: 1px solid var(--lab-line); box-shadow: none; }
+.customer-shell .workspace-brand { display: flex; align-items: center; flex: 0 0 auto; width: auto; gap: 10px; }
+.customer-shell .brand-mark { width: 36px; height: 36px; }
+.customer-shell .workspace-brand b { font-size: 17px; letter-spacing: .8px; }
+.customer-shell .workspace-brand small { display: block; font-size: 8px; letter-spacing: 1.5px; color: var(--lab-muted); margin-top: 3px; }
+.topbar-divider { height: 25px; width: 1px; background: var(--lab-line); }
+.workspace-context { display: flex; gap: 9px; align-items: center; color: var(--lab-muted); font-size: 12px; white-space: nowrap; }
+.context-dot { width: 6px; height: 6px; border-radius: 50%; background: #96aa8b; }
+.account-mount { margin-left: auto; min-width: 0; }
+.account-fallback { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.connection-status { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; white-space: nowrap; }
+.customer-shell .connection-dot { width: 6px; height: 6px; border-radius: 50%; background: #a3a99c; box-shadow: none; }
+.space-placeholder { font-size: 12px; color: var(--lab-muted); padding-left: 14px; border-left: 1px solid var(--lab-line); }
+.customer-shell .help-button { border: 1px solid var(--lab-line); width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; border-radius: 50%; font-family: Georgia, serif; }
+.customer-shell .activity-trigger { display: none; }
+
+/* Three-column workspace. Side panels become accessible dialogs on smaller screens. */
+.workspace-grid { display: grid; grid-template-columns: var(--lab-library) minmax(0, 1fr) var(--lab-activity); min-height: calc(100dvh - var(--lab-header) - 37px); align-items: start; }
+.library-dock, .activity-dock { min-width: 0; position: sticky; top: var(--lab-header); max-height: calc(100dvh - var(--lab-header)); }
+.customer-shell .warehouse { position: static; width: 100%; height: calc(100dvh - var(--lab-header)); min-height: 400px; display: flex; padding: 25px 20px 0; background: #fdfefa; border-right: 1px solid var(--lab-line); z-index: auto; }
+.customer-shell .warehouse-heading { margin: 0 0 24px; gap: 8px; }
+.customer-shell .warehouse-heading .caption { font-size: 9px; color: var(--lab-muted); }
+.customer-shell .warehouse-heading h2 { font-size: 17px; margin: 5px 0 0; }
+.customer-shell .warehouse-heading .lab-icon-button { width: 30px; min-width: 30px; color: var(--lab-muted); font-size: 22px; }
+.customer-shell .project-switch { display: flex; flex-direction: column; align-items: stretch; flex: none; width: 100%; max-width: none; gap: 8px; margin: 0 0 28px; }
+.customer-shell .project-switch label { font-size: 11px; color: var(--lab-muted); font-weight: 500; margin: 0; }
+.customer-shell .project-switch select { width: 100%; min-width: 0; padding: 11px 9px; font-size: 12px; background: #f3f5ee; color: var(--lab-ink); border: 1px solid var(--lab-line); }
+.customer-shell .project-switch .lab-button { width: 100%; font-size: 12px; min-height: 38px; padding: 8px; }
+.library-section-label { display: flex; gap: 7px; align-items: center; margin-bottom: 14px; }
+.library-section-label h3 { margin: 0; font-size: 13px; }
+.library-section-label .count-badge { font-size: 10px; min-width: 18px; min-height: 18px; }
+.customer-shell .warehouse-search { margin-bottom: 10px; }
+.customer-shell .warehouse-search input { font-size: 12px; min-height: 38px; padding: 9px 11px; background: #fff; border: 1px solid var(--lab-line); }
+.customer-shell .warehouse-filters { gap: 3px; margin-bottom: 12px; flex-wrap: wrap; }
+.customer-shell .warehouse-filters button { padding: 8px 10px; font-size: 11px; min-height: 34px; color: var(--lab-muted); }
+.customer-shell .warehouse-filters .active { color: var(--lab-accent); background: var(--lab-accent-soft); }
+.customer-shell .warehouse-scope { gap: 8px; padding-bottom: 16px; flex-wrap: wrap; }
+.customer-shell .warehouse-scope label, .customer-shell .warehouse-scope > span { font-size: 10px; color: var(--lab-muted); }
+.customer-shell .warehouse-list { grid-template-columns: minmax(0, 1fr); gap: 10px; padding-bottom: 20px; }
+.library-empty { text-align: center; padding: 22px 0; }
+.empty-line-icon { width: 42px; height: 42px; display: inline-grid; place-items: center; border: 1px dashed var(--lab-line-strong); border-radius: 12px; color: #788d70; font-size: 25px; margin-bottom: 12px; }
+.library-empty h3 { font-size: 12px; margin-bottom: 8px; }
+.library-empty p { font-size: 11px; line-height: 1.9; color: var(--lab-muted); margin: 0; }
+.customer-shell .warehouse-list > .empty { border: 0; background: transparent; padding: 20px 0; }
+.customer-shell .warehouse-list > .empty h3 { font-size: 13px; }
+.customer-shell .warehouse-list > .empty p { color: var(--lab-muted); line-height: 1.8; }
+.customer-shell .warehouse-footer { padding: 15px 0 20px; gap: 10px; background: #fdfefa; }
+.customer-shell .warehouse-footer > span, .customer-shell .warehouse-footer > small { color: var(--lab-muted); font-size: 10px; }
+.customer-shell .warehouse-footer > button { min-height: 38px; font-size: 11px; }
+.customer-shell.warehouse-collapsed .workspace-grid { grid-template-columns: minmax(0, 1fr) var(--lab-activity); }
+.customer-shell.warehouse-collapsed .library-dock { display: none; }
+.customer-shell.warehouse-collapsed .app { margin-left: 0; }
+.customer-shell .app { margin: 0; padding: 0; min-height: 0; min-width: 0; background: none; outline: none; }
+.workspace-toolbar { height: 61px; display: flex; align-items: center; gap: 12px; margin: 0 30px; border-bottom: 1px solid var(--lab-line); }
+.workspace-breadcrumb { display: flex; gap: 9px; align-items: center; color: var(--lab-muted); font-size: 11px; min-width: 0; }
+.workspace-breadcrumb b { color: var(--lab-ink); font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.save-status { margin-left: auto; white-space: nowrap; color: var(--lab-muted); font-size: 10px; }
+.customer-shell #showWarehouse { display: none; }
+.customer-shell.warehouse-collapsed #showWarehouse { display: inline-flex; }
+
+/* Empty workspace. The illustration is decorative, never a generated asset. */
+.welcome { display: grid; grid-template-columns: 1.15fr .85fr; align-items: stretch; gap: 14px; padding: 36px 30px 24px; }
+.welcome-copy { min-width: 0; position: relative; z-index: 1; }
+.welcome .eyebrow { font-size: 9px; letter-spacing: 1.5px; }
+.welcome h1 { margin: 19px 0 18px; font-size: clamp(27px, 2.3vw, 38px); line-height: 1.5; letter-spacing: -.8px; font-weight: 600; }
+.accent-period { color: #829b64; }
+.welcome-copy > p { font-size: 12px; color: var(--lab-muted); line-height: 1.95; }
+.welcome-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 25px; }
+.welcome-actions .primary { padding: 12px 18px; }
+.welcome-actions .text-button { font-size: 12px; }
+.welcome-copy .welcome-note { font-size: 10px; margin: 14px 0 0; max-width: 230px; line-height: 1.8; }
+.welcome-art { position: relative; align-self: stretch; min-height: 342px; border-radius: 18px; background: #254837; overflow: hidden; color: #e8f0dd; }
+.art-grid { position: absolute; inset: 0; opacity: .15; background-image: linear-gradient(#bed3ad 1px, transparent 1px), linear-gradient(90deg, #bed3ad 1px, transparent 1px); background-size: 28px 28px; transform: rotate(-12deg) scale(1.2); }
+.art-orbit { position: absolute; width: 280px; height: 280px; top: 36px; left: -42px; border: 1px solid #e1edcc30; border-radius: 50%; box-shadow: 0 0 0 25px #d6e9ba0b, 0 0 0 50px #d6e9ba09; }
+.art-caption { position: absolute; top: 21px; left: 19px; font-size: 7px; letter-spacing: 2px; color: #c4d4b7; }
+.concept-card { position: absolute; border: 1px solid #f1f5eaa3; border-radius: 9px; padding: 10px; width: 125px; height: 155px; box-shadow: 0 15px 24px #102b3433; }
+.concept-card > span { font-size: 7px; letter-spacing: .5px; position: relative; z-index: 2; }
+.concept-card > b { position: absolute; font-size: 10px; font-weight: 500; bottom: 10px; left: 11px; }
+.concept-scene { background: #d8ddc3; color: #4c614e; top: 72px; right: -14px; transform: rotate(11deg); }
+.concept-character { background: #e9ebdc; color: #506649; top: 111px; left: 8px; transform: rotate(-10deg); z-index: 2; }
+.concept-prop { background: #b5c9b8; color: #335b46; bottom: 31px; right: -17px; transform: rotate(7deg); z-index: 3; width: 100px; height: 122px; }
+.concept-arch { position: absolute; width: 68px; height: 78px; border-radius: 38px 38px 0 0; border: 13px solid #95a685; border-bottom: 0; top: 41px; left: 26px; background: #516b59; box-shadow: inset 6px 3px 0 #385443; }
+.concept-person { position: absolute; width: 43px; height: 78px; left: 40px; top: 42px; border-radius: 48% 48% 6px 6px; background: #839a80; box-shadow: inset -15px 0 #6a826d; clip-path: polygon(15% 0,85% 0,100% 100%,0 100%); }
+.concept-person i { display: block; border-radius: 50%; width: 25px; height: 28px; background: #d3bfa3; margin: 0 auto; box-shadow: 0 -4px 0 #3f5846 inset; }
+.concept-object { position: absolute; width: 39px; height: 49px; left: 30px; top: 34px; border: 5px solid #487657; border-radius: 12px 12px 20px 20px; transform: rotate(-20deg); box-shadow: 0 0 0 4px #78a080 inset; }
+.art-label { position: absolute; right: auto; left: 16px; bottom: 12px; display: flex; align-items: center; gap: 6px; font-size: 8px; letter-spacing: .7px; background: none; border: 0; padding: 0; z-index: 4; color: #d1e0c3; }
+.art-label i { width: 4px; height: 4px; background: #c9ddb3; border-radius: 50%; }
+.getting-started { margin: 8px 30px 26px; }
+.section-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 15px; }
+.section-title h2 { font-size: 14px; margin: 0; letter-spacing: .1px; }
+.section-title > span { font-size: 10px; color: var(--lab-muted); }
+.start-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); list-style: none; padding: 0; margin: 0; gap: 12px; }
+.start-grid > li { border-top: 1px solid var(--lab-line-strong); padding: 16px 0; min-width: 0; }
+.start-number { display: inline-block; font: 11px/1.4 ui-monospace, monospace; color: #6c825a; margin-bottom: 14px; }
+.start-grid h3 { font-size: 13px; font-weight: 550; margin: 0 0 8px; }
+.start-grid p { font-size: 11px; line-height: 1.85; color: var(--lab-muted); margin: 0 0 15px; }
+.start-meta { font-size: 9px; color: var(--lab-muted); }
+.customer-shell[data-connection-state="connected"] .welcome, .customer-shell[data-connection-state="connected"] .getting-started,
+.customer-shell[data-workspace-state="ready"] .welcome, .customer-shell[data-workspace-state="ready"] .getting-started { display: none; }
+.customer-shell[data-workspace-state="empty"]:not([data-connection-state="connected"]) .workflow-mount { display: none; }
+.workspace-footer { display: flex; align-items: center; justify-content: center; gap: 9px; flex-wrap: wrap; margin: 12px 30px 25px; color: var(--lab-muted); font-size: 10px; }
+.footer-flower { color: #708b5f; font-size: 15px; }
+.video-pause { padding-left: 10px; border-left: 1px solid var(--lab-line-strong); }
+
+/* Compatibility with the feature-owned workflow. */
+.customer-shell .workflow-index { position: sticky; top: var(--lab-header); justify-content: flex-start; margin: 0; padding: 12px 24px; min-height: 58px; gap: 3px; background: #f6f7f3f5; border-bottom: 1px solid var(--lab-line); white-space: nowrap; }
+.customer-shell .workflow-index > span { display: none; }
+.customer-shell .workflow-index button { font-size: 11px; min-height: 34px; padding: 7px 8px; color: var(--lab-muted); }
+.customer-shell .workflow-index button.active { color: var(--lab-accent); background: var(--lab-accent-soft); }
+.customer-shell .workflow-index i { font-size: 13px; color: #91a085; }
+.customer-shell #main { padding: 26px 30px; min-width: 0; max-width: none; }
+.customer-shell .canvas-heading { align-items: flex-start; gap: 14px; }
+.customer-shell .canvas-heading h1 { font-size: 26px; letter-spacing: -.5px; }
+.customer-shell .canvas-heading p, .customer-shell .stage-brief p { color: var(--lab-muted); font-size: 12px; }
+.customer-shell .workflow-summary { flex-wrap: wrap; gap: 13px; padding: 13px 15px; margin-bottom: 22px; color: var(--lab-muted); }
+.customer-shell .workflow-summary-end { font-size: 10px; color: var(--lab-muted); }
+.customer-shell .workflow-stage { scroll-margin-top: 150px; }
+.customer-shell .workflow-stage > summary { padding: 17px; gap: 12px; min-height: 80px; }
+.customer-shell .stage-title h2 { font-size: 15px; }
+.customer-shell .stage-title small { font-size: 9px; color: var(--lab-muted); }
+.customer-shell .stage-status { color: var(--lab-muted); font-size: 10px; white-space: normal; }
+.customer-shell .stage-content { padding: 20px 18px; }
+.customer-shell .stage-content .studio-grid { grid-template-columns: minmax(0, 1fr); }
+.customer-shell .studio-grid > .panel { border-right: 0; padding-right: 0; }
+.customer-shell .stage-content .gallery, .customer-shell .stage-content .stage-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.customer-shell .asset-info h3, .customer-shell .stage-content .entity-item h3 { font-size: 13px; }
+.customer-shell .stage-content .entity-item p, .customer-shell .stage-content .entity-item button { font-size: 12px; }
+.customer-shell .coverage-row { grid-template-columns: minmax(100px, 1.3fr) repeat(3, minmax(60px, 1fr)); }
+.customer-shell .coverage-groups > div { flex-wrap: wrap; padding: 10px; }
+.customer-shell .coverage-groups small { display: none; }
+.customer-shell .stage-content .upload-zone { display: block; text-align: center; padding: 24px 15px; }
+.customer-shell .stage-content .upload-zone p { font-size: 12px; margin: 10px 0 16px; }
+.customer-shell .stage-content .upload-zone strong { font-size: 16px; }
+.customer-shell .stage-content .empty p { font-size: 12px; color: var(--lab-muted); }
+.customer-shell .stage-content .notice { font-size: 12px; }
+.customer-shell #toast { left: 50%; max-width: min(500px, 90vw); z-index: 100; }
+
+/* Tasks, review and releases have independent, persistent mount surfaces. */
+.activity-panel { min-width: 0; height: calc(100dvh - var(--lab-header)); padding: 25px 22px 20px; border-left: 1px solid var(--lab-line); background: #fbfcf8; overflow: auto; display: flex; flex-direction: column; gap: 20px; }
+.activity-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.activity-heading .caption { font-size: 9px; }
+.activity-heading h2 { margin: 5px 0 0; font-size: 17px; }
+.activity-heading > svg { color: #879b7b; }
+.task-mount, .review-summary-mount { min-width: 0; }
+.task-empty { text-align: center; padding: 30px 7px; }
+.task-empty h3 { font-size: 13px; margin: 0 0 10px; }
+.task-empty p { font-size: 12px; line-height: 1.9; margin: 0; color: var(--lab-muted); }
+.review-reminder { padding: 15px; display: flex; gap: 10px; border: 1px solid #dae5cf; border-radius: 10px; background: #f1f5ea; }
+.review-reminder-icon { color: #6b8759; font-size: 17px; }
+.review-reminder h3 { font-size: 11px; line-height: 1.7; margin: 0 0 5px; }
+.review-reminder p { font-size: 11px; line-height: 1.8; color: var(--lab-muted); margin: 0; }
+.ownership-note { margin-top: auto; padding-top: 18px; border-top: 1px solid var(--lab-line); display: flex; align-items: flex-start; gap: 10px; color: var(--lab-muted); }
+.ownership-note > span { font-size: 18px; }
+.ownership-note p { font-size: 10px; line-height: 1.9; margin: 0; }
+.update-mount { position: relative; min-height: 37px; border-top: 1px solid var(--lab-line); background: #fdfefa; padding: 9px 24px; color: var(--lab-muted); }
+.release-fallback { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; font-size: 10px; }
+.release-divider { color: #9aa691; }
+.customer-shell dialog { max-height: calc(100dvh - 32px); }
+.customer-shell dialog::backdrop { background: rgb(26 43 34 / 28%); backdrop-filter: blur(3px); }
+.customer-shell .shell-drawer { inset: 0 0 0 auto; margin: 0; width: min(440px, 100vw); max-width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-left: 1px solid var(--lab-line); border-radius: 18px 0 0 18px; padding: 0; background: var(--lab-surface); box-shadow: -10px 0 60px rgb(25 44 31 / 15%); }
+.customer-shell .shell-drawer[open] { display: flex; flex-direction: column; }
+.customer-shell .library-drawer { inset: 0 auto 0 0; border-radius: 0 18px 18px 0; border-left: 0; border-right: 1px solid var(--lab-line); }
+.customer-shell .review-drawer { width: min(600px, 100vw); }
+.drawer-heading { padding: 20px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #fdfefa; border-bottom: 1px solid var(--lab-line); flex: 0 0 auto; }
+.drawer-heading h2 { margin: 0; font-size: 18px; }
+.drawer-heading .caption + h2 { margin-top: 5px; }
+.drawer-body { padding: 22px; overflow: auto; min-height: 0; flex: 1; }
+.customer-shell .shell-info-dialog { position: fixed; inset: 0; margin: auto; width: min(480px, calc(100vw - 32px)); height: fit-content; border-radius: 16px; }
+.customer-shell .shell-info-dialog p { font-size: 14px; line-height: 1.9; color: var(--lab-muted); }
+.customer-shell #activity-dialog-body, .customer-shell #library-dialog-body { padding: 0; }
+.customer-shell .shell-drawer .activity-panel, .customer-shell .shell-drawer .warehouse { height: 100%; min-height: 0; width: 100%; display: flex; position: static; border: 0; padding: 20px; }
+.customer-shell .shell-drawer .warehouse-heading, .shell-drawer .activity-heading { display: none; }
+.customer-shell .shell-drawer .warehouse-list { min-height: 120px; }
+.customer-shell .shell-drawer .warehouse-footer { margin-top: auto; }
+
+@media (min-width: 1550px) {
+  :root { --lab-library: 280px; --lab-activity: 310px; }
+  .welcome { padding: 45px 40px 28px; gap: 28px; }
+  .welcome-art { min-height: 360px; }
+  .welcome-actions { flex-direction: row; flex-wrap: wrap; }
+  .concept-card { width: 145px; height: 174px; }
+  .concept-character { left: 22px; }
+  .concept-scene { right: 6px; }
+  .concept-prop { width: 110px; height: 133px; right: 9px; }
+  .concept-person { left: 50px; top: 54px; }
+  .concept-arch { top: 48px; left: 36px; }
+}
+@media (max-width: 1199px) {
+  :root { --lab-library: 248px; }
+  .workspace-grid { grid-template-columns: var(--lab-library) minmax(0, 1fr); }
+  .customer-shell.warehouse-collapsed .workspace-grid { grid-template-columns: minmax(0, 1fr); }
+  .activity-dock { display: none; }
+  .customer-shell .activity-trigger { display: inline-flex; }
+  .customer-shell .topbar { gap: 14px; padding-inline: 20px; }
+  .workspace-context, .topbar-divider { display: none; }
+  .welcome { padding: 30px 26px 24px; }
+  .welcome h1 { font-size: 32px; }
+  .getting-started { margin-inline: 26px; }
+}
+@media (max-width: 819px) {
+  :root { --lab-header: 118px; }
+  .customer-shell .topbar { min-height: 118px; flex-wrap: wrap; gap: 10px 12px; padding: 13px 18px; }
+  .customer-shell .workspace-brand { margin-right: auto; }
+  .account-mount { order: 3; width: 100%; margin: 0; }
+  .account-fallback { gap: 10px; justify-content: flex-start; }
+  .account-fallback .lab-button { margin-left: auto; }
+  .customer-shell .activity-trigger { margin-left: 0; }
+  .customer-shell .activity-trigger > span { display: none; }
+  .customer-shell .help-button { display: inline-flex; }
+  .workspace-grid, .customer-shell.warehouse-collapsed .workspace-grid { grid-template-columns: minmax(0, 1fr); }
+  .library-dock { display: none; }
+  .customer-shell #showWarehouse { display: inline-flex; font-size: 11px; gap: 7px; padding-left: 0; }
+  .workspace-toolbar { margin: 0 22px; height: 55px; gap: 10px; }
+  .workspace-breadcrumb > span { display: none; }
+  .workspace-breadcrumb { margin-left: 2px; }
+  .welcome { padding: 28px 22px 20px; grid-template-columns: 1.15fr .85fr; gap: 20px; }
+  .welcome h1 { font-size: 31px; }
+  .welcome-art { min-height: 330px; }
+  .getting-started { margin: 5px 22px 20px; }
+  .customer-shell .workflow-index { padding: 10px 18px; }
+  .customer-shell #main { padding: 22px; }
+  .customer-shell .workspace-footer { margin: 12px 22px 22px; }
+  .customer-shell .canvas-heading { flex-direction: column; }
+}
+@media (max-width: 540px) {
+  .customer-shell .topbar { padding-inline: 16px; }
+  .customer-shell .workspace-brand b { font-size: 16px; }
+  .customer-shell .workspace-brand small { font-size: 7px; letter-spacing: 1.1px; }
+  .customer-shell .brand-mark { width: 32px; height: 32px; }
+  .connection-status, .space-placeholder { font-size: 11px; }
+  .space-placeholder { padding-left: 9px; }
+  .customer-shell .account-fallback .lab-button { font-size: 11px; min-height: 34px; padding: 7px 9px; }
+  .customer-shell .account-fallback .connection-dot { width: 5px; height: 5px; }
+  .workspace-toolbar { margin-inline: 18px; }
+  .workspace-breadcrumb { font-size: 10px; }
+  .save-status { display: none; }
+  .welcome { display: flex; flex-direction: column; gap: 22px; padding: 25px 22px 18px; }
+  .welcome h1 { font-size: 30px; line-height: 1.5; margin: 17px 0 14px; }
+  .welcome h1 br { display: block; }
+  .welcome-copy > p { font-size: 12px; margin-bottom: 0; }
+  .welcome-copy > p br { display: none; }
+  .welcome-actions { flex-direction: row; align-items: center; gap: 7px; margin-top: 19px; flex-wrap: wrap; }
+  .welcome-actions .lab-button { font-size: 12px; padding: 10px 12px; }
+  .welcome-actions .text-button { font-size: 11px; padding-inline: 2px; }
+  .welcome-copy .welcome-note { max-width: none; font-size: 10px; margin-top: 12px; }
+  .welcome-art { min-height: 205px; width: 100%; border-radius: 14px; }
+  .concept-card { width: 116px; height: 136px; }
+  .concept-character { top: 42px; left: 22%; }
+  .concept-scene { top: 36px; right: 14%; }
+  .concept-prop { right: 7%; bottom: 13px; width: 89px; height: 104px; }
+  .concept-person { height: 66px; top: 35px; left: 35px; }
+  .concept-arch { height: 66px; width: 64px; top: 35px; left: 23px; }
+  .concept-object { top: 26px; left: 26px; width: 32px; height: 44px; }
+  .art-caption { top: 16px; left: 16px; }
+  .art-orbit { top: -18px; left: 15%; }
+  .getting-started { margin: 12px 22px 20px; }
+  .section-title { align-items: flex-start; }
+  .section-title h2 { font-size: 14px; }
+  .section-title > span { font-size: 9px; }
+  .start-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .start-grid > li { display: grid; grid-template-columns: 29px minmax(0, 1fr); gap: 0 10px; padding: 17px 0; }
+  .start-number { grid-column: 1; grid-row: 1 / 4; margin: 1px 0 0; }
+  .start-grid h3, .start-grid p, .start-meta { grid-column: 2; }
+  .start-grid h3 { font-size: 13px; margin-bottom: 6px; }
+  .start-grid p { margin-bottom: 6px; }
+  .start-grid p br { display: none; }
+  .customer-shell #main { padding: 20px 16px; }
+  .customer-shell .workflow-index { padding-inline: 14px; }
+  .customer-shell .workflow-index button { font-size: 10px; }
+  .customer-shell .workflow-stage > summary { padding: 15px 12px; gap: 9px; }
+  .customer-shell .stage-content { padding: 16px 12px; }
+  .customer-shell .stage-content .gallery, .customer-shell .stage-content .stage-gallery { grid-template-columns: minmax(0, 1fr); }
+  .customer-shell .stage-status { margin-left: 40px; }
+  .customer-shell .stage-content .entity-item { grid-template-columns: minmax(0, 1fr); }
+  .customer-shell .coverage-table { max-width: 100%; overflow-x: auto; }
+  .customer-shell .coverage-row { min-width: 345px; }
+  .customer-shell .canvas-heading h1 { font-size: 24px; }
+  .update-mount { padding: 10px 16px; }
+  .release-fallback { justify-content: center; font-size: 9px; }
+  .customer-shell .shell-drawer { border-radius: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .customer-shell *, .customer-shell *::before, .customer-shell *::after { transition-duration: 0s !important; animation: none !important; scroll-behavior: auto !important; }
+}
+@media (max-height: 760px) and (min-width: 820px) {
+  .customer-shell .warehouse { padding-top: 16px; }
+  .customer-shell .warehouse-heading { margin-bottom: 15px; }
+  .customer-shell .project-switch { margin-bottom: 18px; gap: 6px; }
+  .customer-shell .warehouse-scope { padding-bottom: 10px; }
+  .customer-shell .warehouse-footer { padding: 12px 0; gap: 8px; }
+  .customer-shell .warehouse-footer > small { display: none; }
+}
+@media (forced-colors: active) {
+  .customer-shell .lab-button, .customer-shell .lab-icon-button, .concept-card { border: 1px solid ButtonText; }
+  .welcome-art { border: 1px solid CanvasText; }
+}
