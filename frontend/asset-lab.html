@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#202723">
+<title>资产研究室 · AI 漫剧工作台</title><link rel="stylesheet" href="asset-lab.css"><link rel="stylesheet" href="asset-lab-canvas.css"></head>
+<body>
+<header class="topbar">
+  <div class="workspace-brand"><span class="brand-symbol">◈</span><div><b>资产研究室</b><small>AI 漫剧工作台</small></div></div>
+  <div class="project-switch"><label class="sr-only" for="scriptSelect">当前剧本</label><select id="scriptSelect"><option value="legacy">尚未选择剧本</option></select><button id="importScript">＋ 导入剧本</button></div>
+  <div class="top-actions"><span id="saveStatus">正在连接</span><button id="accountButton"><i class="connection-dot"></i><span id="connectionLabel">LibTV</span></button><button id="taskButton">任务 <b id="taskCount">0</b></button><button id="helpButton" class="icon-button" aria-label="使用说明">?</button></div>
+</header>
+<aside class="warehouse" aria-label="资产仓库">
+  <div class="warehouse-heading"><div><span class="caption">ASSET LIBRARY</span><h2>资产仓库 <span id="warehouseCount">0</span></h2></div><button id="toggleWarehouse" class="icon-button" aria-label="收起资产仓库" aria-expanded="true">‹</button></div>
+  <label class="warehouse-search"><span class="sr-only">搜索资产档案</span><input id="warehouseSearch" type="search" placeholder="搜索人物、场景、道具档案…"></label>
+  <div id="warehouseFilters" class="warehouse-filters" aria-label="资产分类"></div>
+  <div class="warehouse-scope"><label><input id="includeHistory" type="checkbox">包含历史项目档案</label><span id="warehouseScope"></span></div>
+  <div id="warehouseList" class="warehouse-list"></div>
+  <div class="warehouse-footer"><span id="selectionCount">进入档案，勾选已定版图片</span><button id="batchClean" disabled>Nano2 批量洗图</button><small>角色 / 场景 / 道具 · 各自保留完整版本</small></div>
+</aside>
+<div class="app">
+  <nav id="steps" class="workflow-index" aria-label="定位工作流工序"><button id="showWarehouse" class="icon-button" aria-label="展开资产仓库">›</button><span>制作流程</span><button data-nav="script">01 剧本 / 清单</button><i>→</i><button data-nav="style">02 MJ 风格</button><i>→</i><button data-nav="asset">03 Image2 资产</button><i>→</i><button data-nav="clean">04 Nano2 清理</button><i>→</i><button data-nav="review">05 审核 <b id="reviewCount">0</b></button><i>→</i><button data-nav="export">06 打包</button></nav>
+  <main id="main" tabindex="-1"><div class="loading"><span></span>正在整理你的素材与制作记录…</div></main>
+</div>
+<input id="scriptFile" type="file" accept=".docx,.txt,.md" hidden>
+<dialog id="dialog" aria-labelledby="dialogTitle"><div class="dialog-top"><div><span class="caption" id="dialogEyebrow">ASSET LAB</span><h2 id="dialogTitle"></h2></div><button id="closeDialog" class="icon-button" aria-label="关闭弹窗">×</button></div><div id="dialogBody"></div></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="taskSignal" aria-live="polite"></div>
+<script type="module" src="asset-lab.js"></script>
+</body></html>

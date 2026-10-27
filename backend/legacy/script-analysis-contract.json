@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Script analysis result v1 — future analyzer contract",
+  "type": "object",
+  "required": ["schemaVersion", "scriptId", "sourceRevision", "characters", "scenes", "props", "prompts"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "scriptId": {"type": "string"},
+    "sourceRevision": {"type": "string"},
+    "characters": {"type": "array", "items": {"type": "object", "required": ["id", "name", "settings"], "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "settings": {"type": "array", "items": {"$ref": "#/$defs/setting"}}}}},
+    "scenes": {"type": "array", "items": {"type": "object", "required": ["id", "name", "settings"], "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "settings": {"type": "array", "items": {"$ref": "#/$defs/setting"}}}}},
+    "props": {"type": "array", "items": {"type": "object", "required": ["id", "name", "settings"], "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "settings": {"type": "array", "items": {"$ref": "#/$defs/setting"}}}}},
+    "prompts": {"type": "array", "items": {"type": "object", "required": ["id", "entityId", "stage", "text", "ratio", "dependsOn"], "properties": {"id": {"type": "string"}, "entityId": {"type": "string"}, "stage": {"enum": ["style", "character_asset", "scene_main", "scene_reverse", "scene_overhead", "scene_side", "prop_asset"]}, "text": {"type": "string", "minLength": 1}, "ratio": {"enum": ["16:9", "9:16"]}, "dependsOn": {"type": "array", "items": {"type": "string"}}}}}
+  },
+  "$defs": {"setting": {"type": "object", "required": ["field", "value", "origin"], "properties": {"field": {"type": "string"}, "value": {"type": "string"}, "origin": {"enum": ["script", "proposal"]}, "sourceQuote": {"type": "string"}}, "allOf": [{"if": {"properties": {"origin": {"const": "script"}}}, "then": {"required": ["sourceQuote"]}}]}}
+}

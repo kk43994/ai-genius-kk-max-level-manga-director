@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "copiedAt": "2026-10-27",
+  "sourceRoot": "/Users/zhoukaihao/Documents/Codex/2026-10-17/files-mentioned-by-the-user-codex/outputs",
+  "policy": "Explicit source allowlist only. No credentials, runtime config, manifest, customer scripts, media or history. Legacy code is reference-only and never imported by the preview server.",
+  "files": [
+    {
+      "source": "dashixiong-scene-studio/asset-lab.html",
+      "destination": "frontend/asset-lab.html",
+      "sha256": "86d8da21edcf41960a8ed0816d23ba5ce75675aa4a3434256999e605db2e94bc",
+      "bytes": 3349
+    },
+    {
+      "source": "dashixiong-scene-studio/asset-lab.js",
+      "destination": "frontend/asset-lab.js",
+      "sha256": "fe557b3902967b843961f169eaec91cbb2648b442f8d46bcab07ae0119ddfb1e",
+      "bytes": 70008
+    },
+    {
+      "source": "dashixiong-scene-studio/asset-lab-archives.js",
+      "destination": "frontend/asset-lab-archives.js",
+      "sha256": "c014ddb28f5f457518f0d3df510073a0e6f954687056cc509ec5d84ab78e856e",
+      "bytes": 5618
+    },
+    {
+      "source": "dashixiong-scene-studio/asset-lab.css",
+      "destination": "frontend/asset-lab.css",
+      "sha256": "0fab54388dbf9fe82b1baeea727eef81b0303c94fec4e7f041ab943c357d1e80",
+      "bytes": 14631
+    },
+    {
+      "source": "dashixiong-scene-studio/asset-lab-canvas.css",
+      "destination": "frontend/asset-lab-canvas.css",
+      "sha256": "2faf3cf1c04b4e9ffd98fac06cec396eda2b2731bb265807c0103c78d3c2d340",
+      "bytes": 29936
+    },
+    {
+      "source": "dashixiong-scene-studio/asset-lab-layout.css",
+      "destination": "frontend/asset-lab-layout.css",
+      "sha256": "a3c72293e28cfb18c3e79d5f0e74ed13c68bcb26d4497d4a85f1097e155561e0",
+      "bytes": 6179
+    },
+    {
+      "source": "dashixiong-image-test/character_batches.py",
+      "destination": "backend/legacy/character_batches.py",
+      "sha256": "348a0cdfd460b7262198c953b8acceb1c93cd3019955ad2c087790406a28feb4",
+      "bytes": 3875
+    },
+    {
+      "source": "dashixiong-image-test/cinematic_contracts.py",
+      "destination": "backend/legacy/cinematic_contracts.py",
+      "sha256": "3cd9ebec6c89c44540dbbc4c1bd271c16c32710d515176276f799c32ec88f780",
+      "bytes": 8451
+    },
+    {
+      "source": "dashixiong-image-test/execution.py",
+      "destination": "backend/legacy/execution.py",
+      "sha256": "bda261a2c5603395aa628b1c1a8d204268ca213fa06128c11f3e7133dac906c5",
+      "bytes": 29485
+    },
+    {
+      "source": "dashixiong-image-test/local_preview.py",
+      "destination": "backend/legacy/local_preview.py",
+      "sha256": "4d0312e6f82935b51d315233d88e771b576dec50f03fd1b544711925ddb21362",
+      "bytes": 2965
+    },
+    {
+      "source": "dashixiong-image-test/mindreader_workflow.py",
+      "destination": "backend/legacy/mindreader_workflow.py",
+      "sha256": "7b897f0e16a02faf65837d193db4058316fa3d31df04fe201e2b413b5860f2c5",
+      "bytes": 25275
+    },
+    {
+      "source": "dashixiong-image-test/production_actions.py",
+      "destination": "backend/legacy/production_actions.py",
+      "sha256": "10209367b889f682be152ca900b76ec8ae59f3807dad1eaabe299a3c31203232",
+      "bytes": 18492
+    },
+    {
+      "source": "dashixiong-image-test/production_edit.py",
+      "destination": "backend/legacy/production_edit.py",
+      "sha256": "e57e268f45b15452a013e4e1959eb57bd4fde45e5dfa41f89a77ae3c82d95c73",
+      "bytes": 11660
+    },
+    {
+      "source": "dashixiong-image-test/production_revision.py",
+      "destination": "backend/legacy/production_revision.py",
+      "sha256": "de6ce114990df09ee82daf57af3d7dd6c8ce776380f54449726a0bef51c55283",
+      "bytes": 4545
+    },
+    {
+      "source": "dashixiong-image-test/production_run.py",
+      "destination": "backend/legacy/production_run.py",
+      "sha256": "273ae6c8e6c48a8f761915411cae6b6539c43819a8932bef4231649ba5a5a58d",
+      "bytes": 9747
+    },
+    {
+      "source": "dashixiong-image-test/production_video.py",
+      "destination": "backend/legacy/production_video.py",
+      "sha256": "ad2c8a0cd3919339ef79ccb3e5f7e0cc6ae04492214b854dc52baeb312acd378",
+      "bytes": 13252
+    },
+    {
+      "source": "dashixiong-image-test/review-server.py",
+      "destination": "backend/legacy/review-server.py",
+      "sha256": "bb0549ae2872ed4d2bbd19ff91a7f45bc121fb901b836fcc2e3c3edcfa09873d",
+      "bytes": 14461
+    },
+    {
+      "source": "dashixiong-image-test/scene_references.py",
+      "destination": "backend/legacy/scene_references.py",
+      "sha256": "dabac5dfc41defa377f8a3f5a4136da66a2bfed612ee47d8fc065f5c1e0d860e",
+      "bytes": 7177
+    },
+    {
+      "source": "dashixiong-image-test/script_intake.py",
+      "destination": "backend/legacy/script_intake.py",
+      "sha256": "89f9838e87cc75617e1b7c154a900f47fc3074033c2ec836e91deebae126c28f",
+      "bytes": 5570
+    },
+    {
+      "source": "dashixiong-image-test/workflow_protocol.py",
+      "destination": "backend/legacy/workflow_protocol.py",
+      "sha256": "9ec8fed03c4fcdf3bc6ce9c9db62b382930db417ecc8709988fe8657bf97834d",
+      "bytes": 40460
+    },
+    {
+      "source": "dashixiong-image-test/providers/libtv.py",
+      "destination": "backend/legacy/providers/libtv.py",
+      "sha256": "99497865687fa7abe7804dbffcf26439d689ce88bedc03936dacb2655b3ee1df",
+      "bytes": 13306
+    },
+    {
+      "source": "dashixiong-image-test/providers/lovart.py",
+      "destination": "backend/legacy/providers/lovart.py",
+      "sha256": "e1430d9efaad7e72c07600df736d1ad2f489ec3fca89f6db333e6693d456fd2c",
+      "bytes": 4570
+    },
+    {
+      "source": "dashixiong-image-test/providers/lovart.contract.json",
+      "destination": "backend/legacy/providers/lovart.contract.json",
+      "sha256": "d8ecdb5dd947ae6ba119e086e7536701e68fec0987c8455f74f10656a9c4ab92",
+      "bytes": 2389
+    },
+    {
+      "source": "dashixiong-image-test/script-analysis-contract.json",
+      "destination": "backend/legacy/script-analysis-contract.json",
+      "sha256": "b3ffde8a65533bbd3bb78f20b3d7acf11835bc3696704c61df7d814988236f0d",
+      "bytes": 1943
+    }
+  ]
+}

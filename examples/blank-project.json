@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "synthetic": true,
+  "project": {
+    "id": "example-empty",
+    "title": "空白资产项目"
+  },
+  "scripts": [],
+  "jobs": [],
+  "plans": [],
+  "tasks": [],
+  "delivery": {
+    "version": 0,
+    "aspectRatio": null,
+    "videoEnabled": false
+  }
+}
