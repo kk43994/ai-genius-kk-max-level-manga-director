@@ -1,3 +1,4 @@
+import {operationLabel, elapsedLabel, taskProgress, reviewProgress} from './progress.js';
 import {buildCustomerArchives} from '../asset-lab-archives.js';
 import {nextAction, prepareIdentity} from './guide.js';
 import {DraftStore, escapeHTML as esc, localBase, assetURL, categories, stages, stageLabels, states, recipes,
@@ -18,6 +19,16 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   doc.body.dataset.workflowMounted = 'true';
   const drafts = new DraftStore(storage, session.tenant.id, apiBase);
   const listeners = [];
+  let operation = null, operationSerial = 0, progressTimer, pollingTimer, lastChecked = null, polling = false;
+  const transport = api;
+  api = {...transport, request: async (url, options = {}) => {
+    const writing = (options.method || 'GET') !== 'GET';
+    const tracked = writing || (!operation && (loading || busy));
+    const serial = tracked ? ++operationSerial : null;
+    if (tracked) {operation = {serial, label:options.responseType==='blob'?'正在下载交付包':operationLabel(url,options.method), startedAt:Date.now()}; renderProgress();}
+    try {return await transport.request(url, options);}
+    finally {if (operation?.serial === serial) {operation = null; renderProgress();}}
+  }};
   let alive = true, busy = false, loading = false, requestSerial = 0, timer, flowTimer, error = '', notice = '';
   let projects = [], project = null, plan = {version:0,entities:[],stylePrompt:''}, assets = [], bundles = [], tasks = [], scripts = [];
   let coverage = {total:0, ready:0, complete:false}, capabilities = {scriptAnalysis:false}, taskError = '';
@@ -34,7 +45,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const image = (assetId, revisionId, thumb = true) => esc(assetURL(apiBase,assetId,revisionId,thumb));
   const path = relative => apiBase + relative;
   const dirty = () => Object.keys(drafts.data).some(k => k.startsWith('plan:') || k.startsWith('compose:') || k.startsWith('review:') || (k==='quick-start'&&drafts.get(k)?.text));
-  const guide = () => nextAction({project, plan, assets, tasks, bundles, selection:session.selection, taskError});
+  const guide = () => nextAction({project, plan:{...plan,needsReview:plan.needsReview||Boolean(drafts.get(planKey()))}, assets, tasks, bundles, selection:session.selection, taskError});
 
   const stylesheet = doc.createElement('link');
   stylesheet.rel = 'stylesheet'; stylesheet.href = new URL('./workflow.css', import.meta.url).href;
@@ -51,25 +62,41 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     drafts.flush(); saveError = ''; return {saved:true, dirty:dirty(), scope:'local-tenant-drafts'};
   }
   function emitProject() { events.dispatchEvent(new CustomEvent('project:changed',{detail:{projectId:selected, project, coverage}})); events.dispatchEvent(new CustomEvent('shell:view',{detail:{workspaceState:project?'ready':'empty',projectName:project?.name||'开始创作'}})); }
-  function renderStatus() { return `<div data-wf-status class="wf-status ${error || saveError ? 'wf-note wf-error' : 'wf-muted'}" role="status" aria-live="polite">${esc(error || saveError || notice)}</div>`; }
+  function renderStatus() { return `<div data-wf-status class="wf-status ${error || saveError ? 'wf-note wf-error' : 'wf-muted'}" role="status" aria-live="polite">${esc(error || saveError || notice)}${error?'<div class="wf-actions"><button data-wf-action="refresh">刷新状态</button><button data-wf-action="connect">检查账号与空间</button></div>':''}</div>`; }
   function options(values, selectedValue) { return values.map(([value,text]) => `<option value="${esc(value)}" ${value === selectedValue ? 'selected' : ''}>${esc(text)}</option>`).join(''); }
   function nav() {
     const entries = [['plan','01 清单'],['style','02 MJ 风格'],['asset','03 Image2'],['refine','04 Nano'],['review','05 审核'],['delivery','06 下载']];
     return `<nav class="wf-tabs" aria-label="资产制作步骤">${entries.map(([id,title]) => `<button type="button" data-wf-nav="${id}" ${page === id ? 'aria-current="step"' : ''}>${title}</button>`).join('')}</nav>`;
   }
-  function stepNavigation() { return drafts.get(`flow:${selected}`)?`<details class="wf-advanced"><summary>分步编辑与高级设置</summary>${nav()}</details>`:nav(); }
+  function stepNavigation() { return nav(); }
   function empty(title, detail) { return `<div class="wf-empty"><h3>${esc(title)}</h3><p class="wf-muted">${esc(detail)}</p></div>`; }
   function render() {
     if (!alive) return;
     const title = project ? project.name : projects.length ? '开始一个新项目' : '开始你的第一个项目';
     const chooser = projects.length ? `<label><span class="sr-only">当前项目</span><select data-wf-project>${!selected?'<option value="">选择已有项目</option>':''}${options(projects.map(p=>[p.id,p.name]),selected)}</select></label>` : '';
-    root.innerHTML = `<section class="wf" aria-label="资产工作流"><div class="wf-toolbar"><div><span class="wf-muted">从一份剧本，到一套可用资产</span><h2>${esc(title)}</h2></div><div class="wf-actions">${chooser}<button type="button" data-wf-action="new-project" ${busy?'disabled':''}>＋ 新项目</button><button type="button" data-wf-action="refresh" ${busy ? 'disabled' : ''}>刷新状态</button></div></div>${renderStatus()}${project ? guideView()+stepNavigation() : ''}${loading ? '<p class="wf-muted" role="status">正在读取已保存项目…</p>' : !project ? createView() : page === 'plan' ? planView() : stages.includes(page) ? composeView() : page === 'review' ? reviewView()+tasksView(selectedEntity) : deliveryView()}${reviewId ? reviewDetail() : ''}${prepared ? confirmationView() : ''}</section>`;
-    renderLibrary();
+    root.innerHTML = `<section class="wf" aria-label="资产工作流"><div class="wf-toolbar"><div><span class="wf-muted">从一份剧本，到一套可用资产</span><h2>${esc(title)}</h2></div><div class="wf-actions">${chooser}<button type="button" data-wf-action="new-project" ${busy?'disabled':''}>＋ 新项目</button><button type="button" data-wf-action="refresh" ${busy ? 'disabled' : ''}>刷新状态</button></div></div>${renderStatus()}<div data-wf-operation></div>${project ? guideView()+stepNavigation() : ''}${loading ? '<p class="wf-muted" role="status">正在读取已保存项目…</p>' : !project ? createView() : page === 'plan' ? planView() : stages.includes(page) ? composeView() : page === 'review' ? reviewView()+tasksView(selectedEntity) : deliveryView()}${reviewId ? reviewDetail() : ''}${prepared ? confirmationView() : ''}</section>`;
+    renderProgress(); renderLibrary();
     const saveStatus = doc.getElementById('saveStatus'); if (saveStatus) saveStatus.textContent = saveError ? '草稿保存失败' : busy ? '处理中' : dirty() ? '编辑草稿已在本机保存' : '项目已同步';
     const titleNode = doc.getElementById('workspace-title'); if (titleNode) titleNode.textContent = project?.name || '开始创作';
     const countNode = doc.getElementById('reviewCount'); if (countNode) countNode.textContent = assets.flatMap(a=>a.revisions).filter(r=>r.review==='pending' && r.status==='ready').length;
     if (busy) root.querySelectorAll('form button, [data-wf-action="approve"], [data-wf-action="reject"]').forEach(b=>b.disabled=true);
   }
+  function renderProgress() {
+    const target = root.querySelector('[data-wf-operation]'); if (!target) return;
+    const active = operation || (busy ? {label:'正在处理当前步骤',startedAt:busyStartedAt} : null);
+    target.hidden = !active;
+    root.setAttribute('aria-busy', String(Boolean(active)));
+    if (!active) {target.replaceChildren(); return;}
+    target.innerHTML = `<section class="wf-live" role="status" aria-live="polite"><div><b>${esc(active.label)}</b><span data-wf-elapsed>${elapsedLabel(active.startedAt)}</span></div><progress aria-label="${esc(active.label)}"></progress><p>正在等待实际结果，尚无精确百分比。当前输入已保留，请勿重复提交。</p><p data-wf-slow ${Date.now()-active.startedAt<30000?'hidden':''}>此步骤耗时较长，仍在等待服务响应；返回后会显示可继续的操作。</p></section>`;
+  }
+  let busyStartedAt = 0;
+  progressTimer = setInterval(() => {
+    const active = operation || (busy ? {startedAt:busyStartedAt} : null);
+    if(active){const node=root.querySelector('[data-wf-elapsed]');if(node)node.textContent=elapsedLabel(active.startedAt);const slow=root.querySelector('[data-wf-slow]');if(slow)slow.hidden=Date.now()-active.startedAt<30000;}
+  },1000);
+  pollingTimer = setInterval(() => {
+    if(alive&&!busy&&!loading&&!polling&&project&&doc.visibilityState!=='hidden'&&tasks.some(t=>['preparing','submitting','submitted','running','downloading'].includes(t.status)))void pollTasks();
+  },5000);
   function createView() {
     const draft = drafts.get('new-project') || {name:'',description:''};
     const quick = drafts.get('quick-start') || {text:''};
@@ -78,20 +105,19 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function guideView() {
     const next = guide(), labels = {plan:plan.entities.length?'确认清单并继续':'补充资产清单',connect:'连接 / 选择账号',review:'查看图片并审核',prepare:'一键继续制作',confirm:'核对并继续',recover:'查询原任务',archive:'整理交付包',download:'下载全部资产',import:'导入剧本'};
     const unavailable = ['prepare','confirm'].includes(next.kind) && session.features?.imageGeneration !== true;
-    const total = plan.entities.length * 3;
-    const done = assets.flatMap(a=>a.revisions).filter(r=>r.status==='ready'&&r.review==='approved'&&belongsToSelection(r,session.selection)).length;
-    return `<section class="wf-panel wf-guide" aria-label="一键制作进度"><div><p class="wf-eyebrow">${unavailable?'制作服务待就绪':'接下来只需这一步'}</p><h3>${esc(next.title)}</h3><p class="wf-muted">${esc(next.detail)}</p>${total?`<p class="wf-muted">${Math.min(done,total)} / ${total} 个制作环节已审核</p>`:''}${unavailable?'<p class="wf-note">这个版本的图片生成服务尚未开放。剧本和清单已保存，服务接通后从这里继续。</p>':''}</div><div class="wf-actions">${next.kind==='download'?`<a class="wf-link primary" href="${esc(path(`/projects/${encodeURIComponent(selected)}/bundles/${encodeURIComponent(next.bundle.id)}/content`))}">下载全部资产 ↓</a>`:next.kind==='blocked'?'<button data-wf-nav="review">查看任务与素材</button>':`<button class="primary" data-wf-action="continue" ${busy||unavailable?'disabled':''}>${labels[next.kind]||'继续'}</button>`}${next.kind==='recover'?'<span class="wf-muted">页面保持打开时自动查询</span>':''}</div></section>`;
+    const {done,total} = reviewProgress(plan.entities,assets,session.selection,belongsToSelection);
+    return `<section class="wf-panel wf-guide" aria-label="一键制作进度"><div><p class="wf-eyebrow">${unavailable?'制作服务待就绪':'接下来只需这一步'}</p><h3>${esc(next.title)}</h3><p class="wf-muted">${esc(next.detail)}</p>${total?`<p class="wf-muted">${done} / ${total} 个制作环节已审核</p><progress class="wf-overall" value="${done}" max="${total}" aria-label="制作环节审核进度"></progress>`:''}${unavailable?'<p class="wf-note">这个版本的图片生成服务尚未开放。剧本和清单已保存，服务接通后从这里继续。</p>':''}</div><div class="wf-actions">${next.kind==='download'?`<a data-wf-download class="wf-link primary" href="${esc(path(`/projects/${encodeURIComponent(selected)}/bundles/${encodeURIComponent(next.bundle.id)}/content`))}">下载全部资产 ↓</a>`:next.kind==='blocked'?'<button data-wf-nav="review">查看任务与素材</button>':`<button class="primary" data-wf-action="continue" ${busy||unavailable?'disabled':''}>${labels[next.kind]||'继续'}</button>${unavailable?'<button data-wf-action="connect">查看已连接账号</button><button data-wf-action="refresh">检查服务状态</button>':''}`}${next.kind==='recover'?'<span class="wf-muted">页面保持打开时自动查询</span>':''}</div></section>`;
   }
   function planView() {
     const draft = drafts.get(planKey());
     const warnings = [...new Set(scripts.flatMap(s=>s.analysis?.warnings||[]))];
-    const header = `<section class="wf-panel"><h3>剧本与资产清单</h3><div class="wf-actions"><label class="wf-link">导入剧本<input data-wf-upload type="file" accept=".txt,.md,.docx" hidden></label><button type="button" data-wf-action="edit-plan">${plan.entities.length ? '编辑资产清单' : '手工填写清单'}</button>${scripts.length&&!plan.entities.length?'<button type="button" data-wf-action="analyze">按剧本标记自动拆解</button>':''}</div><p class="wf-muted">TXT / Markdown / DOCX · 单文件 ≤ 8 MiB。每项原文依据可以在清单中核对。</p>${warnings.length?`<div class="wf-note">${warnings.map(w=>esc(w)).join('<br>')}</div>`:''}${scripts.map(s=>`<details><summary>${esc(s.filename)} · ${s.characters.toLocaleString()} 字 · 原文已保存</summary><pre class="wf-script">${esc(s.text)}</pre></details>`).join('')}</section>`;
+    const header = `<section class="wf-panel"><h3>剧本与资产清单</h3><div class="wf-actions"><label class="wf-link">导入剧本<input data-wf-upload type="file" accept=".txt,.md,.docx" hidden></label><button type="button" data-wf-action="edit-plan">${plan.entities.length ? '编辑资产清单' : '手工填写清单'}</button>${scripts.length?'<button type="button" data-wf-action="analyze">重新整理清单草稿</button>':''}</div><p class="wf-muted">TXT / Markdown / DOCX · 单文件 ≤ 8 MiB。每项原文依据可以在清单中核对。</p>${warnings.length?`<div class="wf-note">${warnings.map(w=>esc(w)).join('<br>')}</div>`:''}${scripts.map(s=>`<details><summary>${esc(s.filename)} · ${s.characters.toLocaleString()} 字 · 原文已保存</summary><pre class="wf-script">${esc(s.text)}</pre></details>`).join('')}</section>`;
     if (editing || draft) return header + planEditor(draft || {expectedVersion:plan.version, entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});
     const archives = buildCustomerArchives(assets,plan);
     return header + (archives.length ? `<div class="wf-section-title"><h3>本项目档案</h3><span class="wf-muted">${archives.length} 项 · 未生成的条目也保留在这里</span></div><div class="wf-grid">${archives.map(a=>archiveCard(a)).join('')}</div>` : empty('先整理故事里有什么','无需等待模型分析，手工清单也可以直接进入逐步制作。'));
   }
   function archiveCard(a) {
-    return `<article class="wf-entity">${a.cover ? `<div class="wf-cover"><img src="${image(a.assetId,a.cover.id)}" alt="${esc(a.name)} ${esc(stageLabels[a.cover.stage])}" loading="lazy"></div>` : '<div class="wf-cover"><span class="wf-muted">待制作</span></div>'}<p>${tag('',categories[a.category])}</p><h3>${esc(a.name)}</h3><p class="wf-muted">${esc(a.description || '设定待补充')}</p><div class="wf-stage-line">${stages.map(s=>`<span class="${a.stages[s] ? 'done' : ''}">${esc(stageLabels[s])} ${a.stages[s]?'✓':'待制作'}</span>`).join('')}</div><div class="wf-actions"><button data-wf-entity="${esc(a.id)}" data-wf-stage="${a.stages.asset?'refine':a.stages.style?'asset':'style'}">继续制作</button><button data-wf-archive="${esc(a.id)}">版本与审核 (${a.revisions.length})</button></div></article>`;
+    return `<article class="wf-entity">${a.cover ? `<div class="wf-cover"><button class="wf-image-button" data-wf-review="${esc(a.cover.id)}" aria-label="查看 ${esc(a.name)} 原图与审核"><img src="${image(a.assetId,a.cover.id)}" alt="${esc(a.name)} ${esc(stageLabels[a.cover.stage])}" loading="lazy"></button></div>` : '<div class="wf-cover"><span class="wf-muted">待制作</span></div>'}<p>${tag('',categories[a.category])}</p><h3>${esc(a.name)}</h3><p class="wf-muted">${esc(a.description || '设定待补充')}</p><div class="wf-stage-line">${stages.map(s=>`<span class="${a.stages[s] ? 'done' : ''}">${esc(stageLabels[s])} ${a.stages[s]?'✓':a.revisions.some(r=>r.stage===s&&r.status==='ready'&&r.review==='pending')?'待审核':a.revisions.some(r=>r.stage===s&&r.review==='changes_requested')?'待返修':'待制作'}</span>`).join('')}</div><div class="wf-actions"><button data-wf-entity="${esc(a.id)}" data-wf-stage="${a.stages.asset?'refine':a.stages.style?'asset':'style'}">继续制作</button><button data-wf-archive="${esc(a.id)}">版本与审核 (${a.revisions.length})</button></div></article>`;
   }
   function planEditor(draft) {
     const conflict = draft.expectedVersion !== plan.version;
@@ -109,7 +135,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if (selectedEntity !== e.id) selectedEntity = e.id;
     const draft = getCompose(), sources = approvedSources(currentAsset(),page,session.selection);
     const selectedSource = sources.find(s=>s.id===draft.sourceRevisionId), connected = session.selection?.providerAccountId && session.selection?.spaceId;
-    return `<section class="wf-panel"><h3>${esc(stageLabels[page])}</h3><p class="wf-muted">${page==='style'?'探索风格，先由你选定这一版，再制作 Image2 资产。':page==='asset'?'已审核的 MJ 风格作为依据，制作可复用的角色、场景和道具。':'使用原始 Image2 文件精修。退回后的 Nano 图片不会被当作新的原图。'}</p><form data-wf-form="compose" class="wf-compose"><label>资产档案<select data-wf-entity-select>${options(plan.entities.map(item=>[item.id,`${categories[item.category]} · ${item.name}`]),selectedEntity)}</select></label>${page!=='style'?`<label>上一阶段已审核参考<select name="sourceRevisionId" required><option value="">请选择当前账号 / 空间的已审核版本</option>${options(sources.map(r=>[r.id,`${stageLabels[r.stage]} · ${r.id.slice(-6)} · 已审核`]),draft.sourceRevisionId)}</select></label>${selectedSource?`<div class="wf-reference"><img src="${image(selectedSource.assetId,selectedSource.id)}" alt="已审核参考原图"><span class="wf-muted">${esc(selectedSource.ownership.accountLabelAtCreation || selectedSource.ownership.providerAccountId)} / ${esc(selectedSource.ownership.spaceNameAtCreation || selectedSource.ownership.spaceId)}</span></div>`:'<p class="wf-note">尚未选择可用参考。每一步需要先通过人工审核，且不能混用其他账号或空间的图片。</p>'}`:''}<label>制作要求<textarea name="prompt" rows="7" maxlength="20000" required>${esc(draft.prompt)}</textarea></label><div class="wf-form-grid"><label>候选数量<select name="count">${options([['1','1 张'],['2','2 张'],['3','3 张'],['4','4 张']],String(draft.count))}</select></label><label>画幅（可选）<select name="ratio">${options([['','使用官方模型默认'],['16:9','16:9'],['9:16','9:16'],['1:1','1:1']],draft.ratio)}</select></label></div>${!connected?'<div class="wf-note">请先选择已授权的 LibTV 账号与空间。当前草稿会保留。</div>':''}<div class="wf-actions"><button class="primary" type="submit" ${!connected || (page!=='style'&&!selectedSource)?'disabled':''}>准备任务并核对</button><button type="button" data-wf-nav="review">查看返回结果</button></div><p class="wf-muted">准备不会提交生成。模型与参数以官方适配器核验为准；金额未知时不会显示为免费。本轮收费提交及最终视频均暂停。</p></form></section>${tasksView(e.id)}`;
+    return `<section class="wf-panel"><h3>${esc(stageLabels[page])}</h3><p class="wf-muted">${page==='style'?'探索风格，先由你选定这一版，再制作 Image2 资产。':page==='asset'?'已审核的 MJ 风格作为依据，制作可复用的角色、场景和道具。':'使用原始 Image2 文件精修。退回后的 Nano 图片不会被当作新的原图。'}</p><form data-wf-form="compose" class="wf-compose"><label>资产档案<select data-wf-entity-select>${options(plan.entities.map(item=>[item.id,`${categories[item.category]} · ${item.name}`]),selectedEntity)}</select></label>${page!=='style'?`<label>上一阶段已审核参考<select name="sourceRevisionId" required><option value="">请选择当前账号 / 空间的已审核版本</option>${options(sources.map(r=>[r.id,`${stageLabels[r.stage]} · ${r.id.slice(-6)} · 已审核`]),draft.sourceRevisionId)}</select></label>${selectedSource?`<div class="wf-reference"><img src="${image(selectedSource.assetId,selectedSource.id)}" alt="已审核参考原图"><span class="wf-muted">${esc(selectedSource.ownership.accountLabelAtCreation || selectedSource.ownership.providerAccountId)} / ${esc(selectedSource.ownership.spaceNameAtCreation || selectedSource.ownership.spaceId)}</span></div>`:'<p class="wf-note">尚未选择可用参考。每一步需要先通过人工审核，且不能混用其他账号或空间的图片。</p>'}`:''}<label>制作要求<textarea name="prompt" rows="7" maxlength="20000" required>${esc(draft.prompt)}</textarea></label><div class="wf-form-grid"><label>候选数量<select name="count">${options([['1','1 张'],['2','2 张'],['3','3 张'],['4','4 张']],String(draft.count))}</select></label><label>画幅（可选）<select name="ratio">${options([['','使用官方模型默认'],['16:9','16:9'],['9:16','9:16'],['1:1','1:1']],draft.ratio)}</select></label></div>${!connected?'<div class="wf-note">请先选择已授权的 LibTV 账号与空间。当前草稿会保留。</div>':''}<div class="wf-actions"><button class="primary" type="submit" ${!connected || (page!=='style'&&!selectedSource)?'disabled':''}>准备任务并核对</button><button type="button" data-wf-nav="review">查看返回结果</button></div><p class="wf-muted">准备不会提交生成。模型与参数以官方适配器核验为准；金额未知时不会显示为免费。图片提交服务尚未启用；最终视频仍暂停。</p></form></section>${tasksView(e.id)}`;
   }
   function taskLabel(task) {
     if(task.status!=='completed')return label(task.status);
@@ -122,12 +148,12 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function tasksView(entityId) {
     const rows = tasks.filter(t=>!entityId || t.entityId===entityId);
-    return `<section class="wf-panel"><h3>当前档案的任务</h3>${taskError?`<p class="wf-note">${esc(taskError)}</p>`:''}${rows.length?`<ul class="wf-task-list">${rows.map(t=>`<li>${tag(t.status,taskLabel(t))} <b>${esc(stageLabels[Object.keys(recipes).find(s=>recipes[s]===t.recipe)] || t.recipe)}</b><p class="wf-muted">${esc(t.ownership?.accountLabelAtCreation||t.ownership?.providerAccountId)} / ${esc(t.ownership?.spaceNameAtCreation||t.ownership?.spaceId)} · ${esc(t.id.slice(-8))}</p>${t.error?`<p class="wf-muted">${esc(t.error.message)}</p>`:''}${t.canRecover?`<button data-wf-recover="${esc(t.id)}">查询原任务并收取</button>`:''}</li>`).join('')}</ul>`:'<p class="wf-muted">还没有任务。准备后的任务归属会固定保存，切换账号不改变旧任务。</p>'}</section>`;
+    return `<section class="wf-panel" data-wf-task-feedback><h3>当前档案的任务</h3>${taskError?`<p class="wf-note">${esc(taskError)}</p>`:''}<p class="wf-muted">${lastChecked?'本地状态更新 '+esc(lastChecked.toLocaleTimeString()):'正在检查任务状态'} · 处理中的任务每 5 秒刷新</p>${rows.length?`<ul class="wf-task-list">${rows.map(t=>`<li>${tag(t.status,taskLabel(t))} <b>${esc(stageLabels[Object.keys(recipes).find(s=>recipes[s]===t.recipe)] || t.recipe)}</b><p class="wf-muted">${esc(t.ownership?.accountLabelAtCreation||t.ownership?.providerAccountId)} / ${esc(t.ownership?.spaceNameAtCreation||t.ownership?.spaceId)} · ${esc(t.id.slice(-8))}</p><p class="wf-muted">${esc(taskProgress(t))} · 更新于 ${esc(new Date(t.updatedAt).toLocaleTimeString())}</p>${['preparing','submitting','submitted','running','downloading'].includes(t.status)?'<progress aria-label="任务处理中，等待实际结果"></progress>':''}${t.error?`<p class="wf-note">${esc(t.error.message)}</p>`:''}${!t.submissionAttempted&&!['completed','cancelled'].includes(t.status)?`<button data-wf-cancel="${esc(t.id)}">取消未提交记录</button>`:''}${t.canRecover?`<button data-wf-recover="${esc(t.id)}">查询原任务并收取</button>`:''}</li>`).join('')}</ul>`:'<p class="wf-muted">还没有任务。准备后的任务归属会固定保存，切换账号不改变旧任务。</p>'}</section>`;
   }
   function allRevisions() { return assets.filter(a=>!selectedEntity || a.entityId===selectedEntity).flatMap(a=>a.revisions.map(r=>({...r,asset:a}))); }
   function reviewView() {
     const rows = allRevisions().sort((a,b)=>(a.review==='pending'?-1:0)-(b.review==='pending'?-1:0)||b.createdAt.localeCompare(a.createdAt));
-    return `<section class="wf-panel"><div class="wf-section-title"><h3>比较版本，决定保留或返修</h3><select aria-label="筛选审核档案" data-wf-review-entity><option value="">全部档案</option>${options(plan.entities.map(e=>[e.id,e.name]),selectedEntity)}</select></div><p class="wf-muted">“任务完成”表示图片已返回；只有人工保留后才进入下一步。历史与失效版本保留供核对。</p>${rows.length?`<div class="wf-review-list">${rows.map(r=>`<article class="wf-revision"><div class="wf-cover"><img src="${image(r.assetId,r.id)}" alt="${esc(r.asset.name)} ${esc(stageLabels[r.stage])}" loading="lazy"></div><h4>${esc(r.asset.name)} · ${esc(stageLabels[r.stage])}</h4>${tag(r.status==='stale'?'stale':r.review)}<p class="wf-muted">${r.width} × ${r.height} · ${esc(r.id.slice(-6))}</p><div class="wf-actions"><button data-wf-review="${esc(r.id)}">对比 / 审核</button>${r.review==='changes_requested'?`<button data-wf-repair="${esc(r.id)}">按意见返修</button>`:''}</div></article>`).join('')}</div>`:empty('等待你的第一份候选图','返回图片会在这里展示，所有阶段都需要你确认。')}</section>`;
+    return `<section class="wf-panel"><div class="wf-section-title"><h3>比较版本，决定保留或返修</h3><select aria-label="筛选审核档案" data-wf-review-entity><option value="">全部档案</option>${options(plan.entities.map(e=>[e.id,e.name]),selectedEntity)}</select></div><p class="wf-muted">“任务完成”表示图片已返回；只有人工保留后才进入下一步。历史与失效版本保留供核对。</p>${rows.length?`<div class="wf-review-list">${rows.map(r=>`<article class="wf-revision"><div class="wf-cover"><button class="wf-image-button" data-wf-review="${esc(r.id)}" aria-label="查看 ${esc(r.asset.name)} 原图与审核"><img src="${image(r.assetId,r.id)}" alt="${esc(r.asset.name)} ${esc(stageLabels[r.stage])}" loading="lazy"></button></div><h4>${esc(r.asset.name)} · ${esc(stageLabels[r.stage])}</h4>${tag(r.status==='stale'?'stale':r.review)}<p class="wf-muted">${r.width} × ${r.height} · ${esc(r.id.slice(-6))}</p><div class="wf-actions"><button data-wf-review="${esc(r.id)}">对比 / 审核</button>${r.review==='changes_requested'?`<button data-wf-repair="${esc(r.id)}">按意见返修</button>`:''}</div></article>`).join('')}</div>`:empty('等待你的第一份候选图','返回图片会在这里展示，所有阶段都需要你确认。')}</section>`;
   }
   function reviewDetail() {
     const asset = assets.find(a=>a.revisions.some(r=>r.id===reviewId)), r=asset?.revisions.find(r=>r.id===reviewId); if(!r)return '';
@@ -138,17 +164,17 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function confirmationView() {
     const task=prepared.task, cost=prepared.cost || task.cost || {}, enabled=session.features?.imageGeneration===true;
-    return `<section class="wf-panel" data-confirmation tabindex="-1"><h3>核对这次任务</h3><p class="wf-note">任务账号：${esc(task.ownership?.accountLabelAtCreation||task.ownership?.providerAccountId)}<br>工作空间：${esc(task.ownership?.spaceNameAtCreation||task.ownership?.spaceId)}<br>费用：${cost.state==='known'?esc(`${cost.amount} ${cost.unit}`):'未知 · 不能视为免费'}</p><p class="wf-muted">切换页面上的账号不会改变这个任务的归属。${!enabled?'本轮收费提交被暂停；准备记录已保存。':''}</p><div class="wf-actions"><button data-wf-action="close-confirmation">保留准备记录</button><button data-wf-action="submit-task" class="primary" ${!enabled?'disabled':''}>确认并提交生成</button></div></section>`;
+    return `<section class="wf-panel" data-confirmation tabindex="-1"><h3>核对这次任务</h3><p class="wf-note">任务账号：${esc(task.ownership?.accountLabelAtCreation||task.ownership?.providerAccountId)}<br>工作空间：${esc(task.ownership?.spaceNameAtCreation||task.ownership?.spaceId)}<br>费用：${cost.state==='known'?esc(`${cost.amount} ${cost.unit}`):'未知 · 不能视为免费'}</p><p class="wf-muted">切换页面上的账号不会改变这个任务的归属。${!enabled?'当前版本未启用图片提交；准备记录已保存。':''}</p><div class="wf-actions"><button data-wf-action="close-confirmation">保留准备记录</button><button data-wf-action="submit-task" class="primary" ${!enabled?'disabled':''}>确认并提交生成</button></div></section>`;
   }
   function deliveryView() {
     const approved = assets.flatMap(a=>a.revisions).filter(r=>r.review==='approved'&&r.status==='ready');
-    return `<section class="wf-panel"><h3>已确认资产，安心交付</h3><p>${coverage.ready} / ${coverage.total} 个档案完成 MJ → Image2 → Nano 审核</p><div class="wf-progress"><span style="width:${coverage.total?Math.round(100*coverage.ready/coverage.total):0}%"></span></div><p class="wf-muted">下载包含有效的已审核图片、版本来源和逐文件 SHA-256。未审核、已退回或依据已变更的图片不会进入交付包。</p><div class="wf-actions">${approved.length?`<a class="wf-link" href="${esc(path(`/projects/${encodeURIComponent(selected)}/export`))}">下载已审核资产 (${approved.length})</a>`:'<button disabled>尚无可下载的已审核图片</button>'}<button class="primary" data-wf-action="archive" ${!coverage.complete?'disabled':''}>确认完成并归档</button></div>${!coverage.complete?`<div class="wf-note">尚有 ${(coverage.missing||[]).map(e=>esc(e.name)).join('、')||'未建档资产'} 未完成。当前下载属于部分交付。</div>`:''}</section><section class="wf-panel"><h3>交付归档</h3>${bundles.length?bundles.map(b=>`<div class="wf-note"><b>${esc(new Date(b.createdAt).toLocaleString())}</b><p>${b.assetCount} 张已审核资产 · ${Math.ceil(b.bytes/1024)} KiB</p><a class="wf-link" href="${esc(path(`/projects/${encodeURIComponent(selected)}/bundles/${encodeURIComponent(b.id)}/content`))}">下载这次归档</a></div>`).join(''):'<p class="wf-muted">归档保存当时确认的交付包。以后返修与换版不会覆盖旧交付。</p>'}</section>`;
+    return `<section class="wf-panel"><h3>已确认资产，安心交付</h3><p>${coverage.ready} / ${coverage.total} 个档案完成 MJ → Image2 → Nano 审核</p><div class="wf-progress"><span style="width:${coverage.total?Math.round(100*coverage.ready/coverage.total):0}%"></span></div><p class="wf-muted">下载包含有效的已审核图片、版本来源和逐文件 SHA-256。未审核、已退回或依据已变更的图片不会进入交付包。</p><div class="wf-actions">${approved.length?`<a data-wf-download class="wf-link" href="${esc(path(`/projects/${encodeURIComponent(selected)}/export`))}">下载已审核资产 (${approved.length})</a>`:'<button disabled>尚无可下载的已审核图片</button>'}<button class="primary" data-wf-action="archive" ${!coverage.complete?'disabled':''}>确认完成并归档</button></div>${!coverage.complete?`<div class="wf-note">尚有 ${(coverage.missing||[]).map(e=>esc(e.name)).join('、')||'未建档资产'} 未完成。当前下载属于部分交付。</div>`:''}</section><section class="wf-panel"><h3>交付归档</h3>${bundles.length?bundles.map(b=>`<div class="wf-note"><b>${esc(new Date(b.createdAt).toLocaleString())}</b><p>${b.assetCount} 张已审核资产 · ${Math.ceil(b.bytes/1024)} KiB</p><a data-wf-download class="wf-link" href="${esc(path(`/projects/${encodeURIComponent(selected)}/bundles/${encodeURIComponent(b.id)}/content`))}">下载这次归档</a></div>`).join(''):'<p class="wf-muted">归档保存当时确认的交付包。以后返修与换版不会覆盖旧交付。</p>'}</section>`;
   }
   function renderLibrary() {
     const select=doc.getElementById('scriptSelect'); if(select){select.innerHTML=projects.length?(!selected?'<option value="">选择已有项目</option>':'')+options(projects.map(p=>[p.id,p.name]),selected):'<option value="">新建你的第一个项目</option>';select.value=selected;}
     const list=doc.getElementById('warehouseList'); if(!list)return;
     const rows=buildCustomerArchives(assets,plan).filter(e=>(filter==='all'||e.category===filter)&&(!search||(e.name+' '+e.description).includes(search)));
-    list.innerHTML=rows.length?`<div class="wf">${rows.map(e=>`<button class="wf-library-button" data-wf-archive="${esc(e.id)}"><b>${esc(e.name)}</b><small>${esc(categories[e.category])} · ${e.revisions.length} 个版本 · ${e.stages.refine?'精修已审核':'待制作 / 审核'}</small></button>`).join('')}</div>`:'<p class="wf-muted">先填写资产清单，档案会出现在这里。</p>';
+    list.innerHTML=rows.length?`<div class="wf">${rows.map(e=>`<button class="wf-library-button" data-wf-archive="${esc(e.id)}">${e.cover?`<img class="wf-library-thumb" src="${image(e.assetId,e.cover.id)}" alt="${esc(e.name)} 缩略图" loading="lazy">`:'<span class="wf-library-placeholder" aria-hidden="true">待制作</span>'}<span><b>${esc(e.name)}</b><small>${esc(categories[e.category])} · ${e.revisions.length} 个版本 · ${e.stages.refine?'精修已审核':e.cover?label(e.cover.review):'待制作'}</small></span></button>`).join('')}</div>`:'<p class="wf-muted">先填写资产清单，档案会出现在这里。</p>';
     const count=doc.getElementById('warehouseCount');if(count)count.textContent=plan.entities.length;
     const summary=doc.getElementById('review-summary-root');if(summary){const pending=assets.flatMap(a=>a.revisions).filter(r=>r.review==='pending'&&r.status==='ready').length;summary.innerHTML=`<div class="wf wf-panel"><b>${pending} 张图片等待你审核</b><p class="wf-muted">每一步确认后，才能进入下一阶段。</p></div>`;}
   }
@@ -169,7 +195,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       ]);
       if(!alive||serial!==requestSerial||projectId!==selected)return;
       [plan]=replies;assets=replies[1].items||[];coverage=replies[1].coverage||{total:plan.entities.length,ready:0,complete:false};bundles=replies[2].items||[];
-      if(replies[3].ok){tasks=replies[3].value.items||[];taskError='';}else{tasks=[];taskError=replies[3].error.message||'任务服务尚未就绪。';}
+      if(replies[3].ok){tasks=replies[3].value.items||[];taskError='';lastChecked=new Date();}else{tasks=[];taskError=replies[3].error.message||'任务服务尚未就绪。';}
       const loadedScripts=await Promise.all(project.scriptIds.map(id=>api.request(`/projects/${encodeURIComponent(projectId)}/scripts/${encodeURIComponent(id)}`)));
       if(!alive||serial!==requestSerial||projectId!==selected)return;scripts=loadedScripts;
       if(selectedEntity && !plan.entities.some(e=>e.id===selectedEntity))selectedEntity='';
@@ -185,10 +211,34 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     }
     throw new Error('任务记录较多，尚未读取完整；已暂停准备新任务。');
   }
+  async function pollTasks() {
+    const projectId=selected, serial=requestSerial;
+    polling=true;
+    try {
+      const result=await loadTasks(projectId);
+      if(!alive||busy||serial!==requestSerial||projectId!==selected)return;
+      tasks=result.items;taskError='';lastChecked=new Date();
+    } catch(e) {
+      if(!alive||busy||serial!==requestSerial||projectId!==selected)return;
+      taskError=e.message||'任务状态暂时无法读取，已有记录已保留。';
+    } finally {
+      polling=false;
+      if(alive&&!busy&&serial===requestSerial&&projectId===selected){
+        // Keep form nodes and their caret intact while refreshing background status.
+        const taskPanel=root.querySelector('[data-wf-task-feedback]');if(taskPanel)taskPanel.outerHTML=tasksView(selectedEntity);
+        const guidePanel=root.querySelector('.wf-guide');if(guidePanel)guidePanel.outerHTML=guideView();
+        events.dispatchEvent(new CustomEvent('workflow:tasks-refreshed',{detail:{projectId}}));
+        scheduleFlow();
+      }
+    }
+  }
   function scheduleFlow() {
-    clearTimeout(flowTimer);
-    if(!alive||!project||editing||!drafts.get(`flow:${selected}`)||guide().kind!=='recover')return;
-    flowTimer=setTimeout(()=>{if(alive&&!busy&&!loading&&doc.visibilityState!=='hidden')void continueFlow();else scheduleFlow();},8000);
+    if(!alive||!project||editing||!drafts.get(`flow:${selected}`)||guide().kind!=='recover'){
+      clearTimeout(flowTimer);flowTimer=null;return;
+    }
+    // Five-second local polling must not postpone the eight-second receipt query.
+    if(flowTimer)return;
+    flowTimer=setTimeout(()=>{flowTimer=null;if(alive&&!busy&&!loading&&doc.visibilityState!=='hidden')void continueFlow();else scheduleFlow();},8000);
   }
   async function continueFlow() {
     if(busy||loading||!project)return;
@@ -205,7 +255,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(['prepare','confirm'].includes(next.kind)&&session.features?.imageGeneration!==true){announce('图片制作服务尚未开放，剧本与清单已保存。');return;}
     if(next.kind==='prepare')return perform(async()=>{
       const revision=session.selection.revision, idempotencyKey=await prepareIdentity(next.spec,revision,
-        {entityVersion:next.entity.version,styleVersion:plan.styleVersion});
+        {entityVersion:next.entity.version,styleVersion:plan.styleVersion,...(next.cancelledTaskId?{cancelledTaskId:next.cancelledTaskId}:{})});
       prepared=await api.request('/tasks/prepare',{method:'POST',body:{...next.spec,expectedSelectionRevision:revision},idempotencyKey});
       selectedEntity=next.entity.id;page=next.stage;await load();
       if(!prepared.confirmation){announce(prepared.task?.error?.message||'制作尚未就绪，请核对任务状态。');prepared=null;}
@@ -218,7 +268,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(drafts.get(`flow:${selected}`))setTimeout(()=>{if(alive&&!busy)void continueFlow();},0);
   }
   async function perform(operation) {
-    if(busy)return;busy=true;error='';render();
+    if(busy)return;busy=true;busyStartedAt=Date.now();error='';render();
     try {await operation();}catch(e){error=e.message||'操作未完成，原有数据与草稿已保留。';}
     finally {busy=false;render();}
   }
@@ -237,7 +287,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     reviewId=null;persist('page',page);render();root.scrollIntoView({behavior:'smooth',block:'start'});
   }
   async function switchProject(id) {
-    if(busy||id===selected)return;creating=false;selected=id;selectedEntity='';reviewId=null;prepared=null;editing=false;
+    if(busy||id===selected)return;clearTimeout(flowTimer);flowTimer=null;creating=false;selected=id;selectedEntity='';reviewId=null;prepared=null;editing=false;
     persist('selectedProject',id);persist('selectedEntity','');await load({initial:true});
   }
   function openReview(id, button) {
@@ -321,25 +371,28 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(form.dataset.wfForm==='compose'){
       const draft=drafts.get(composeKey())||getCompose();persist(composeKey(),draft);
       const body={projectId:selected,entityId:selectedEntity,recipe:recipes[page],prompt:draft.prompt,sourceRevisionIds:page==='style'?[]:[draft.sourceRevisionId],settings:{count:Number(draft.count),...(draft.ratio?{ratio:draft.ratio}:{})},expectedSelectionRevision:session.selection.revision};
-      return perform(async()=>{prepared=await api.request('/tasks/prepare',{method:'POST',body,idempotencyKey:draft.prepareKey});announce('任务准备记录已保存，请核对原账号、空间和费用。');events.dispatchEvent(new CustomEvent('tasks:changed',{detail:{projectId:selected}}));await load();});
+      return perform(async()=>{prepared=await api.request('/tasks/prepare',{method:'POST',body,idempotencyKey:draft.prepareKey});if(!prepared.confirmation){announce(prepared.task?.error?.message||'准备未完成，请查看任务记录。');prepared=null;}else announce('任务准备记录已保存，请核对原账号、空间和费用。');events.dispatchEvent(new CustomEvent('tasks:changed',{detail:{projectId:selected}}));await load();});
     }
   }
   async function onClick(event) {
     const button=event.target.closest('button,a');if(!button||button.disabled)return;
+    if(button.hasAttribute('data-wf-download')){event.preventDefault();const url=new URL(button.href);const relative=url.pathname.slice(apiBase.length);return perform(async()=>{const blob=await api.request(relative,{responseType:'blob'});const link=doc.createElement('a');const objectUrl=URL.createObjectURL(blob);link.href=objectUrl;link.download='asset-lab-approved-assets.zip';link.hidden=true;doc.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);announce('交付包已交给浏览器下载。');});}
     if(button.dataset.wfNav)return navigate(button.dataset.wfNav);
     if(button.dataset.wfEntity){selectedEntity=button.dataset.wfEntity;persist('selectedEntity',selectedEntity);return navigate(button.dataset.wfStage);}
     if(button.dataset.wfArchive){selectedEntity=button.dataset.wfArchive;persist('selectedEntity',selectedEntity);return navigate('review');}
     if(button.dataset.wfReview)return openReview(button.dataset.wfReview,button);
     if(button.dataset.wfRepair)return repair(button.dataset.wfRepair);
     if(button.dataset.wfRemove!==undefined){const draft=drafts.get(planKey());if(draft){draft.entities.splice(Number(button.dataset.wfRemove),1);persist(planKey(),draft);render();}return;}
+    if(button.dataset.wfCancel){const task=tasks.find(t=>t.id===button.dataset.wfCancel);if(!task||task.submissionAttempted)return;return perform(async()=>{await api.request(`/tasks/${encodeURIComponent(task.id)}/cancel`,{method:'POST',body:{expectedVersion:task.version}});prepared=null;const draft=drafts.get(composeKey());if(draft)persist(composeKey(),{...draft,prepareKey:key()});announce('未提交的准备记录已取消；原记录仍保留。');await load();});}
     if(button.dataset.wfRecover){const task=tasks.find(t=>t.id===button.dataset.wfRecover);if(!task)return;return perform(async()=>{await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version}});announce('已查询原任务；没有重新发起生成。');await load();});}
     const action=button.dataset.wfAction;
     if(action==='continue')return continueFlow();
     if(action==='analyze')return perform(async()=>{
-      await api.request(`/projects/${encodeURIComponent(selected)}/scripts/${encodeURIComponent(scripts.at(-1).id)}/analyze`,{method:'POST',body:{expectedVersion:plan.version}});
-      await load();editing=false;announce('已生成本地拆解初稿，请核对。');
+      const candidate=await api.request(`/projects/${encodeURIComponent(selected)}/scripts/${encodeURIComponent(scripts.at(-1).id)}/analyze`,{method:'POST',body:{expectedVersion:plan.version,preview:true}});
+      persist(planKey(),{expectedVersion:candidate.expectedVersion,entities:candidate.entities,stylePrompt:candidate.stylePrompt});editing=true;page='plan';announce('已重新整理清单草稿，请核对后保存；原清单尚未更改。');
     });
-    if(action==='refresh')return load();
+    if(action==='connect'){events.dispatchEvent(new CustomEvent('workflow:connect'));return;}
+    if(action==='refresh')return perform(()=>load());
     if(action==='new-project'){creating=true;project=null;selected='';selectedEntity='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};reviewId=null;prepared=null;render();root.querySelector('input[name=name]')?.focus();return;}
     if(action==='edit-plan'){editing=true;if(!drafts.get(planKey()))persist(planKey(),{expectedVersion:plan.version,entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});render();return;}
     if(action==='add-entity'){const draft=drafts.get(planKey())||{expectedVersion:plan.version,entities:[],stylePrompt:plan.stylePrompt};if(draft.entities.length>=300){announce('一个项目最多 300 项资产。');return;}draft.entities.push({id:'ent_'+key().replaceAll('-',''),category:'character',name:'',description:'',variant:'',origin:'manual',quote:'',scriptId:''});persist(planKey(),draft);render();root.querySelector('[data-wf-row]:last-of-type input[data-field=name]')?.focus();return;}
@@ -347,9 +400,20 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(action==='approve')return decide('approved');
     if(action==='reject')return decide('changes_requested');
     if(action==='close-confirmation'){prepared=null;render();return;}
-    if(action==='submit-task'&&prepared&&session.features?.imageGeneration===true){const target=prepared;return perform(async()=>{await api.request(`/tasks/${encodeURIComponent(target.task.id)}/submit`,{method:'POST',body:{expectedVersion:target.task.version,confirmationToken:target.confirmation.token},idempotencyKey:target.submitKey||(target.submitKey=key())});prepared=null;announce('已发送提交请求，最终状态以任务记录为准。');await load();});}
+    if(action==='submit-task'&&prepared&&session.features?.imageGeneration===true){const target=prepared;return perform(async()=>{await api.request(`/tasks/${encodeURIComponent(target.task.id)}/submit`,{method:'POST',body:{expectedVersion:target.task.version,confirmationToken:target.confirmation.token},idempotencyKey:target.submitKey||(target.submitKey=key())});prepared=null;persist(`flow:${selected}`,true);announce('已发送提交请求，最终状态以任务记录为准。');await load();});}
     if(action==='archive')return perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/bundles`,{method:'POST',body:{expectedVersion:project.version}});announce('本次确认的交付包已归档。');await load();});
   }
+  function imageFailure(event) {
+    const img=event.target;if(img.tagName!=='IMG')return;
+    img.hidden=true;
+    if(!img.nextElementSibling?.classList.contains('wf-image-error-note')) {
+      const note=doc.createElement('span');note.className='wf-image-error-note';
+      note.textContent='缩略图暂未加载，点击查看原图或刷新状态';img.after(note);
+    }
+  }
+  root.addEventListener('error',imageFailure,true);
+  doc.getElementById('warehouseList')?.addEventListener('error',imageFailure,true);
+  listeners.push(()=>{root.removeEventListener('error',imageFailure,true);doc.getElementById('warehouseList')?.removeEventListener('error',imageFailure,true);});
   listen(root,'input',onInput);listen(root,'submit',onSubmit);listen(root,'click',onClick);
   listen(root,'change',async event=>{
     const target=event.target;
@@ -378,7 +442,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   listen(events,'tasks:changed',()=>{clearTimeout(timer);timer=setTimeout(()=>{if(alive&&!busy)load();},150);});
   listen(events,'workflow:flush-drafts',e=>{const pending=flushDrafts();if(typeof e.detail?.waitUntil==='function')e.detail.waitUntil(pending);else pending.catch(err=>{error=err.message;render();});});
   listen(doc.defaultView,'beforeunload',e=>{try{drafts.flush();}catch{e.preventDefault();e.returnValue='';}if(busy){e.preventDefault();e.returnValue='';}});
-  function unmount(){alive=false;requestSerial++;clearTimeout(timer);clearTimeout(flowTimer);delete doc.body.dataset.workflowMounted;listeners.forEach(remove=>remove());stylesheet.remove();root.replaceChildren();for(const id of ['warehouseList','review-summary-root'])doc.getElementById(id)?.replaceChildren();const chooser=doc.getElementById('scriptSelect');if(chooser)chooser.replaceChildren();}
+  function unmount(){alive=false;requestSerial++;clearTimeout(timer);clearTimeout(flowTimer);clearInterval(progressTimer);clearInterval(pollingTimer);delete doc.body.dataset.workflowMounted;listeners.forEach(remove=>remove());stylesheet.remove();root.replaceChildren();for(const id of ['warehouseList','review-summary-root'])doc.getElementById(id)?.replaceChildren();const chooser=doc.getElementById('scriptSelect');if(chooser)chooser.replaceChildren();}
   const ready=load({initial:true});
   return {unmount,ready,refresh:load,flushDrafts,hasUnsavedChanges:dirty,getState:()=>({projectId:selected,page,dirty:dirty(),busy,saveError})};
 }

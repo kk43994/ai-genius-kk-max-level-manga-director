@@ -6,11 +6,12 @@ without screenplay structure remains unparsed rather than inventing entities.
 import hashlib
 import re
 
-VERSION = 'screenplay-rules-v1'
+VERSION = 'screenplay-rules-v2'
 LABELS = {'角色': 'character', '人物': 'character', '出场人物': 'character',
           '场景': 'scene', '地点': 'scene', '道具': 'prop', '关键道具': 'prop', '异象': 'effect'}
 NON_SPEAKERS = set(LABELS) | {'时间', '对白', '旁白', '画外音', '字幕', '音效', '音乐', '动作',
     '镜头', '画面', '转场', '内景', '外景', '日', '夜', '备注', '标题', '剧名', '风格', '视觉风格'}
+NUMBERED_CUE = re.compile(r'(?:场景|镜头|闪回|画面|分镜|段落|转场|旁白|字幕|音效|音乐)[一二三四五六七八九十百零〇\dA-Za-z]+')
 
 
 def extract_plan(text):
@@ -54,7 +55,7 @@ def extract_plan(text):
                 add(category, name, line, description[0].strip() if description else '')
             continue
         # Chinese numbered sluglines and English INT./EXT. locations.
-        slug = re.fullmatch(r'(?:第[一二三四五六七八九十百\d]+场|\d+[.\-]\d+|场\s*\d+)\s*[.、:：]?\s*(.+)', content)
+        slug = re.fullmatch(r'(?:第[一二三四五六七八九十百\d]+场|场景[一二三四五六七八九十百\d]+|\d+[.\-]\d+|场\s*\d+)\s*[.、:：]?\s*(.+)', content)
         english = re.fullmatch(r'(?:INT\.?|EXT\.?|INT\.?/EXT\.?)\s+(.+)', content, re.I)
         bracket = re.fullmatch(r'[【\[](.+)[】\]]', content)
         scene = (slug or english)
@@ -66,7 +67,7 @@ def extract_plan(text):
             add('scene', place, line)
             continue
         speaker = re.fullmatch(r'([\w\u4e00-\u9fff·]{1,20})(?:[（(][^）)]{0,100}[）)])?\s*[:：]\s*(.+)', content)
-        if speaker and speaker.group(1) not in NON_SPEAKERS:
+        if speaker and speaker.group(1) not in NON_SPEAKERS and not NUMBERED_CUE.fullmatch(speaker.group(1)):
             add('character', speaker.group(1), line)
 
     kinds = {r['category'] for r in rows}

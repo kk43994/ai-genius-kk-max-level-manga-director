@@ -39,8 +39,10 @@ const api = {...boundary.api, async request(path, options = {}) {
   const write = !['GET','HEAD'].includes((options.method || 'GET').toUpperCase());
   if (readOnly && write && path !== '/drafts/browser') throw new ApiError('页面版本需要更新；请先保存草稿，再刷新。',{code:'CLIENT_VERSION_INCOMPATIBLE'});
   if (write) pendingWrites++;
+  const downloading = options.responseType === 'blob';
+  if (downloading) activeDownloads++;
   try { return await boundary.api.request(path,options); }
-  finally { if(write) pendingWrites--; }
+  finally { if(write) pendingWrites--; if(downloading) activeDownloads--; }
 }};
 
 async function saveDraft() {
@@ -51,7 +53,7 @@ save.addEventListener('click', () => saveDraft().then(result => {
   display(result.saved ? '草稿已保存到当前工作区。' : '刚才的草稿已保存，最新输入仍在保存中。');
 }).catch(error => display(error.message)));
 
-const running = new Set(['preparing','submitting','queued','running','downloading']);
+const running = new Set(['preparing','submitting','submitted','queued','running','downloading']);
 async function listAllTasks() {
   const rows = []; let cursor = null; const seen = new Set();
   do {
@@ -70,6 +72,7 @@ async function safety() {
 }
 async function refreshTasks() {
   const root = document.getElementById('task-root');
+  if(!root.childElementCount){const pending=document.createElement('p');pending.textContent='正在读取任务状态…';const bar=document.createElement('progress');bar.setAttribute('aria-label','正在读取任务状态');root.replaceChildren(pending,bar);}
   try {
     const tasks = await listAllTasks(); root.replaceChildren();
     const count = tasks.filter(task=>running.has(task.status)).length;
@@ -79,9 +82,11 @@ async function refreshTasks() {
     root.append(note);
     for (const task of tasks.slice(-20).reverse()) {
       const item=document.createElement('div'); item.className='integration-task';
-      const label=document.createElement('strong'); label.textContent=task.recipe+' · '+({draft:'待确认',preparing:'准备中',submitting:'正在提交',queued:'排队中',running:'生成中',downloading:'收取中',completed:'文件已收取',needs_attention:'待处理',blocked_authorization:'需原账号授权',failed:'失败',cancelled:'已取消',unknown_submission:'提交状态待核验'}[task.status] || task.status);
+      const label=document.createElement('strong'); label.textContent=task.recipe+' · '+({draft:'待确认',preparing:'准备中',submitting:'正在提交',submitted:'已提交，等待生成',queued:'排队中',running:'生成中',downloading:'收取中',completed:'文件已收取',needs_attention:'待处理',blocked_authorization:'需原账号授权',failed:'失败',cancelled:'已取消',unknown_submission:'提交状态待核验'}[task.status] || task.status);
       const owner=document.createElement('small'); owner.textContent=(task.ownership.accountLabelAtCreation || task.ownership.providerAccountId)+' / '+(task.ownership.spaceNameAtCreation || task.ownership.spaceId);
       item.append(label,owner);
+      if(running.has(task.status)){const bar=document.createElement('progress');bar.setAttribute('aria-label','任务处理中，等待实际结果');bar.style.width='100%';item.append(bar);}
+      const time=document.createElement('small');time.textContent='最近状态：'+new Date(task.updatedAt).toLocaleTimeString();item.append(time);
       if(task.error?.message){const error=document.createElement('p');error.textContent=task.error.message;item.append(error);}
       if(task.canRecover) {const button=document.createElement('button');button.textContent='查询原任务并收取';button.addEventListener('click',async()=>{button.disabled=true;try{await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version}});events.dispatchEvent(new CustomEvent('tasks:changed'));}catch(error){display(error.message);}finally{button.disabled=false;}});item.append(button);}
       root.append(item);
@@ -91,14 +96,14 @@ async function refreshTasks() {
 
 // ZIP fetches go through the authenticated transport and are counted until body receipt.
 document.addEventListener('click', async event => {
-  const link=event.target.closest('a[href]'); if(!link || event.defaultPrevented || event.button!==0) return;
+  const link=event.target.closest('a[href]'); if(!link || link.hasAttribute('data-wf-download') || event.defaultPrevented || event.button!==0) return;
   const url=new URL(link.href);
   if(url.origin!==location.origin || !url.pathname.startsWith(config.apiBase+'/') || !(/\/projects\/[^/]+\/export$/.test(url.pathname)||/\/bundles\/[^/]+\/content$/.test(url.pathname))) return;
-  event.preventDefault(); activeDownloads++;
+  event.preventDefault();
   try {
     const blob=await api.request(url.pathname.slice(config.apiBase.length)+url.search,{responseType:'blob'});
     const object=URL.createObjectURL(blob), anchor=document.createElement('a'); anchor.href=object;anchor.download='资产实验室交付包.zip';document.body.append(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(object),60000);
-  } catch(error) {display(error.message);} finally{activeDownloads--;}
+  } catch(error) {display(error.message);}
 },true);
 
 events.addEventListener('release:changed', event=>{
@@ -106,7 +111,7 @@ events.addEventListener('release:changed', event=>{
   else if(event.detail.compatibleNow===true && readOnly){readOnly=false;delete document.body.dataset.readOnly;drafts?.onState(drafts);}
 });
 events.addEventListener('shell:action',event=>{
-  if(event.detail.action==='connect'){event.preventDefault();openAccounts();if(config.mode==='local-client')void accounts?.authorize();}
+  if(event.detail.action==='connect'){event.preventDefault();openAccounts();}
   if(event.detail.action==='manual-plan')shell.setView({workspaceState:'ready'});
   if(event.detail.action==='help'){
     event.preventDefault();const dialog=document.getElementById('shell-info-dialog');
@@ -124,9 +129,13 @@ events.addEventListener('shell:action',event=>{
 });
 events.addEventListener('workflow:connect',()=>openAccounts());
 events.addEventListener('provider-accounts:changed',event=>{
-  const items=event.detail.items || []; shell.setView({connectionState:items.some(item=>item.authorization?.state==='connected')?'connected':'disconnected'});
+  const items=event.detail.items || [], connected=items.some(item=>item.authorization?.state==='connected');
+  shell.setView({connectionState:connected?'connected':'disconnected'});
+  const trigger=document.getElementById('local-libtv-status');
+  if(trigger)trigger.textContent=connected?'LibTV 已连接':'连接 LibTV';
 });
 events.addEventListener('tasks:changed',()=>void refreshTasks());
+events.addEventListener('workflow:tasks-refreshed',()=>void refreshTasks());
 
 function reloadWorkspace() {
   switchingWorkspace=true;drafts?.destroy();workflow?.unmount();accounts?.unmount();updates?.unmount();
@@ -183,18 +192,19 @@ try {
   accounts=mountAccounts({root:document.getElementById('account-root'),api,events,session,publicBasePath:config.publicBasePath,workspaceRecovery:workspaceRecoveryHooks(),localClient:config.mode==='local-client'});
   drafts.readAccountDraft=()=>accounts.getDraftSelection();
   workflow=mountWorkflow({root:document.getElementById('workflow-root'),api,events,session,...config,storage:drafts.adapter});
-  await Promise.all([accounts.ready,workflow.ready]);
   if(config.mode==='local-client') {
-    const authorize=document.createElement('button');authorize.type='button';authorize.className='lab-button integration-account-trigger';authorize.textContent='授权 LibTV';
+    const authorize=document.createElement('button');authorize.type='button';authorize.id='local-libtv-status';authorize.className='lab-button integration-account-trigger';authorize.textContent='正在读取 LibTV 状态';
     accountButton.before(authorize);
-    authorize.addEventListener('click',()=>{openAccounts();void accounts.authorize();});
+    authorize.addEventListener('click',()=>openAccounts());
   }
+  await Promise.all([accounts.ready,workflow.ready,refreshTasks()]);
+  const connectionStatus=document.getElementById('local-libtv-status');
+  if(connectionStatus)connectionStatus.textContent=accounts.hasConnectedAccount()?'LibTV 已连接':'连接 LibTV';
   drafts.onState(drafts);
   if(workflow.getState().projectId || Object.keys(drafts.snapshot().workflow).some(key=>key==='new-project'||key.startsWith('plan:'))) shell.setView({workspaceState:'ready'});
   document.querySelectorAll('#workflow-root,#account-root').forEach(root=>{
     for(const type of ['input','change']) root.addEventListener(type,()=>queueMicrotask(()=>drafts.changed()));
   });
-  await refreshTasks();
   document.getElementById('update-root').replaceChildren();
   if(config.mode==='local-client') {
     const root=document.getElementById('update-root');

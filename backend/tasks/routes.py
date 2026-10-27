@@ -38,6 +38,9 @@ def register_routes(router, services):
                     "PROVIDER_UNCONFIGURED": ("PROVIDER_UNCONFIGURED", "官方接入尚未配置完成。", 503),
                     "PROVIDER_CAPABILITY_UNAVAILABLE": ("PROVIDER_CAPABILITY_UNAVAILABLE", "官方接口尚未支持此步骤。", 503),
                     "SPACE_UNAVAILABLE": ("SPACE_UNAVAILABLE", "原空间访问权限尚未确认。", 409),
+                    "PROVIDER_UNAVAILABLE": ("PROVIDER_UNAVAILABLE", "暂未收到 LibTV 的响应。请刷新连接和原任务状态，不要重复提交生成。", 503),
+                    "PROVIDER_NETWORK_ERROR": ("PROVIDER_UNAVAILABLE", "暂未收到 LibTV 的响应。请刷新连接和原任务状态，不要重复提交生成。", 503),
+                    "STORAGE_UNAVAILABLE": ("STORAGE_UNAVAILABLE", "本地任务记录暂时无法读取，请刷新任务状态；不要重复提交生成。", 503),
                 }
                 error = TaskError(*safe.get(getattr(exc, "code", None),
                                   ("TASK_SERVICE_UNAVAILABLE", "任务服务暂不可用，请保留当前页面后稍后重试。", 503)))

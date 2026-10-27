@@ -45,6 +45,7 @@ class RouteTests(unittest.TestCase):
         task = confirmed.body["data"]["task"]
         cancelled = self.call("POST", "/api/v1/tasks/{taskId}/cancel", params={"taskId": task["id"]}, json={"expectedVersion": task["version"]})
         self.assertEqual(cancelled.body["data"]["task"]["status"], "cancelled")
+        self.assertIn("尚未发起官方生成", cancelled.body["data"]["task"]["error"]["message"])
 
     def test_unconfigured_task_module_is_not_fake_success(self):
         router = Router()
@@ -60,6 +61,20 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(result.status, 503)
         self.assertNotIn("private-test", str(result.body))
         self.assertNotIn("signed.invalid", str(result.body))
+
+    def test_provider_timeout_before_preparation_has_actionable_safe_message(self):
+        def unavailable(ctx):
+            error = RuntimeError('token=private-test')
+            error.code = 'PROVIDER_UNAVAILABLE'
+            raise error
+        self.f.selections.get_selection = unavailable
+        result = self.call('POST', '/api/v1/tasks/prepare', json={**spec(), 'expectedSelectionRevision':1})
+        self.assertEqual(result.status,503)
+        self.assertEqual(result.body['error']['code'],'PROVIDER_UNAVAILABLE')
+        self.assertIn('不要重复提交生成',result.body['error']['message'])
+        self.assertNotIn('尚未提交生成',result.body['error']['message'])
+        self.assertNotIn('private-test',str(result.body))
+        self.assertEqual(self.f.providers.submit_count,0)
 
 
 if __name__ == "__main__":

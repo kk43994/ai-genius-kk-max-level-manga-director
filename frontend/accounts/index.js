@@ -45,6 +45,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
         <button type="button" data-action="add-creator" class="al-accounts__button al-accounts__button--quiet">授权图片创作</button>
       </header>
       <div data-view="owner-root"></div>
+      <div data-view="activity" role="status" aria-live="polite" hidden><span data-view="activity-label"></span><progress aria-label="正在核对账号与空间"></progress></div>
       <h3 class="al-accounts__generation-title">生成账号</h3>
       <p class="al-accounts__intro">在 LibTV 官方页面登录，再选择个人或团队空间。连接账号仅申请账号读取；开启创作权限会另行申请项目、图片生成、参考图上传与素材导出。授权本身不会发起生成。</p>
       <p class="al-accounts__notice" data-view="notice" hidden></p>
@@ -157,11 +158,15 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     const selected = selection(), selectedAccount = accounts.find(a => a.id === selected.providerAccountId);
     const selectedSpace = (selected.providerAccountId === draft.providerAccountId ? spaces.find(s => s.id === selected.spaceId) : null)
       || (selectedSpaceLabel?.providerAccountId === selected.providerAccountId && selectedSpaceLabel?.id === selected.spaceId ? selectedSpaceLabel : null);
-    text('status', status);
+    const connectedAccount = accounts.find(a=>accountState(a)==='connected');
+    text('status', status || (connectedAccount ? `LibTV 已连接${connectedAccount.grantedScopes?.includes('libtv:task:write')?'，图片创作权限已授权':''}。` : ''));
+    const activity = busy ? '正在保存账号操作…' : loading ? '正在读取已连接账号…' : spacesLoading ? '正在向 LibTV 核对空间权限…' : quotaLoading ? '正在查询所选空间余额…' : polling ? '正在检查授权结果…' : '';
+    refs.activity.hidden = !activity; text('activity-label', activity);
     refs.error.hidden = !error; text('error', error);
     notice = !canAuthorize() ? 'LibTV 网页授权暂未开放。已保存的项目与素材可继续查看；入口开放后可直接在网页添加账号。' : '';
     refs.notice.hidden = !notice; text('notice', notice);
     buttons.add.disabled = blocked() || !canAuthorize();
+    if(localClient)buttons.add.textContent = connectedAccount ? '添加另一个账号' : '授权 LibTV';
     buttons['add-creator'].disabled = blocked() || !canAuthorize();
     buttons.refresh.disabled = Boolean(loading || busy || ownerModule?.isActive());
     refs.accounts.setAttribute('aria-busy', String(loading));
@@ -397,7 +402,8 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
           status = 'LibTV 已返回授权完成，正在核对账号状态…'; await refresh();
           if (!disposed && localEpoch === epoch && !error) {
             if (localClient && accounts.some(a => a.id === result.providerAccountId && accountState(a) === 'connected')) {
-              draft = { providerAccountId: result.providerAccountId, spaceId: null };
+              draft = { providerAccountId: result.providerAccountId,
+                spaceId: selection().providerAccountId === result.providerAccountId ? selection().spaceId : null };
               dirty = !sameSelection(draft, selection()); saveLocal();
               await loadSpaces();
             }
@@ -504,6 +510,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   const ready = refresh({ rereadSession: !session });
   return {
     ready, refresh, authorize: () => beginAuthorization(),
+    hasConnectedAccount: () => accounts.some(a => accountState(a) === 'connected'),
     // The integration persists this live value even when optional localStorage fails.
     getDraftSelection: () => dirty ? {providerAccountId:draft.providerAccountId, spaceId:draft.spaceId} : null,
     getDirtyState: () => ({ dirty: dirty || Boolean(busy) || ownerModule.getDirtyState().dirty, authorizationActive:activeAttempt(attempt), ownerActive:ownerModule.isActive(), reason: busy ? '账号操作尚未完成，请稍候' : dirty ? '账号或空间选择尚未应用' : ownerModule.getDirtyState().reason }),

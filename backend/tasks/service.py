@@ -511,9 +511,11 @@ class TaskService:
             if task["status"] == "completed":
                 raise TaskError("TASK_ALREADY_COMPLETED", "文件已完成保存，请在资产审核中处理。", 409)
             if task["status"] != "cancelled":
+                message = ("已停止本站处理；官方任务是否停止及退款均未确认。" if task["submissionAttempted"]
+                           else "未提交的准备记录已取消，记录保留；尚未发起官方生成。")
                 task.update(status="cancelled", lease=None, confirmation=None,
                             cancellation={"localOnly": True, "remoteConfirmed": False, "refundConfirmed": False},
-                            error={"code": "LOCAL_PROCESSING_STOPPED", "message": "已停止本站处理；官方任务是否停止及退款均未确认。",
+                            error={"code": "LOCAL_PROCESSING_STOPPED", "message": message,
                                    "retryable": False, "details": {}})
                 self._save(tx, task)
             return {"task": public_task(task)}

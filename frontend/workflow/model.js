@@ -3,7 +3,7 @@ export const stageLabels = {style: 'MJ 风格', asset: 'Image2 资产', refine: 
 export const recipes = {style: 'mj_style', asset: 'image2_asset', refine: 'nano_refine'};
 export const categories = {character: '角色', scene: '场景', prop: '道具', effect: '异象'};
 export const states = {pending: '待人工审核', approved: '已保留', changes_requested: '待返修', superseded: '历史版本', stale: '依据已变更',
-  draft: '待确认提交', preparing: '准备中', submitting: '正在提交', queued: '排队中', running: '生成中', downloading: '收取中',
+  draft: '待确认提交', preparing: '准备中', submitting: '正在提交', submitted: '已提交，等待生成', queued: '排队中', running: '生成中', downloading: '收取中',
   completed: '已返回 · 需审核', failed: '失败', needs_attention: '需要核对原任务', blocked_authorization: '等待重新授权', cancelled: '已停止本地处理'};
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]));
 

@@ -74,6 +74,21 @@ class QuickStartTests(unittest.TestCase):
         for label in ('旁白', '字幕', '音效', '镜头'):
             self.assertEqual(extract_plan(label+'：一阵脚步声。')['entities'], [])
 
+    def test_numbered_shot_and_scene_labels_are_not_characters(self):
+        text = '场景一：山间小亭 外景 日\n镜头A：镜头推近。\n镜头1：他站起身。\n闪回1：往日的庭院。\n叶宇：我来了。'
+        entities = extract_plan(text)['entities']
+        self.assertEqual([(e['category'],e['name']) for e in entities],
+                         [('scene','山间小亭'),('character','叶宇')])
+        self.assertTrue(all(e['quote'] in text for e in entities))
+
+    def test_reanalysis_preview_never_overwrites_existing_plan(self):
+        result=start(self.workflow,self.ctx,self.payload)
+        pid,sid=result['project']['id'],result['script']['id']
+        before=self.workflow.get_plan(self.ctx,pid)
+        preview=analyze(self.workflow,self.ctx,pid,sid,{'preview':True})
+        self.assertEqual(preview['expectedVersion'],before['version'])
+        self.assertEqual(self.workflow.get_plan(self.ctx,pid),before)
+
     def test_manual_confirmation_is_persisted_and_retry_does_not_reset_it(self):
         result = start(self.workflow, self.ctx, self.payload)
         entities = [{k:v for k,v in e.items() if k!='sourceRevision'} for e in result['plan']['entities']]

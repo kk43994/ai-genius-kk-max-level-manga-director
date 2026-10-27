@@ -34,8 +34,11 @@ export function nextAction({project, plan, assets, tasks, bundles = [], selectio
         && JSON.stringify(t.sourceRevisionIds || []) === JSON.stringify(source ? [source.id] : []))
         .sort((a,b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
       const current = matching.findLast(t => !repair || t.createdAt >= repair.reviewHistory?.at(-1)?.at);
+      if (current?.status === 'cancelled' && current.submissionAttempted) return result('blocked', '核对已提交的原任务',
+        '本站处理已停止，官方生成是否停止尚未确认；请核对原任务结果后再决定下一步。', {...extra, task: current});
+      if (current?.status === 'cancelled') extra.cancelledTaskId = current.id;
       if (current?.canConfirm) return result('confirm', '确认本次制作', `${entity.name} · ${stageLabels[stage]}，核对账号、数量和费用后提交。`, {...extra, task: current});
-      if (current && current.status !== 'completed') return result('blocked', '这一步需要处理', current.error?.message || '任务未完成，请查看任务记录；系统不会自行重试收费生成。', {...extra, task: current});
+      if (current && !['completed','cancelled'].includes(current.status)) return result('blocked', '这一步需要处理', current.error?.message || '任务未完成，请查看任务记录；系统不会自行重试收费生成。', {...extra, task: current});
       if (current?.status === 'completed' && !candidates.length) return result('blocked', '结果尚未接入审核', '任务已返回，但没有可审核素材，请先核对文件收取记录。', {...extra, task: current});
       const spec = {projectId: project.id, entityId: entity.id, recipe: recipes[stage],
         prompt: defaultPrompt(entity, stage, plan.stylePrompt || '根据剧本的时代、环境与氛围保持统一视觉设定，不增改角色身份。'),

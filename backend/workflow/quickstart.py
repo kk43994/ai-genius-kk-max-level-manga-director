@@ -61,10 +61,13 @@ def start(workflow, ctx, payload):
 
 
 def analyze(workflow, ctx, project_id, script_id, payload):
-    public_input(payload, {'expectedVersion'})
+    public_input(payload, {'expectedVersion', 'preview'})
     script = workflow.get_script(ctx, project_id, script_id)
     extracted = extract_plan(script['text'])
     plan = workflow.get_plan(ctx, project_id)
+    if payload.get('preview') is True:
+        return {'expectedVersion':plan['version'], 'stylePrompt':plan.get('stylePrompt') or extracted['stylePrompt'],
+                'entities':[{**e,'scriptId':script_id} for e in extracted['entities']], 'analysis':extracted['analysis']}
     if plan['entities']:
         raise WorkflowError('PLAN_EXISTS', '已有资产清单，请在清单中编辑；自动拆解不会覆盖现有设定。', 409)
     return workflow.save_plan(ctx, project_id, {'expectedVersion': payload.get('expectedVersion'),

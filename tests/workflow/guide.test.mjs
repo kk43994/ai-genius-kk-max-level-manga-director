@@ -27,6 +27,12 @@ test('saved drafts reconfirm, failed tasks do not silently retry',()=>{
  const data=state();data.tasks=[task({canConfirm:true})];assert.equal(nextAction(data).kind,'confirm');
  data.tasks=[task({status:'failed',error:{message:'provider offline'}})];assert.equal(nextAction(data).kind,'blocked');
 });
+test('explicitly cancelled unsubmitted preparation permits a new identity',async()=>{
+ const data=state();data.tasks=[task({status:'cancelled',canConfirm:false,submissionAttempted:false})];
+ const next=nextAction(data);assert.equal(next.kind,'prepare');assert.equal(next.cancelledTaskId,'task');
+ assert.notEqual(await prepareIdentity(next.spec,1),await prepareIdentity(next.spec,1,{cancelledTaskId:next.cancelledTaskId}));
+ data.tasks[0].submissionAttempted=true;assert.equal(nextAction(data).kind,'blocked');
+});
 test('other account media cannot become references or be treated as missing',()=>{
  const other={...revision('style'),ownership:{...selected,providerAccountId:'other'}};
  assert.equal(nextAction(withImages(other)).kind,'connect');
