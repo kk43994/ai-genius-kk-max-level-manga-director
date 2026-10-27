@@ -79,8 +79,10 @@ class PersistentIntegrationTests(unittest.TestCase):
         self.c = self.add_account(self.other_ctx, "synthetic-subject-a")
 
     def add_account(self, ctx, subject):
+        epoch_at_begin = self.accounts.authorization_epoch(ctx)
         return self.accounts.complete_authorization(ctx, VerifiedIdentity(OFFICIAL_ISSUER, subject),
-            {"access_token": "synthetic-not-a-real-provider-token"}, minimum_read_verified=True)["id"]
+            {"access_token": "synthetic-not-a-real-provider-token"}, minimum_read_verified=True,
+            expected_authorization_epoch=epoch_at_begin)["id"]
 
     def test_restart_and_same_cookie_restore_the_persisted_selection(self):
         self.service.set_selection(self.ctx, providerAccountId=self.a, spaceId="same-team-id", expectedRevision=0)

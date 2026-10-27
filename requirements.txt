@@ -1,2 +1,4 @@
-# Integration HTTP adapter and smoke tests use only Python >= 3.10 standard library.
-# Optional module dependencies must be declared and validated when their commits merge.
+# Storage/session runtime, verified together on Python 3.14.7.
+cryptography==50.0.2
+cffi==2.1.1
+pycparser==3.12

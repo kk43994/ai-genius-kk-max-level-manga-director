@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib
 import json
 import logging
@@ -79,14 +80,17 @@ class Config:
     frontend_dir: Path = ROOT / "frontend"
     allowPaidSubmission: bool = False
     videoGeneration: bool = False
+    secret_key_file: Path | None = None
 
     def __post_init__(self):
         supplied = Path(self.data_dir)
         if not supplied.is_absolute():
             raise ConfigurationError("DATA_DIR must be absolute and outside the release")
         resolved = supplied.resolve()
-        if resolved == ROOT or resolved.is_relative_to(ROOT):
+        if resolved == ROOT or resolved.is_relative_to(ROOT) or ROOT.is_relative_to(resolved):
             raise ConfigurationError("DATA_DIR must be outside the release directory")
+        if any(path.is_symlink() for path in (supplied, *supplied.parents)):
+            raise ConfigurationError("DATA_DIR must not pass through symlinks")
         if resolved.exists() and not resolved.is_dir():
             raise ConfigurationError("DATA_DIR must be a directory")
         if self.port in {8768, 8870}:
@@ -97,6 +101,13 @@ class Config:
             raise ConfigurationError("Paid submission and final video cannot be enabled in this development release")
         if self.max_request_bytes < 1 or self.request_timeout_seconds < 1:
             raise ConfigurationError("Request limits must be positive")
+        if self.secret_key_file is not None:
+            key_path = Path(self.secret_key_file)
+            if not key_path.is_absolute():
+                raise ConfigurationError("SECRET_KEY_FILE must be an absolute path")
+            if key_path.resolve().is_relative_to(ROOT) or key_path.resolve().is_relative_to(resolved):
+                raise ConfigurationError("SECRET_KEY_FILE must be outside release and data directories")
+            object.__setattr__(self, "secret_key_file", key_path)
         origin = self.public_origin
         if origin is None:
             if self.host not in {"localhost", "127.0.0.1"}:
@@ -268,6 +279,64 @@ class Services(MutableMapping):
         self._values[key] = value
 
 
+class SessionHTTPAdapter:
+    """Adapt module 3 without changing its standalone API or credential storage."""
+    def __init__(self, service, config):
+        self.service, self.config = service, config
+        self.configure_origin()
+
+    def __getattr__(self, name):
+        return getattr(self.service, name)
+
+    def configure_origin(self):
+        self.service.public_origin = self.config.public_origin
+        if self.service.secure:
+            if self.config.public_base_path == "/":
+                name = "__Host-asset_lab_session"
+            else:
+                digest = hashlib.sha256(self.config.public_base_path.encode()).hexdigest()[:10]
+                name = "__Secure-asset_lab_session_" + digest
+        else:
+            # Cookies are not port-scoped; independent localhost previews need namespacing.
+            digest = hashlib.sha256((self.config.public_origin + self.config.public_base_path).encode()).hexdigest()[:10]
+            name = "asset_lab_session_" + digest
+        self.service.cookie_name = name
+
+    def resolve_request(self, ctx):
+        token = self.service.token_from_cookie(ctx.headers.get("Cookie"))
+        if token is None:
+            return None
+        # Bootstrap refreshes the persistent cookie's idle expiry; ordinary reads do not.
+        return self.service.restore(token, request_id=ctx.requestId, touch=False).context
+
+    def verify_csrf(self, ctx, token):
+        self.service.verify_mutation(ctx, origin=ctx.origin, csrf_token=token)
+        return True
+
+    def response_cookie(self, response):
+        name = next((k for k in response.headers if k.lower() == "set-cookie"), None)
+        if name:
+            cookie = SimpleCookie()
+            cookie.load(response.headers[name])
+            if self.service.cookie_name in cookie:
+                cookie[self.service.cookie_name]["path"] = self.config.public_base_path
+                response.headers[name] = cookie.output(header="").strip()
+        return response
+
+    def readiness(self):
+        return {"ready": True, "reason": "persistent_session_wired"}
+
+
+class ModuleRouter:
+    def __init__(self, router, public_routes):
+        self.router, self.public_routes = router, public_routes
+
+    def add(self, method, pattern, handler, **kwargs):
+        if (method.upper(), pattern) in self.public_routes:
+            kwargs["public"] = True
+        self.router.add(method, pattern, handler, **kwargs)
+
+
 def not_implemented(ctx, params):
     raise APIError(501, "NOT_IMPLEMENTED", "此客户版模块尚未接入；操作未执行")
 
@@ -293,6 +362,7 @@ class Application:
         self.config = config
         self.services = services if services is not None else Services(config)
         self.router, self.modules = Router(), {}
+        self.domain_errors = ()
         imported = {}
         for name, module_name in modules:
             try:
@@ -303,27 +373,18 @@ class Application:
                 self.modules[name] = "missing"
                 continue
             imported[name] = module
+            self.modules[name] = "loaded"
+        for name, module in imported.items():
             factory = getattr(module, "create_service", None)
             if factory:
                 self.services[name] = factory(self.services)
-            self.modules[name] = "loaded"
-        # Modules received before they adopted the optional factory convention are
-        # assembled explicitly here, without editing their independently owned files.
-        if "spaces" in imported and isinstance(self.services.spaces, UnavailableService):
-            selections = self.services.get("selections")
-            if selections is None and not isinstance(self.services.storage, UnavailableService):
-                storage_module = imported.get("storage")
-                selection_repository = getattr(storage_module, "SelectionRepository", None)
-                if selection_repository is None:
-                    raise ConfigurationError("Storage binding must export SelectionRepository")
-                selections = selection_repository(self.services.storage)
-                self.services.selections = selections
-            self.services.spaces = imported["spaces"].SpaceService(
-                providers=self.services.providers, selections=selections, clock=self.services.clock)
-        for module in imported.values():
+            self._wire_builtin(name, module, imported)
+        for name, module in imported.items():
+            if name == "sessions" and isinstance(self.services.sessions, UnavailableService):
+                continue  # Retain the explicit 501 placeholder until configured.
             register = getattr(module, "register_routes", None)
             if register:
-                register(self.router, self.services)
+                register(ModuleRouter(self.router, getattr(module, "PUBLIC_ROUTES", ())), self.services)
         self.router.add("GET", API_PREFIX + "/health", self.health, public=True)
         self.router.add("GET", API_PREFIX + "/ready", self.ready, public=True)
         for method, paths in PLACEHOLDERS.items():
@@ -332,6 +393,44 @@ class Application:
                 if not any(r.method == method and route_shape(r.pattern) == route_shape(full_path)
                            for r in self.router.routes):
                     self.router.add(method, full_path, not_implemented, public=path in PUBLIC)
+
+    def _wire_builtin(self, name, module, imported):
+        # Keep explicit adapters in dependency order with optional module factories.
+        config = self.config
+        if name == "storage":
+            storage_module = module
+            self.domain_errors += (storage_module.StorageError,)
+            if isinstance(self.services.storage, UnavailableService):
+                if config.secret_key_file is None:
+                    self.modules["storage"] = "unconfigured"
+                else:
+                    try:
+                        self.services.storage = storage_module.Store.from_env(release_root=ROOT, environ={
+                            "ASSET_LAB_DATA_DIR": str(config.data_dir),
+                            "ASSET_LAB_SECRET_KEY_FILE": str(config.secret_key_file),
+                        })
+                    except storage_module.StorageError as exc:
+                        raise ConfigurationError(f"{exc.code}: {exc.message}") from None
+            if not isinstance(self.services.storage, UnavailableService):
+                self.services.accounts = storage_module.AccountRepository(self.services.storage)
+                self.services.selections = storage_module.SelectionRepository(self.services.storage)
+        if name == "sessions" and isinstance(self.services.sessions, UnavailableService):
+            if isinstance(self.services.storage, UnavailableService):
+                self.modules["sessions"] = "unconfigured"
+            else:
+                self.services.sessions = SessionHTTPAdapter(module.SessionService(
+                    self.services.storage, public_origin=config.public_origin), config)
+        if name == "spaces" and isinstance(self.services.spaces, UnavailableService):
+            selections = self.services.get("selections")
+            if selections is None and not isinstance(self.services.storage, UnavailableService):
+                storage_module = imported.get("storage")
+                selection_repository = getattr(storage_module, "SelectionRepository", None)
+                if selection_repository is None:
+                    raise ConfigurationError("Storage binding must export SelectionRepository")
+                selections = selection_repository(self.services.storage)
+                self.services.selections = selections
+            self.services.spaces = module.SpaceService(
+                providers=self.services.providers, selections=selections, clock=self.services.clock)
 
     def health(self, ctx, params):
         return Response(body={"status": "ok", "mode": "customer-development", "version": VERSION,
@@ -344,6 +443,10 @@ class Application:
             report = getattr(self.services.get(name), "readiness", None)
             try:
                 result = report() if callable(report) else {}
+                if name == "storage" and not isinstance(self.services.storage, UnavailableService):
+                    with self.services.storage._system_transaction(write=False) as connection:
+                        schema = connection.execute("PRAGMA user_version").fetchone()[0]
+                    result = {"ready": schema == 1, "reason": "schema_ready" if schema == 1 else "schema_incompatible"}
                 result = result if isinstance(result, dict) else {}
                 reason = result.get("reason", "ready" if result.get("ready") is True else "readiness_not_reported")
                 if not isinstance(reason, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", reason):
@@ -406,15 +509,19 @@ class Application:
                     raise APIError(422, "IDEMPOTENCY_KEY_REQUIRED", "创建任务需要有效的幂等标识")
         result = route.handler(ctx, params)
         if isinstance(result, Response):
-            return result
+            response = result
         # Framework-neutral modules may define their own Response dataclass.
-        if all(hasattr(result, key) for key in ("status", "body", "headers")):
-            return Response(result.status, result.body, dict(result.headers))
-        if isinstance(result, dict) and {"status", "body"}.issubset(result):
-            return Response(result["status"], result["body"], result.get("headers", {}))
-        if isinstance(result, dict):
-            return Response(body=result)
-        raise RuntimeError("Handler must return Response or JSON object")
+        elif all(hasattr(result, key) for key in ("status", "body", "headers")):
+            response = Response(result.status, result.body, dict(result.headers))
+        elif isinstance(result, dict) and {"status", "body"}.issubset(result):
+            response = Response(result["status"], result["body"], result.get("headers", {}))
+        elif isinstance(result, dict):
+            response = Response(body=result)
+        else:
+            raise RuntimeError("Handler must return Response or JSON object")
+        if isinstance(self.services.sessions, SessionHTTPAdapter):
+            response = self.services.sessions.response_cookie(response)
+        return response
 
     def static(self, ctx):
         if ctx.method not in {"GET", "HEAD"}:
@@ -569,6 +676,9 @@ class Handler(BaseHTTPRequestHandler):
             response = Response(exc.status, {"error": {"code": exc.code, "message": exc.message,
                                 "retryable": exc.retryable, "details": exc.details}})
             raw, headers = serialize_response(response, request_id)
+        except self.server.app.domain_errors as exc:
+            response = Response(exc.status, {"error": exc.public()})
+            raw, headers = serialize_response(response, request_id)
         except Exception as exc:
             LOG.error("request_failed requestId=%s exceptionType=%s", request_id, type(exc).__name__)
             timed_out = isinstance(exc, (TimeoutError, ConnectionError))
@@ -604,13 +714,15 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class CustomerHTTPServer(ThreadingHTTPServer):
-    daemon_threads, allow_reuse_address = True, False
+    daemon_threads, allow_reuse_address = True, True
 
     def __init__(self, app):
         self.app = app
         super().__init__((app.config.host, app.config.port), Handler)
         if app.config.port == 0 and app.config.public_origin.endswith(":0"):
             object.__setattr__(app.config, "public_origin", app.config.public_origin[:-2] + f":{self.server_port}")
+            if isinstance(app.services.sessions, SessionHTTPAdapter):
+                app.services.sessions.configure_origin()
 
 
 def create_app(config, *, services=None, modules=MODULES):
@@ -625,6 +737,7 @@ def main(argv=None):
     parser.add_argument("--public-origin", default=os.environ.get("ASSET_LAB_PUBLIC_ORIGIN"))
     parser.add_argument("--public-base-path", default=os.environ.get("ASSET_LAB_PUBLIC_BASE_PATH", "/"))
     parser.add_argument("--api-base", default=os.environ.get("ASSET_LAB_API_BASE"))
+    parser.add_argument("--secret-key-file", type=Path, default=os.environ.get("ASSET_LAB_SECRET_KEY_FILE"))
     parser.add_argument("--check-config", action="store_true")
     args = parser.parse_args(argv)
     try:
@@ -632,12 +745,12 @@ def main(argv=None):
             if os.environ.get(key, "false").lower() not in {"false", "0", "no", "off", ""}:
                 raise ConfigurationError(f"{key} cannot be enabled in this development release")
         config = Config(Path(args.data_dir), args.host, args.port, args.public_origin,
-                        args.public_base_path, args.api_base)
-        app = create_app(config)
+                        args.public_base_path, args.api_base, secret_key_file=args.secret_key_file)
         if args.check_config:
-            print(json.dumps({"configurationValid": True, "modules": app.modules,
+            print(json.dumps({"configurationSyntaxValid": True, "databaseInitialized": False,
                               "customerReady": False, **config.browser_config()}))
             return 0
+        app = create_app(config)
         with CustomerHTTPServer(app) as server:
             print(f"Customer integration preview: {config.public_origin}{config.public_base_path}", flush=True)
             print("Paid generation disabled; readiness must be checked separately.", flush=True)
