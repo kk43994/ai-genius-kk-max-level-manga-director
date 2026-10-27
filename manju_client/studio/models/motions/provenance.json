@@ -1,0 +1,20 @@
+{
+  "author": "Quaternius",
+  "license": "CC0-1.0",
+  "source": "https://quaternius.com/packs/universalanimationlibrary.html",
+  "download": "https://opengameart.org/sites/default/files/universal_animation_librarystandard.zip",
+  "sourceSha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+  "motionClips": [
+    "Idle_Loop",
+    "Idle_Talking_Loop",
+    "Walk_Loop",
+    "Walk_Formal_Loop",
+    "Sitting_Enter",
+    "Sitting_Exit",
+    "Sitting_Idle_Loop",
+    "Sitting_Talking_Loop",
+    "Interact",
+    "Hit_Chest"
+  ],
+  "meshImported": false
+}

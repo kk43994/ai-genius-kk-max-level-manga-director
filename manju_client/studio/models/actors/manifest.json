@@ -1,0 +1,134 @@
+{
+  "schema": "manju-rig-assets/1",
+  "assets": [
+    {
+      "id": "male-7h",
+      "file": "anime-male-7h.glb",
+      "bodyType": "male",
+      "heads": 7,
+      "measuredHeads": 7.000001854367267,
+      "height": 1.7999999523162842,
+      "headHeight": 0.2571427822113037,
+      "bones": 65,
+      "vertices": 12900,
+      "bindingVersion": 2,
+      "weightAudit": {
+        "vertices": 3236,
+        "unweighted": 0,
+        "maxInfluences": 4
+      },
+      "source": "girush-young-warrior",
+      "sha256": "3d051ce692b167bea8df02396e91c6369e6ed0239b9a2c5139efea9115a4c6ce"
+    },
+    {
+      "id": "male-8h",
+      "file": "anime-male-8h.glb",
+      "bodyType": "male",
+      "heads": 8,
+      "measuredHeads": 8.000003178915735,
+      "height": 1.7999999523162842,
+      "headHeight": 0.22499990463256836,
+      "bones": 65,
+      "vertices": 12900,
+      "bindingVersion": 2,
+      "weightAudit": {
+        "vertices": 3236,
+        "unweighted": 0,
+        "maxInfluences": 4
+      },
+      "source": "girush-young-warrior",
+      "sha256": "6725e8ee6ff4e459d40acbe10170eef7fd22d59f9b3bb359a5440dc97d28b00e"
+    },
+    {
+      "id": "male-9h",
+      "file": "anime-male-9h.glb",
+      "bodyType": "male",
+      "heads": 9,
+      "measuredHeads": 9.000002980233305,
+      "height": 1.7999999523162842,
+      "headHeight": 0.19999992847442627,
+      "bones": 65,
+      "vertices": 12900,
+      "bindingVersion": 2,
+      "weightAudit": {
+        "vertices": 3236,
+        "unweighted": 0,
+        "maxInfluences": 4
+      },
+      "source": "girush-young-warrior",
+      "sha256": "a2701bd0b838bdd364f750346a1d154366c8f52b208d439d151ba0b3e36b9fb3"
+    },
+    {
+      "id": "female-7h",
+      "file": "anime-female-7h.glb",
+      "bodyType": "female",
+      "heads": 7,
+      "measuredHeads": 7.000001854367267,
+      "height": 1.7999999523162842,
+      "headHeight": 0.2571427822113037,
+      "bones": 154,
+      "vertices": 56283,
+      "bindingVersion": 2,
+      "weightAudit": {
+        "vertices": 11200,
+        "unweighted": 0,
+        "maxInfluences": 4
+      },
+      "source": "pixiv-vrm-twist",
+      "sha256": "97f01fc98361664ea199bb595a32a357ee6d0e64ff156d0c58494c10d1302c66"
+    },
+    {
+      "id": "female-8h",
+      "file": "anime-female-8h.glb",
+      "bodyType": "female",
+      "heads": 8,
+      "measuredHeads": 8.000003178915735,
+      "height": 1.7999999523162842,
+      "headHeight": 0.22499990463256836,
+      "bones": 154,
+      "vertices": 56283,
+      "bindingVersion": 2,
+      "weightAudit": {
+        "vertices": 11200,
+        "unweighted": 0,
+        "maxInfluences": 4
+      },
+      "source": "pixiv-vrm-twist",
+      "sha256": "0a9a788a59754a4abe078b570bcac231b6960d9948ff85d4a76974716a74b6a0"
+    },
+    {
+      "id": "female-9h",
+      "file": "anime-female-9h.glb",
+      "bodyType": "female",
+      "heads": 9,
+      "measuredHeads": 9.000002980233305,
+      "height": 1.7999999523162842,
+      "headHeight": 0.19999992847442627,
+      "bones": 154,
+      "vertices": 56283,
+      "bindingVersion": 2,
+      "weightAudit": {
+        "vertices": 11200,
+        "unweighted": 0,
+        "maxInfluences": 4
+      },
+      "source": "pixiv-vrm-twist",
+      "sha256": "94647515ab07e3220abc50fb47eff8af1288b2962dee66c8a35f82ebe54b96bd"
+    }
+  ],
+  "measurement": "脚底至颅顶 / 下颏至颅顶，去除头发。对网格和静止骨架同时变形，保留蒙皮权重。",
+  "sources": [
+    {
+      "id": "girush-young-warrior",
+      "author": "Girush",
+      "license": "CC0",
+      "url": "https://opengameart.org/content/base-rigged-stylized-humanoid-character-yw"
+    },
+    {
+      "id": "pixiv-vrm-twist",
+      "author": "pixiv Inc.",
+      "license": "VRM Public License 1.0; see original-meta.json",
+      "url": "https://github.com/pixiv/three-vrm/blob/dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>漫剧工作台 · 开发中测试版</title><link rel="stylesheet" href="manju.css"><script src="manju.js" defer></script></head>
+<body><header><a class="brand" href="./"><span class="mark">M</span>漫剧工作台</a><span class="badge">开发中 · 测试版</span><button id="stop">退出本地工作台</button></header>
+<main><div class="intro"><p class="eyebrow">MANJU WORKBENCH / DEVELOPMENT EDITION</p><h1>从一个故事，<br><span>走进你的片场。</span></h1><p>把剧本、场景、人物和镜头放在一起。<br>这是现有功能的开发快照，欢迎试用并记录问题。</p></div>
+<section class="modules" aria-label="工作区">
+<a class="module" href="asset-workflow.html"><span class="number">01 / WORKFLOW</span><span class="tag">本地流程</span><h2>剧本与资产</h2><p>建立项目、整理角色／场景／道具清单，查看制作阶段、审核和返修记录。可连接自己的 LibTV 账号。</p><span class="enter">进入资产工作区 ↗</span></a>
+<a class="module" href="studio/index.html"><span class="number">02 / SCENES</span><span class="tag">三维原型</span><h2>场景建模</h2><p>7 套场景几何，切换主视角、反打、俯视和侧面，调整构件并导出 GLB 或当前画面。</p><span class="enter">打开场景建模 ↗</span></a>
+<a class="module" href="studio/actors/index.html"><span class="number">03 / CHARACTERS</span><span class="tag">白模原型</span><h2>人物白模</h2><p>选择男女素体与 7／8／9 头身比例，检查关节、手指和姿势，应用到导演预演。</p><span class="enter">打开人物白模 ↗</span></a>
+<a class="module" href="studio/director/index.html"><span class="number">04 / DIRECTING</span><span class="tag">可编辑预演</span><h2>导演预演</h2><p>15 秒、6 镜头的示例片场。调整人物站位、摄影机与关键帧，比较拍法，导入或导出导演工程。</p><span class="enter">进入导演台 ↗</span></a>
+<a class="module" href="studio/director/motion-lab.html"><span class="number">05 / PERFORMANCE</span><span class="tag">动作检查</span><h2>动作实验室</h2><p>查看已有动作库与骨骼表现，用于验证白模动作，后续仍需逐镜人工审查。</p><span class="enter">打开动作实验室 ↗</span></a>
+<div class="module pending"><span class="number">06 / PRODUCTION</span><span class="tag">开发中</span><h2>生成与成片</h2><p>AI 剧本分析、MJ／Image2／Nano 自动生产、视频生成与自动更新尚未开放。当前不会提交收费生成。</p><span class="enter">待后续版本开放</span></div>
+</section>
+<section class="notes"><h2>开始试用前</h2><div><p><strong>本机保存。</strong>项目和账号连接由本地服务保存；场景、白模选型及导演工程保存在当前浏览器。跨浏览器或清理缓存前，请先导出工程。</p><p><strong>模块尚未完全打通。</strong>白模可以应用到导演台；场景／导演文件可手动导出。场景四视图自动入库、项目到镜头的自动流转仍在开发。</p><p><strong>使用示例素材。</strong>程序包含几何场景、白模和动作样例，不附带原项目的账号、授权、客户剧本、生成任务或历史视频。</p><p><a href="studio/TEST-NOTES.txt" download>下载功能说明 ↓</a><a href="studio/THIRD-PARTY-NOTICES.txt" target="_blank">第三方素材来源与许可 ↗</a></p></div></section>
+<p id="status" role="status" aria-live="polite"></p></main><footer><span>漫剧工作台 · v0.1.0-dev.1</span><span>开发快照 · 请保留重要工程的导出副本</span></footer></body></html>

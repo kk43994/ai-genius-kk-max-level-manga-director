@@ -1,0 +1,14 @@
+Third-party materials in this development preview
+
+Three.js 0.186.1 — MIT. License: vendor/LICENSE. https://threejs.org/
+Girush Young Warrior — CC0. See models/actors/GIRUSH-LICENSE.txt.
+Source: https://opengameart.org/content/base-rigged-stylized-humanoid-character-yw
+pixiv Inc. VRM1_Constraint_Twist_Sample — VRM Public License 1.0.
+Source: https://github.com/pixiv/three-vrm/blob/dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm
+License: https://vrm.dev/licenses/1.0/
+Model-specific license metadata: models/actors/original-meta.json.
+The models were modified into 7/8/9-head proportions and rebound; see models/actors/manifest.json.
+Quaternius Universal Animation Library Standard — CC0-1.0.
+Source: https://quaternius.com/packs/universalanimationlibrary.html
+License and provenance: models/motions/QUATERNIUS-LICENSE.txt and provenance.json.
+Application dependencies retain their own license files in the bundled runtime.

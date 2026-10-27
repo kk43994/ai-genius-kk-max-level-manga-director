@@ -1,0 +1,26 @@
+import * as T from 'three';
+import {Builder,materials,chair} from '../geometry.js';import {OrbitControls} from '../vendor/examples/jsm/controls/OrbitControls.js';
+import {loadAnimeRig} from './rigged-actor.js';import {loadMotionLibrary,blendMotion} from './motion-library.js';import {naturalStage,pathPerformance,phase} from './natural-performance.js';
+const $=id=>document.getElementById(id),canvas=$('canvas'),renderer=new T.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
+const scene=new T.Scene();scene.background=new T.Color('#46535a');scene.add(new T.HemisphereLight('#e9f5ff','#414445',3));const light=new T.DirectionalLight('#fff3df',3);light.position.set(4,8,6);light.castShadow=true;light.shadow.mapSize.set(2048,2048);Object.assign(light.shadow.camera,{left:-6,right:6,top:6,bottom:-6,near:.1,far:25});light.shadow.normalBias=.015;scene.add(light);const ground=new T.Mesh(new T.PlaneGeometry(40,40),new T.MeshStandardMaterial({color:'#6a767c',roughness:.9}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;const grid=new T.GridHelper(20,40,'#87969c','#657780');scene.add(ground,grid);
+const camera=new T.PerspectiveCamera(38,2,.02,80);camera.position.set(1.4,2.6,5.7);const controls=new OrbitControls(camera,canvas);controls.target.set(0,.9,0);controls.update();
+const seats=[];for(const x of [-1.5,1.5]){const b=new Builder(materials());b.begin('座椅');chair(b,0,0,0,1);const seat=b.done();seat.position.x=x;seat.rotation.y=-Math.PI/6;seat.traverse(o=>{if(o.isMesh)o.material=new T.MeshStandardMaterial({color:'#59696c',roughness:.9})});scene.add(seat);seats.push(seat)}
+const lib=await loadMotionLibrary();let rigs=[],t=0,playing=true,last=0,version=0;
+async function load(){const v=++version;playing=false;$('state').textContent='正在换体型';const [kind,heads]=$('body').value.split('-'),next=await Promise.all([loadAnimeRig(kind,+heads,'#8e9da5',1.8),loadAnimeRig(kind,+heads,'#c4d7cc',1.8)]);if(v!==version){next.forEach(r=>r.dispose());return}rigs.forEach(r=>{scene.remove(r.root);r.dispose()});rigs=next;rigs.forEach(r=>scene.add(r.root));t=0;playing=true;$('play').textContent='暂停';$('state').textContent='动作已就绪';draw();}
+function pose(r,i){const x=i?1.5:-1.5,action=$('action').value,h=r.height;r.root.position.set(x,0,0);r.root.rotation.set(0,0,0);r.root.updateMatrixWorld(true);
+ if(action==='reaction'){
+  const config={id:'shi',p:[x,0,0],yaw:-30};if(i){const n=naturalStage(config,t+11,r,lib,[x-.35,h*.6,.32]);r.root.position.fromArray(n.p);r.root.rotation.y=n.yaw;r.root.updateMatrixWorld(true);r.pose(n.pose)}
+  else{const u=phase(t,1.35,2.15),move=phase(t,1.75,3.35);r.root.position.x+=move*.03;r.root.position.z-=move*1.25;r.root.rotation.y=-Math.PI/6+move*.55;r.root.updateMatrixWorld(true);r.pose({hipY:h*.35+(r.restHip-h*.35)*u,hands:{L:[.2,.95+u*.25,.3],R:[-.2,.95+u*.25,.3]},feet:{L:[.13,r.ankleHeight,.41*(1-u)],R:[-.13,r.ankleHeight,.41*(1-u)]},headYaw:-.3*move});}
+ }else if(action==='walk'){
+  if(i){const n=pathPerformance(r,x,t+15,lib,false);r.root.position.fromArray(n.p);r.root.rotation.y=n.yaw;r.root.position.y-=3.97;r.root.position.z-=4.1;r.root.updateMatrixWorld(true);r.pose(n.pose)}
+  else{const w=t*5.4;r.root.position.z=.35-t*.15;r.pose({feet:{L:[.1,r.ankleHeight+Math.max(0,Math.sin(w))*.08,Math.cos(w)*.19],R:[-.1,r.ankleHeight+Math.max(0,-Math.sin(w))*.08,-Math.cos(w)*.19]}})}
+ }else{let clip=action==='talk'?'Idle_Talking_Loop':action==='interact'?'Interact':'Sitting_Enter',tt=t,motion;
+  if(action==='sit'){motion=t<1.3?lib.sample(clip,t,{loop:false}):t<3?lib.sample('Sitting_Idle_Loop',t-1.3):t<4.05?lib.sample('Sitting_Exit',t-3,{loop:false}):lib.sample('Idle_Loop',t-4.05)}else motion=lib.sample(clip,tt);
+  if(i)r.pose({motion,grounded:true,feet:{L:[.11,r.ankleHeight,.04],R:[-.11,r.ankleHeight,.04]},grip:.12});
+  else r.pose({hipY:action==='sit'?r.restHip-.45*phase(t,0,1.3)*(1-phase(t,3,4)):r.restHip,hands:action==='talk'&&t%3>1?{R:[-.2,1.35,.34]}:undefined});
+ }
+}
+function draw(){if(rigs.length!==2)return;seats.forEach(s=>s.visible=$('action').value==='reaction');ground.position.y=$('action').value==='reaction'?.07:-.005;grid.position.y=ground.position.y+.006;const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();rigs.forEach(pose);renderer.render(scene,camera);$('seek').value=t;$('time').textContent=t.toFixed(2)+' / 5.00';canvas.dataset.time=t.toFixed(4);canvas.dataset.action=$('action').value;}
+$('body').onchange=load;$('action').onchange=()=>{t=0;draw()};$('seek').oninput=()=>{playing=false;t=+$('seek').value;$('play').textContent='播放';draw()};$('reset').onclick=()=>{t=0;playing=true;$('play').textContent='暂停'};$('play').onclick=()=>{playing=!playing;$('play').textContent=playing?'暂停':'播放'};
+controls.addEventListener('change',draw);window.addEventListener('resize',draw);window.addEventListener('hf-seek',e=>{playing=false;t=e.detail.time%5;draw()});
+await load();function frame(now){requestAnimationFrame(frame);if(playing)t=(t+Math.min(.06,(now-last)/1000)*+$('speed').value)%5;last=now;draw()}requestAnimationFrame(frame);

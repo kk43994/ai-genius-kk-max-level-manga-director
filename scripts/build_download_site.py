@@ -17,6 +17,8 @@ def main():
     parser.add_argument('--installer', type=Path, required=True)
     parser.add_argument('--mac-installer', type=Path, required=True)
     parser.add_argument('--mac-verification', type=Path, required=True)
+    parser.add_argument('--manju-release', type=Path, required=True)
+    parser.add_argument('--manju-verification', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     name = f'AssetLab-Setup-{APP_VERSION}-x64.exe'
@@ -35,6 +37,23 @@ def main():
     if (verification.get('version') != APP_VERSION or not verification.get('packagedLaunchPassed')
             or verification.get('installerSha256') != mac_digest):
         raise ValueError('Mac packaged launch has not been verified for this version')
+    from manju_client import APP_VERSION as MANJU_VERSION
+    manju = json.loads(args.manju_release.read_text())
+    manju_verification = json.loads(args.manju_verification.read_text())
+    if manju['version'] != MANJU_VERSION or manju_verification.get('version') != MANJU_VERSION:
+        raise ValueError('Development workbench version mismatch')
+    editions = {row['platform']: row for row in manju['installers']}
+    for platform, suffix in [('windows-x64', 'x64.exe'), ('macos-arm64', 'macOS-arm64.pkg')]:
+        row = editions[platform]
+        if row['file'] != f'ManjuWorkbench-Setup-{MANJU_VERSION}-{suffix}':
+            raise ValueError('Unexpected development installer filename')
+        file = args.manju_release.parent / row['file']
+        if file.stat().st_size != row['bytes'] or hashlib.sha256(file.read_bytes()).hexdigest() != row['sha256']:
+            raise ValueError('Development installer checksum mismatch')
+        if file.with_suffix(file.suffix+'.sha256').read_text().split()[0] != row['sha256']:
+            raise ValueError('Development checksum file mismatch')
+    if not manju_verification.get('packagedLaunchPassed') or manju_verification.get('installerSha256') != editions['macos-arm64']['sha256']:
+        raise ValueError('Development Mac packaged launch not verified')
     source = ROOT / 'local_client/website'
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -44,6 +63,13 @@ def main():
               'DATE': '2026.10.27', 'SHA': digest, 'MAC_FILE': mac_name, 'MAC_SHA': mac_digest,
               'MAC_SIZE': f'{args.mac_installer.stat().st_size / 1_000_000:.1f}',
               'MAC_STATUS': 'Mac 应用已通过独立启动与重复打开验证，系统安装流程仍待验收。'}
+    fields['MANJU_VERSION'] = MANJU_VERSION
+    for platform, key in [('windows-x64', 'MANJU_WIN'), ('macos-arm64', 'MANJU_MAC')]:
+        row = editions[platform]
+        fields[key+'_FILE'] = row['file']
+        fields[key+'_SIZE'] = f"{row['bytes']/1_000_000:.1f}"
+        for suffix in ('', '.sha256'):
+            shutil.copyfile(args.manju_release.parent/(row['file']+suffix), out/'downloads'/(row['file']+suffix))
     html = (source/'index.template.html').read_text()
     for key, value in fields.items():
         html = html.replace('{{'+key+'}}', value)
@@ -64,6 +90,13 @@ def main():
                                'developerIDSigned':False, 'notarized':False}],
                 'macPackagedLaunchVerified':True, 'macInstallerExecuted':False,
                 'windowsInstallVerified':False, 'automaticUpdates':False}
+    manifest['developmentEdition'] = {'product': 'ManjuWorkbench', 'version': MANJU_VERSION,
+                                      'url': 'manju-release.json', 'section': '#manju-preview'}
+    public_manju = dict(manju, macPackagedLaunchVerified=True, windowsRunVerified=False)
+    (out/'manju-release.json').write_text(json.dumps(public_manju, ensure_ascii=False, indent=2)+'\n')
+    manju_notes = (ROOT/'manju_client/studio/TEST-NOTES.txt').read_text()
+    manju_notes += f'''\n安装与版本\n版本：{MANJU_VERSION} · 开发中 · 测试版\nWindows 10 / 11 x64；Mac Apple 芯片，macOS 11 及以上。\n安装后自动创建“漫剧工作台（测试版）”桌面入口，双击自动打开本地网页。\n独立的程序、端口与本地数据目录，可与资产实验室同时安装。\nMac 打包应用独立启动、重复打开和重启保存检查通过。\nWindows 运行及两端系统安装流程尚未实机验收。\nWindows 未签名；Mac 未完成 Developer ID 签名与 Apple 公证。\n若系统阻止安装，请联系交付人员核对来源，不要关闭系统安全防护。\n更新地址：https://kk666.best/asset-lab/#manju-preview\n'''
+    (out/'manju-notes.txt').write_text(manju_notes, encoding='utf-8-sig')
     (out/'release.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
     notes = f'''资产实验室 {APP_VERSION} · 连接体验版
 发布日期：2026 年 10 月 27 日

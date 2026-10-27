@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="下载资产实验室 Mac 与 Windows 安装版。安装后自动创建桌面快捷方式，双击即可打开工作台，连接自己的 LibTV 账号。">
+  <meta name="description" content="下载资产实验室与漫剧工作台测试版，提供 Mac 与 Windows 安装包。安装后自动创建桌面快捷方式，双击即可打开工作台，连接自己的 LibTV 账号。">
   <meta name="theme-color" content="#171717">
   <title>下载资产实验室 · 安装一次，从桌面开始</title>
   <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
@@ -14,7 +14,7 @@
   <a class="skip" href="#main">跳到下载内容</a>
   <header class="header wrap">
     <a class="brand" href="./" aria-label="资产实验室首页"><img src="assets/logo.svg" width="38" height="38" alt=""><span>资产实验室<small>ASSET LAB</small></span></a>
-    <nav aria-label="主导航"><a href="#how">安装与使用</a><a href="#release">版本说明</a><a class="nav-download" href="#download-platforms">下载 <span aria-hidden="true">↗</span></a></nav>
+    <nav aria-label="主导航"><a href="#how">安装与使用</a><a href="#manju-preview">漫剧测试版</a><a href="#release">版本说明</a><a class="nav-download" href="#download-platforms">下载 <span aria-hidden="true">↗</span></a></nav>
   </header>
   <main id="main">
     <section class="hero wrap" aria-labelledby="hero-title">
@@ -28,6 +28,7 @@
         </div>
         <p class="version-line">v{{VERSION}} <span>·</span> 更新于 {{DATE}}</p>
         <div class="hero-note"><span aria-hidden="true">i</span><p>当前可体验 LibTV 账号连接与空间选择。<br>图像、视频生成及自动更新暂未开放。</p></div>
+        <a class="text-link manju-jump" href="#manju-preview">也想试试漫剧工作台？<span>开发中 · 测试版 ↗</span></a>
         <p id="download-status" class="sr-only" role="status" aria-live="polite"></p>
       </div>
       <div class="hero-visual">
@@ -46,6 +47,12 @@
         </div>
         <div class="visual-foot"><span><span aria-hidden="true">✓</span> 自动创建桌面快捷方式</span><span><span aria-hidden="true">✓</span> 无需另外配置运行环境</span></div>
       </div>
+    </section>
+
+    <section class="manju-section wrap" id="manju-preview" aria-labelledby="manju-title">
+      <div class="manju-heading"><div class="manju-mark" aria-hidden="true">M<span>STUDIO</span></div><div><p class="section-kicker">MANJU WORKBENCH</p><h2 id="manju-title">漫剧工作台</h2><p class="manju-badges"><span class="pill">开发中 · 测试版</span><span>v{{MANJU_VERSION}}</span></p></div><p class="manju-intro">把正在做的创作工具，<br>先放到你的桌面。</p></div>
+      <div class="manju-content"><div class="manju-details"><p class="manju-description">从剧本与资产整理，到场景、人物和镜头预演。<br>这是现有功能的试用集合，部分流程仍在开发。</p><ul class="manju-modules"><li><span>01</span>剧本与资产工作区</li><li><span>02</span>7 个场景建模示例</li><li><span>03</span>人物白模与动作试镜</li><li><span>04</span>导演分镜与镜头预演</li></ul><p class="manju-limit">图像与视频生成、完整生产流程及自动更新尚未开放。<br>场景和导演编辑保存在当前浏览器，重要修改请先导出。</p></div>
+        <div class="manju-downloads"><div class="download-group"><a class="download-button" href="downloads/{{MANJU_WIN_FILE}}" download data-download>下载 Windows 测试版 <span aria-hidden="true">↓</span></a><a class="download-button secondary" href="downloads/{{MANJU_MAC_FILE}}" download data-download>下载 Mac 测试版 <span aria-hidden="true">↓</span></a></div><p class="platform-meta">Windows 10 / 11 x64 · {{MANJU_WIN_SIZE}} MB<br>Mac Apple 芯片 · macOS 11+ · {{MANJU_MAC_SIZE}} MB</p><p class="manju-install">安装后，桌面会有独立的「漫剧工作台（测试版）」图标。双击即可打开，与资产实验室可同时安装。</p><details class="manju-notes"><summary>测试范围与安装说明 <span>＋</span></summary><p>场景、人物白模、导演预演和动作实验室已在浏览器验证；Mac 打包应用已通过独立启动、重复打开与重启保存检查。Windows 运行及两端系统安装流程仍待实机验收。安装包尚未正式签名，Mac 未完成 Apple 公证。</p><p>安装包使用空白本地工作区，不含我们的账号连接、客户项目和历史生成素材。部分模块尚未互通，请按测试版使用。</p></details><div class="manju-links"><a href="manju-notes.txt" download>版本说明 ↗</a><a href="downloads/{{MANJU_WIN_FILE}}.sha256" download>Windows 校验值</a><a href="downloads/{{MANJU_MAC_FILE}}.sha256" download>Mac 校验值</a></div></div></div>
     </section>
 
     <section class="steps-section" id="how" aria-labelledby="how-title">

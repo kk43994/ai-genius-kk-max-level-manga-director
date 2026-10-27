@@ -66,7 +66,7 @@ def local_json(port, path):
         connection.close()
 
 
-def hold_windows_process_lock():
+def hold_windows_process_lock(name="Local\\AssetLab.Workbench"):
     """Keep the installer from replacing a running customer's application files."""
     if os.name != "nt":
         return
@@ -76,7 +76,7 @@ def hold_windows_process_lock():
     kernel.CreateMutexW.argtypes = [C.c_void_p, W.BOOL, W.LPCWSTR]
     kernel.CreateMutexW.restype = W.HANDLE
     kernel.CloseHandle.argtypes = [W.HANDLE]
-    handle = kernel.CreateMutexW(None, False, "Local\\AssetLab.Workbench")
+    handle = kernel.CreateMutexW(None, False, name)
     if not handle:
         raise C.WinError(C.get_last_error())
     if C.get_last_error() == 183:
@@ -85,18 +85,19 @@ def hold_windows_process_lock():
     atexit.register(kernel.CloseHandle, handle)
 
 
-def run(instance, *, port=18874, open_browser=True, frontend=None, version=APP_VERSION):
+def run(instance, *, port=18874, open_browser=True, frontend=None, version=APP_VERSION,
+        base_path="/asset-lab/", process_lock="Local\\AssetLab.Workbench", configure_app=None):
     from backend.app import Config, CustomerHTTPServer, Response, create_app
     from backend.storage import SCHEMA_VERSION
     key = provision(instance)
-    origin, base = f"http://127.0.0.1:{port}", "/asset-lab/"
+    origin, base = f"http://127.0.0.1:{port}", base_path
     identity = hashlib.sha256(str(instance.resolve()).encode()).hexdigest()
     existing = local_json(port, base + "api/v1/local-runtime")
     if existing and existing.get("instanceId") == identity and existing.get("mode") == "local-client":
         if open_browser:
             webbrowser.open(origin + base)
         return 0
-    hold_windows_process_lock()
+    hold_windows_process_lock(process_lock)
     config = Config(instance / "data", port=port, public_base_path=base,
                     secret_key_file=key, local_client=True,
                     frontend_dir=frontend or SERVER / "frontend")
@@ -113,6 +114,8 @@ def run(instance, *, port=18874, open_browser=True, frontend=None, version=APP_V
         threading.Thread(target=server.shutdown, daemon=True).start()
         return Response(body={"stopping": True})
     app.router.add("POST", "/api/v1/local-runtime/stop", stop)
+    if configure_app is not None:
+        configure_app(app)
     def shutdown(*_):
         threading.Thread(target=server.shutdown, daemon=True).start()
     signal.signal(signal.SIGTERM, shutdown)

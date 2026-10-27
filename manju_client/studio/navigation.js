@@ -1,0 +1,1 @@
+customElements.define('project-navigation',class extends HTMLElement{connectedCallback(){this.replaceChildren(Object.assign(document.createElement('a'),{href:'/workbench/',textContent:'← 漫剧工作台'}));}});
