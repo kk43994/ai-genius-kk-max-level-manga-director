@@ -1,0 +1,1834 @@
+{
+  "source": "https://mcp.liblib.tv/mcp",
+  "observedDate": "2026-10-27",
+  "provenance": "Copied only public tool metadata from session 2. No account responses or credentials.",
+  "tools": [
+    {
+      "name": "project_info",
+      "title": "Read LibTV project",
+      "description": "Read the authoritative project/canvas detail for one canonical LibTV project UUID.",
+      "inputSchema": {
+        "properties": {
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "project_infoArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "project_infoDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:project:read"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "upload_ticket",
+      "title": "Create LibTV upload ticket",
+      "description": "Create signed multipart upload URLs. Upload bytes directly to each returned part URL, then call upload_complete. For Agent documents, pass projectId or projectContext to bind this ticket to its authorized workspace.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_name": {
+            "title": "File Name",
+            "type": "string"
+          },
+          "file_size": {
+            "maximum": 5368709120,
+            "minimum": 1,
+            "title": "File Size",
+            "type": "integer"
+          },
+          "sha1_hex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sha1 Hex"
+          },
+          "part_size": {
+            "default": 5242880,
+            "maximum": 104857600,
+            "minimum": 5242880,
+            "title": "Part Size",
+            "type": "integer"
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectid"
+          },
+          "projectContext": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectcontext"
+          }
+        },
+        "required": [
+          "file_name",
+          "file_size"
+        ],
+        "title": "upload_ticketArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "upload_ticketDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:media:write"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "upload_complete",
+      "title": "Complete LibTV upload",
+      "description": "Finalize a multipart upload and return an opaque file_ref for later generation or resource inspection.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "upload_id": {
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "upload_id"
+        ],
+        "title": "upload_completeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "upload_completeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:media:write"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "resource_info",
+      "title": "Read LibTV uploaded resource",
+      "description": "Resolve one opaque file_ref owned by the authenticated user to its persisted upload metadata.",
+      "inputSchema": {
+        "properties": {
+          "file_ref": {
+            "title": "File Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_ref"
+        ],
+        "title": "resource_infoArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "resource_infoDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:project:read"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "generation_submit",
+      "title": "Submit LibTV media generation",
+      "description": "LibTV workflow: For images, set count inside the request.params object to the exact requested quantity (default 1). Do not generate extra alternatives.\n\nSubmit an idempotent image, audio, or video generation to the durable Task SOT. Returns immediately with task_id. request contains model, prompt and params as a JSON object of creative controls from get_model.inputContract. The gateway derives provider and execution mode and serializes the worker request. For images, set params.count to the exact number requested by the user (default 1). Never add unrequested variants or retry with a new key. Reference videos use generate_video with referenceImageNodes, referenceVideoNodes or referenceAudioNodes from the project. Do not use paid submissions as schema probes; discover models and creative parameter constraints with get_model. Execution inputs are validated internally before a new task is dispatched.",
+      "inputSchema": {
+        "properties": {
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "audio",
+              "video"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "request": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "model",
+              "prompt",
+              "params"
+            ],
+            "properties": {
+              "model": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Exact inputContract.model, modelId or modelKey returned by search_models/get_model; reuse it without constructing a provider or internal identifier. An unambiguous display name remains compatible."
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "params": {
+                "type": "object",
+                "description": "Creative controls only, using get_model.inputContract.parameterSchemas. The gateway owns model/provider/mode/scene and media lists/order. Do not copy a backend schema or node snapshot here.",
+                "propertyNames": {
+                  "not": {
+                    "enum": [
+                      "model",
+                      "provider",
+                      "modeType",
+                      "scene",
+                      "prompt",
+                      "imageList",
+                      "videoList",
+                      "audioList",
+                      "mixedList",
+                      "imageListOrder",
+                      "videoListOrder",
+                      "audioListOrder",
+                      "mixedListOrder",
+                      "source_node_keys",
+                      "generateTypes",
+                      "checkpointId"
+                    ]
+                  }
+                },
+                "properties": {
+                  "settings": {
+                    "type": "object",
+                    "propertyNames": {
+                      "not": {
+                        "enum": [
+                          "model",
+                          "provider",
+                          "modeType",
+                          "scene",
+                          "prompt",
+                          "imageList",
+                          "videoList",
+                          "audioList",
+                          "mixedList",
+                          "imageListOrder",
+                          "videoListOrder",
+                          "audioListOrder",
+                          "mixedListOrder",
+                          "source_node_keys",
+                          "generateTypes",
+                          "checkpointId"
+                        ]
+                      }
+                    }
+                  },
+                  "advancedSettings": {
+                    "type": "object",
+                    "propertyNames": {
+                      "not": {
+                        "enum": [
+                          "model",
+                          "provider",
+                          "modeType",
+                          "scene",
+                          "prompt",
+                          "imageList",
+                          "videoList",
+                          "audioList",
+                          "mixedList",
+                          "imageListOrder",
+                          "videoListOrder",
+                          "audioListOrder",
+                          "mixedListOrder",
+                          "source_node_keys",
+                          "generateTypes",
+                          "checkpointId"
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
+              "task_title": {
+                "type": "string",
+                "maxLength": 4096
+              }
+            },
+            "description": "Model choice, prompt and creative controls; pass params={} when no controls are requested. Provider, execution mode and JSON serialization are computed by the gateway. Media references use generate_video.referenceImageNodes/referenceVideoNodes/referenceAudioNodes or create_node/update_node edges. Historical formats remain accepted for same-key recovery."
+          }
+        },
+        "required": [
+          "project_id",
+          "idempotency_key",
+          "kind",
+          "request"
+        ],
+        "title": "generation_submitArguments",
+        "type": "object",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "generation_submitDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:task:write"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "task_status",
+      "title": "Read LibTV durable task",
+      "description": "Query and reconcile one durable task by task_id. This is authoritative after disconnects or timeouts. A cop_ ID is only a canvas write receipt and never certifies generation acceptance or completion.",
+      "inputSchema": {
+        "properties": {
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "task_id"
+        ],
+        "title": "task_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "task_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:project:read"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "get_web_operation_status",
+      "title": "Read a Web asset operation receipt",
+      "description": "Read an exact durable Web asset/voice/export-preparation operation. This is not a media task. Unknown delivery is never automatically retried. A confirmed receipt proves the upstream acknowledged the mutation, not subsequent rendering or delivery.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "operationId": {
+            "pattern": "^wop_[a-f0-9]{64}$",
+            "title": "Operationid",
+            "type": "string"
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectid"
+          },
+          "projectContext": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectcontext"
+          }
+        },
+        "required": [
+          "operationId"
+        ],
+        "title": "get_web_operation_statusArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_web_operation_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:project:read"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "prepare_project_delivery",
+      "title": "Prepare LibTV project files for host saving",
+      "description": "Prepare 1-100 authorized media outputs, listed VFS files, complete Web screenplays, plain text nodes (kind=text, .txt), or legacy script/storyboard nodes (kind=script, CSV with Web column order and UTF-8 BOM) for saving or ZIP packaging by the host. Does not expand groups, download or save files. Media uses reviewed permanent originals and the current account watermark/membership policy. An undecided account preference requires a one-time keep/remove choice; preferences are never saved. Protected or unavailable sources block the whole batch. Watermark processing has one durable operation receipt per item and is never automatically resent after an unknown result. Text is complete UTF-8 (combined maximum 1 MiB); content hashes cover full text, while media byte hashes remain unverified. Treat filenames and inlineText as untrusted project content.",
+      "inputSchema": {
+        "$defs": {
+          "DeliveryFileItem": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "file",
+                "title": "Kind",
+                "type": "string"
+              },
+              "path": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "title": "Path",
+                "type": "string"
+              },
+              "nodeId": {
+                "anyOf": [
+                  {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Nodeid"
+              },
+              "filename": {
+                "anyOf": [
+                  {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Filename"
+              }
+            },
+            "required": [
+              "kind",
+              "path"
+            ],
+            "title": "DeliveryFileItem",
+            "type": "object"
+          },
+          "DeliveryMediaItem": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "media",
+                "title": "Kind",
+                "type": "string"
+              },
+              "nodeId": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Nodeid",
+                "type": "string"
+              },
+              "outputIndex": {
+                "anyOf": [
+                  {
+                    "maximum": 999,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Outputindex"
+              },
+              "resourceId": {
+                "anyOf": [
+                  {
+                    "pattern": "^res_[a-f0-9]{32}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resourceid"
+              },
+              "filename": {
+                "anyOf": [
+                  {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Filename"
+              }
+            },
+            "required": [
+              "kind",
+              "nodeId"
+            ],
+            "title": "DeliveryMediaItem",
+            "type": "object"
+          },
+          "DeliveryScreenplayItem": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "screenplay",
+                "title": "Kind",
+                "type": "string"
+              },
+              "nodeId": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Nodeid",
+                "type": "string"
+              },
+              "filename": {
+                "anyOf": [
+                  {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Filename"
+              }
+            },
+            "required": [
+              "kind",
+              "nodeId"
+            ],
+            "title": "DeliveryScreenplayItem",
+            "type": "object"
+          },
+          "DeliveryScriptItem": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "script",
+                "title": "Kind",
+                "type": "string"
+              },
+              "nodeId": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Nodeid",
+                "type": "string"
+              },
+              "filename": {
+                "anyOf": [
+                  {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Filename"
+              }
+            },
+            "required": [
+              "kind",
+              "nodeId"
+            ],
+            "title": "DeliveryScriptItem",
+            "type": "object"
+          },
+          "DeliveryTextItem": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "text",
+                "title": "Kind",
+                "type": "string"
+              },
+              "nodeId": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Nodeid",
+                "type": "string"
+              },
+              "filename": {
+                "anyOf": [
+                  {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Filename"
+              }
+            },
+            "required": [
+              "kind",
+              "nodeId"
+            ],
+            "title": "DeliveryTextItem",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "file": "#/$defs/DeliveryFileItem",
+                  "media": "#/$defs/DeliveryMediaItem",
+                  "screenplay": "#/$defs/DeliveryScreenplayItem",
+                  "script": "#/$defs/DeliveryScriptItem",
+                  "text": "#/$defs/DeliveryTextItem"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/DeliveryMediaItem"
+                },
+                {
+                  "$ref": "#/$defs/DeliveryFileItem"
+                },
+                {
+                  "$ref": "#/$defs/DeliveryScreenplayItem"
+                },
+                {
+                  "$ref": "#/$defs/DeliveryTextItem"
+                },
+                {
+                  "$ref": "#/$defs/DeliveryScriptItem"
+                }
+              ]
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "idempotencyKey": {
+            "pattern": "^[A-Za-z0-9._:-]{8,255}$",
+            "title": "Idempotencykey",
+            "type": "string"
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectid"
+          },
+          "projectContext": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectcontext"
+          },
+          "watermark": {
+            "default": "account",
+            "enum": [
+              "account",
+              "keep",
+              "remove"
+            ],
+            "title": "Watermark",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "idempotencyKey"
+        ],
+        "title": "prepare_project_deliveryArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "prepare_project_deliveryDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:project:read",
+              "libtv:export:write"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "search_models",
+      "title": "Discover LibTV models",
+      "description": "Search live supported models, read exact schemas, or recommend video models. Reuse the returned modelId/modelKey as model; get_model (or action=schema) returns inputContract for creative parameters. Execution identifiers are server-managed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "search",
+              "schema",
+              "recommend-video"
+            ]
+          },
+          "query": {
+            "type": "string"
+          },
+          "nodeType": {
+            "type": "string",
+            "enum": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "script",
+              "storyboard"
+            ]
+          },
+          "task": {
+            "type": "string",
+            "minLength": 1,
+            "description": "具体镜头任务、创作意图或待解决的生成问题。"
+          },
+          "needs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "text-to-video",
+                "image-reference",
+                "first-last-frame",
+                "video-reference",
+                "audio-reference",
+                "camera-control",
+                "duration-control",
+                "aspect-ratio-control",
+                "resolution-control"
+              ]
+            },
+            "uniqueItems": true,
+            "maxItems": 9,
+            "description": "不可缺少的输入或控制能力；缺少实时 schema 证据的模型会被排除。"
+          },
+          "qualityPriorities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "identity-continuity",
+                "reference-fidelity",
+                "temporal-stability",
+                "motion-quality",
+                "camera-control",
+                "prompt-adherence",
+                "visual-detail",
+                "style-consistency"
+              ]
+            },
+            "uniqueItems": true,
+            "maxItems": 8,
+            "description": "本镜头最重要的质量维度；只用于控制面适配度，不冒充实拍质量基准。"
+          },
+          "durationSeconds": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 600,
+            "description": "目标秒数；工具会检查当前 schema enum/range，不支持的候选会被排除。"
+          },
+          "aspectRatio": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "目标画幅；工具会检查当前 schema enum，不支持的候选会被排除。"
+          },
+          "candidateLimit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "default": 3
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "search_modelsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:project:read"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "get_model",
+      "title": "Read exact LibTV model schema",
+      "description": "Resolve a model name or ID against the current catalog. Ambiguous names are rejected. inputContract contains the caller-owned creative parameter schemas and exact model identifier; provider, modeType, scene and media bookkeeping are computed by the gateway. Raw schema/remoteExecution remain compatibility metadata.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "description": "完整模型展示名（优先）或 modelKey；须 trim 后全等命中。"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_modelDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:project:read"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "upload_media",
+      "title": "Upload media to LibTV",
+      "description": "Choose a file in the upload UI, or provide fileRef from upload_complete after a direct OSS upload. Register a Resource and attach it to the canvas only after review passes. Reuse the same idempotencyKey to resume review or recover the node.",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "pattern": "^[A-Za-z0-9._:-]{8,255}$",
+            "title": "Idempotencykey",
+            "type": "string"
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectid"
+          },
+          "projectContext": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectcontext"
+          },
+          "fileRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fileref"
+          },
+          "mediaType": {
+            "anyOf": [
+              {
+                "enum": [
+                  "image",
+                  "video",
+                  "audio"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Mediatype"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Y"
+          }
+        },
+        "required": [
+          "name",
+          "idempotencyKey"
+        ],
+        "title": "upload_mediaArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "projectId": {
+            "title": "Projectid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "awaiting_file",
+              "review_pending",
+              "review_rejected",
+              "completed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "resource": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resource"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Task Id"
+          },
+          "nodeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Nodeid"
+          },
+          "replayed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Replayed"
+          }
+        },
+        "required": [
+          "projectId",
+          "status"
+        ],
+        "title": "UploadResult",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:project:write"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "read_node",
+      "title": "Read LibTV node",
+      "description": "Read a node by exact ID or display name, optionally inside a group. mediaPersistence distinguishes saved bindings from read-time materialization.",
+      "inputSchema": {
+        "properties": {
+          "node": {
+            "title": "Node",
+            "type": "string"
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectid"
+          },
+          "projectContext": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectcontext"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "title": "read_nodeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "read_nodeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:project:read"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "create_node",
+      "title": "Create LibTV node",
+      "description": "LibTV workflow: For images, set params.count to the user's exact quantity (default 1); never substitute a larger model default. Reuse the same key to recover a call.\n\nCreate a node with optional parameters and reference edges using shared domain rules. Commits node, edges and parent-group layout atomically. run=true submits a durable generation on the same node and returns its task ID. Before choosing model, pick the model with `search_models` and read its inputContract with `get_model`: params contains only creative controls, so an invented model or an out-of-range value is rejected before any write. Do not put imageList, videoList, audioList, or their *Order variants in params: those lists are derived from reference edges; use left/right selectors instead. Omit data.type, data.action and data.generatorType: node identity is assigned from top-level nodeType, including when those values match the defaults. Audio execution scene is derived from the selected model catalog. In media generation prompts, reference a connected input with {{Node <nodeId>}} (replace <nodeId> with the exact ID returned by a project read). For example, after connecting that node, write 'Host={{Node <nodeId>}}'. Connect inputs using this tool's reference arguments; mentioning an ID does not create a connection. The service converts references in place; do not calculate Image/Mixed indices yourself. Validation checks reference identity and parameters, not visual character or clothing consistency; inspect generated media for those qualities.",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "nodeType": {
+            "type": "string",
+            "enum": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "script",
+              "video-clip"
+            ]
+          },
+          "idempotencyKey": {
+            "pattern": "^[A-Za-z0-9._:-]{8,255}$",
+            "title": "Idempotencykey",
+            "type": "string"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact inputContract.model, modelId or modelKey returned by search_models/get_model; reuse it without constructing a provider or internal identifier. An unambiguous display name remains compatible."
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "generate",
+              "edit",
+              "extend"
+            ],
+            "description": "Optional video purpose: generate, edit or extend. Omit for other node types and to preserve an existing video's purpose. startFrameNode selects generate and replaces incoming media references with that first frame. The gateway derives modeType."
+          },
+          "startFrameNode": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact image node ID for the first frame. With generate, animate this single frame using the model's frame route; omit reference/incoming edge lists."
+          },
+          "projectId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "画布 UUID（ProjectMeta.uuid，例如 32 位十六进制值）；不能使用数字 ProjectMeta.id。"
+          },
+          "projectContext": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectcontext"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "媒体提示词引用使用 {{Node <nodeId>}}，例如 主持人={{Node <nodeId>}}；占位符须替换为项目读取返回的精确 ID，素材须通过本工具引用参数接入。服务端原位转换编号，宿主不要自行计算 Image/Mixed 序号。校验通过不代表人物或服装视觉一致性已验收。"
+          },
+          "params": {
+            "type": "object",
+            "description": "Creative controls only, using get_model.inputContract.parameterSchemas. The gateway owns model/provider/mode/scene and media lists/order. Do not copy a backend schema or node snapshot here.",
+            "propertyNames": {
+              "not": {
+                "enum": [
+                  "model",
+                  "provider",
+                  "modeType",
+                  "scene",
+                  "prompt",
+                  "imageList",
+                  "videoList",
+                  "audioList",
+                  "mixedList",
+                  "imageListOrder",
+                  "videoListOrder",
+                  "audioListOrder",
+                  "mixedListOrder",
+                  "source_node_keys",
+                  "generateTypes",
+                  "checkpointId"
+                ]
+              }
+            },
+            "properties": {
+              "settings": {
+                "type": "object",
+                "propertyNames": {
+                  "not": {
+                    "enum": [
+                      "model",
+                      "provider",
+                      "modeType",
+                      "scene",
+                      "prompt",
+                      "imageList",
+                      "videoList",
+                      "audioList",
+                      "mixedList",
+                      "imageListOrder",
+                      "videoListOrder",
+                      "audioListOrder",
+                      "mixedListOrder",
+                      "source_node_keys",
+                      "generateTypes",
+                      "checkpointId"
+                    ]
+                  }
+                }
+              },
+              "advancedSettings": {
+                "type": "object",
+                "propertyNames": {
+                  "not": {
+                    "enum": [
+                      "model",
+                      "provider",
+                      "modeType",
+                      "scene",
+                      "prompt",
+                      "imageList",
+                      "videoList",
+                      "audioList",
+                      "mixedList",
+                      "imageListOrder",
+                      "videoListOrder",
+                      "audioListOrder",
+                      "mixedListOrder",
+                      "source_node_keys",
+                      "generateTypes",
+                      "checkpointId"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "description": "Optional node-specific editable content (for example image alt or text content), not a complete node snapshot. Omit data for ordinary generation. Choose the type with top-level nodeType and the display name with name; put model settings in top-level params. type, action and generatorType are assigned by the domain and must be omitted even if they match the defaults. taskInfo, prevTaskInfo and isStale are server-owned; params and label do not belong inside data. For image, video, audio and video-clip nodes, url and originalUrl are arrays of URL strings, for example {\"url\":[\"https://example.com/media.mp4\"]}; use [] for no URLs. Legacy scalar strings are accepted and normalized to arrays.",
+                "propertyNames": {
+                  "not": {
+                    "enum": [
+                      "type",
+                      "action",
+                      "generatorType",
+                      "taskInfo",
+                      "prevTaskInfo",
+                      "isStale",
+                      "params",
+                      "label"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Data"
+          },
+          "left": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "right": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "group": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "run": {
+            "type": "boolean"
+          },
+          "expectedRevision": {
+            "anyOf": [
+              {
+                "pattern": "^sha256-[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expectedrevision"
+          }
+        },
+        "required": [
+          "name",
+          "nodeType",
+          "idempotencyKey"
+        ],
+        "title": "create_nodeArguments",
+        "type": "object",
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "startFrameNode"
+              ]
+            },
+            "then": {
+              "properties": {
+                "intent": {
+                  "const": "generate"
+                },
+                "left": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "required": [
+                    "intent"
+                  ]
+                },
+                {
+                  "required": [
+                    "startFrameNode"
+                  ]
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "nodeType": {
+                  "const": "video"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "create_nodeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:project:write"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "update_node",
+      "title": "Update LibTV node",
+      "description": "LibTV workflow: For a new image run, explicitly set params.count to the requested quantity (default 1), even when the existing node has a larger count. Recover an existing task with its original call and key.\n\nUpdate node parameters, content, display name and reference edges using shared domain validation and an idempotent transaction. run=true submits a durable generation on the same node and returns its task ID. Before choosing model, pick the model with `search_models` and read its inputContract with `get_model`: params contains only creative controls, so an invented model or an out-of-range value is rejected before any write. Do not put imageList, videoList, audioList, or their *Order variants in params: those lists are derived from reference edges; use leftEnsure, leftAdd, leftRemove, rightEnsure, rightAdd, or rightRemove instead. Omit data.type, data.action and data.generatorType even if unchanged; read_node shows the existing identity. Rename with newName. Audio execution scene is derived from the selected model. In media generation prompts, reference a connected input with {{Node <nodeId>}} (replace <nodeId> with the exact ID returned by a project read). For example, after connecting that node, write 'Host={{Node <nodeId>}}'. Connect inputs using this tool's reference arguments; mentioning an ID does not create a connection. The service converts references in place; do not calculate Image/Mixed indices yourself. Validation checks reference identity and parameters, not visual character or clothing consistency; inspect generated media for those qualities.",
+      "inputSchema": {
+        "properties": {
+          "node": {
+            "type": "string",
+            "minLength": 1
+          },
+          "idempotencyKey": {
+            "pattern": "^[A-Za-z0-9._:-]{8,255}$",
+            "title": "Idempotencykey",
+            "type": "string"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact inputContract.model, modelId or modelKey returned by search_models/get_model; reuse it without constructing a provider or internal identifier. An unambiguous display name remains compatible."
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "generate",
+              "edit",
+              "extend"
+            ],
+            "description": "Optional video purpose: generate, edit or extend. Omit for other node types and to preserve an existing video's purpose. startFrameNode selects generate and replaces incoming media references with that first frame. The gateway derives modeType."
+          },
+          "startFrameNode": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact image node ID for the first frame. With generate, animate this single frame using the model's frame route; omit reference/incoming edge lists."
+          },
+          "projectId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "画布 UUID（ProjectMeta.uuid，例如 32 位十六进制值）；不能使用数字 ProjectMeta.id。"
+          },
+          "projectContext": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projectcontext"
+          },
+          "newName": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "媒体提示词引用使用 {{Node <nodeId>}}，例如 主持人={{Node <nodeId>}}；占位符须替换为项目读取返回的精确 ID，素材须通过本工具引用参数接入。服务端原位转换编号，宿主不要自行计算 Image/Mixed 序号。校验通过不代表人物或服装视觉一致性已验收。"
+          },
+          "params": {
+            "type": "object",
+            "description": "Creative controls only, using get_model.inputContract.parameterSchemas. The gateway owns model/provider/mode/scene and media lists/order. Do not copy a backend schema or node snapshot here.",
+            "propertyNames": {
+              "not": {
+                "enum": [
+                  "model",
+                  "provider",
+                  "modeType",
+                  "scene",
+                  "prompt",
+                  "imageList",
+                  "videoList",
+                  "audioList",
+                  "mixedList",
+                  "imageListOrder",
+                  "videoListOrder",
+                  "audioListOrder",
+                  "mixedListOrder",
+                  "source_node_keys",
+                  "generateTypes",
+                  "checkpointId"
+                ]
+              }
+            },
+            "properties": {
+              "settings": {
+                "type": "object",
+                "propertyNames": {
+                  "not": {
+                    "enum": [
+                      "model",
+                      "provider",
+                      "modeType",
+                      "scene",
+                      "prompt",
+                      "imageList",
+                      "videoList",
+                      "audioList",
+                      "mixedList",
+                      "imageListOrder",
+                      "videoListOrder",
+                      "audioListOrder",
+                      "mixedListOrder",
+                      "source_node_keys",
+                      "generateTypes",
+                      "checkpointId"
+                    ]
+                  }
+                }
+              },
+              "advancedSettings": {
+                "type": "object",
+                "propertyNames": {
+                  "not": {
+                    "enum": [
+                      "model",
+                      "provider",
+                      "modeType",
+                      "scene",
+                      "prompt",
+                      "imageList",
+                      "videoList",
+                      "audioList",
+                      "mixedList",
+                      "imageListOrder",
+                      "videoListOrder",
+                      "audioListOrder",
+                      "mixedListOrder",
+                      "source_node_keys",
+                      "generateTypes",
+                      "checkpointId"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "description": "Optional node-specific editable content (for example image alt or text content), not a complete node snapshot. Omit data when only changing generation parameters. Put model settings in top-level params and rename with newName. type, action and generatorType cannot be changed; omit them even if unchanged. Read the existing identity with read_node. taskInfo, prevTaskInfo and isStale are server-owned; params and label do not belong inside data. For image, video, audio and video-clip nodes, url and originalUrl are arrays of URL strings, for example {\"url\":[\"https://example.com/media.mp4\"]}; use [] for no URLs. Legacy scalar strings are accepted and normalized to arrays.",
+                "propertyNames": {
+                  "not": {
+                    "enum": [
+                      "type",
+                      "action",
+                      "generatorType",
+                      "taskInfo",
+                      "prevTaskInfo",
+                      "isStale",
+                      "params",
+                      "label"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Data"
+          },
+          "leftEnsure": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "leftAdd": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "leftRemove": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rightEnsure": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rightAdd": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rightRemove": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "group": {
+            "type": "string"
+          },
+          "run": {
+            "type": "boolean",
+            "description": "true 时在更新后触发节点生成并等待终态；生成可能消耗积分，必须有用户明确授权。"
+          },
+          "expectedRevision": {
+            "anyOf": [
+              {
+                "pattern": "^sha256-[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expectedrevision"
+          }
+        },
+        "required": [
+          "node",
+          "idempotencyKey"
+        ],
+        "title": "update_nodeArguments",
+        "type": "object",
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "startFrameNode"
+              ]
+            },
+            "then": {
+              "properties": {
+                "intent": {
+                  "const": "generate"
+                },
+                "leftEnsure": {
+                  "maxItems": 0
+                },
+                "leftAdd": {
+                  "maxItems": 0
+                },
+                "leftRemove": {
+                  "maxItems": 0
+                }
+              }
+            }
+          }
+        ]
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "update_nodeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "libtv:project:write"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "selection": [
+    "create_node",
+    "generation_submit",
+    "get_model",
+    "get_web_operation_status",
+    "prepare_project_delivery",
+    "project_info",
+    "read_node",
+    "resource_info",
+    "search_models",
+    "task_status",
+    "update_node",
+    "upload_complete",
+    "upload_media",
+    "upload_ticket"
+  ],
+  "authSourceCommit": "c56463a2dc0138585b4831ff74e5880f4dca1fef"
+}

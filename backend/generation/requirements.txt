@@ -1,0 +1,3 @@
+# Module-local dependencies; public app composition owns the root lockfile.
+jsonschema>=4.23,<5
+Pillow>=11,<13
