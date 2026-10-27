@@ -1,0 +1,15 @@
+{
+  "sourceUrl": "https://mcp.liblib.tv/mcp",
+  "capturedAt": "2026-10-27T08:41:56.481120+00:00",
+  "containsCustomerData": false,
+  "status": 401,
+  "headers": {
+    "content-type": "application/json",
+    "www-authenticate": "Bearer error=\"invalid_token\", error_description=\"Authentication required\", resource_metadata=\"https://mcp.liblib.tv/.well-known/oauth-protected-resource/mcp\""
+  },
+  "bodySha256": "3ae7ddab16f90209af2f2b5932135d3bc56e8f3cbd44b967535f6c1db5c1bd2e",
+  "body": {
+    "error": "invalid_token",
+    "error_description": "Authentication required"
+  }
+}

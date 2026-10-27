@@ -1,0 +1,35 @@
+{
+  "sourceUrl": "https://mcp.liblib.tv/docs",
+  "capturedAt": "2026-10-27T08:41:55.049698+00:00",
+  "containsCustomerData": false,
+  "status": 200,
+  "headers": {
+    "content-type": "application/json",
+    "www-authenticate": null
+  },
+  "bodySha256": "2dcf0df88f996425dca03e1e9e0b7c2628cd6ad3f26ec98d90c83dad8f64f324",
+  "body": {
+    "service": "libtv-remote-mcp-gateway",
+    "version": "0.1.0",
+    "environment": "prod",
+    "endpoints": {
+      "mcp": "/mcp",
+      "health": "/health",
+      "readiness": "/health/ready",
+      "protected_resource_metadata": "/.well-known/oauth-protected-resource",
+      "authorization_server_metadata": "/.well-known/oauth-authorization-server"
+    },
+    "authorization": {
+      "type": "oauth2.1_authorization_code_pkce",
+      "issuer": "https://mcp.liblib.tv/",
+      "scopes": [
+        "libtv:account:read",
+        "libtv:project:read",
+        "libtv:project:write",
+        "libtv:media:write",
+        "libtv:task:write",
+        "libtv:export:write"
+      ]
+    }
+  }
+}
