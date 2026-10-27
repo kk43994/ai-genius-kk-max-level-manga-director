@@ -45,7 +45,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const image = (assetId, revisionId, thumb = true) => esc(assetURL(apiBase,assetId,revisionId,thumb));
   const path = relative => apiBase + relative;
   const dirty = () => Object.keys(drafts.data).some(k => k.startsWith('plan:') || k.startsWith('compose:') || k.startsWith('review:') || (k==='quick-start'&&drafts.get(k)?.text));
-  const guide = () => nextAction({project, plan:{...plan,needsReview:plan.needsReview||Boolean(drafts.get(planKey()))}, assets, tasks, bundles, selection:session.selection, taskError});
+  const guide = () => nextAction({project, plan:{...plan,needsReview:plan.needsReview||Boolean(drafts.get(planKey()))}, assets, tasks, bundles, selection:session.selection, taskError, styleCount:session.features?.imageGeneration ? 4 : 1});
 
   const stylesheet = doc.createElement('link');
   stylesheet.rel = 'stylesheet'; stylesheet.href = new URL('./workflow.css', import.meta.url).href;
@@ -95,7 +95,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(active){const node=root.querySelector('[data-wf-elapsed]');if(node)node.textContent=elapsedLabel(active.startedAt);const slow=root.querySelector('[data-wf-slow]');if(slow)slow.hidden=Date.now()-active.startedAt<30000;}
   },1000);
   pollingTimer = setInterval(() => {
-    if(alive&&!busy&&!loading&&!polling&&project&&doc.visibilityState!=='hidden'&&tasks.some(t=>['preparing','submitting','submitted','running','downloading'].includes(t.status)))void pollTasks();
+    if(alive&&!loading&&!polling&&project&&doc.visibilityState!=='hidden'&&(busy||tasks.some(t=>['preparing','submitting','queued','submitted','running','downloading'].includes(t.status))))void pollTasks();
   },5000);
   function createView() {
     const draft = drafts.get('new-project') || {name:'',description:''};
@@ -106,7 +106,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const next = guide(), labels = {plan:plan.entities.length?'确认清单并继续':'补充资产清单',connect:'连接 / 选择账号',review:'查看图片并审核',prepare:'一键继续制作',confirm:'核对并继续',recover:'查询原任务',archive:'整理交付包',download:'下载全部资产',import:'导入剧本'};
     const unavailable = ['prepare','confirm'].includes(next.kind) && session.features?.imageGeneration !== true;
     const {done,total} = reviewProgress(plan.entities,assets,session.selection,belongsToSelection);
-    return `<section class="wf-panel wf-guide" aria-label="一键制作进度"><div><p class="wf-eyebrow">${unavailable?'制作服务待就绪':'接下来只需这一步'}</p><h3>${esc(next.title)}</h3><p class="wf-muted">${esc(next.detail)}</p>${total?`<p class="wf-muted">${done} / ${total} 个制作环节已审核</p><progress class="wf-overall" value="${done}" max="${total}" aria-label="制作环节审核进度"></progress>`:''}${unavailable?'<p class="wf-note">这个版本的图片生成服务尚未开放。剧本和清单已保存，服务接通后从这里继续。</p>':''}</div><div class="wf-actions">${next.kind==='download'?`<a data-wf-download class="wf-link primary" href="${esc(path(`/projects/${encodeURIComponent(selected)}/bundles/${encodeURIComponent(next.bundle.id)}/content`))}">下载全部资产 ↓</a>`:next.kind==='blocked'?'<button data-wf-nav="review">查看任务与素材</button>':`<button class="primary" data-wf-action="continue" ${busy||unavailable?'disabled':''}>${labels[next.kind]||'继续'}</button>${unavailable?'<button data-wf-action="connect">查看已连接账号</button><button data-wf-action="refresh">检查服务状态</button>':''}`}${next.kind==='recover'?'<span class="wf-muted">页面保持打开时自动查询</span>':''}</div></section>`;
+    return `<section class="wf-panel wf-guide" aria-label="一键制作进度"><div><p class="wf-eyebrow">${unavailable?'制作服务待就绪':'接下来只需这一步'}</p><h3>${esc(next.title)}</h3><p class="wf-muted">${esc(next.detail)}</p>${total?`<p class="wf-muted">${done} / ${total} 个制作环节已审核</p><progress class="wf-overall" value="${done}" max="${total}" aria-label="制作环节审核进度"></progress>`:''}${unavailable?'<p class="wf-note">这个版本的图片生成服务尚未开放。剧本和清单已保存，服务接通后从这里继续。</p>':''}</div><div class="wf-actions">${next.kind==='download'?`<a data-wf-download class="wf-link primary" href="${esc(path(`/projects/${encodeURIComponent(selected)}/bundles/${encodeURIComponent(next.bundle.id)}/content`))}">下载全部资产 ↓</a>`:next.kind==='blocked'?'<button data-wf-nav="review">查看任务与素材</button>':`<button class="primary" data-wf-action="continue" ${busy||unavailable?'disabled':''}>${labels[next.kind]||'继续'}</button>${unavailable?'<button data-wf-action="connect">查看已连接账号</button><button data-wf-action="refresh">检查服务状态</button>':''}`}${next.kind==='recover'?`<span class="wf-muted">${['queued','running','downloading','submitting'].includes(next.task?.status)?'页面保持打开时自动查询':'点击查询原任务继续，不会重新生成'}</span>`:''}</div></section>`;
   }
   function planView() {
     const draft = drafts.get(planKey());
@@ -126,16 +126,16 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function getCompose() {
     const e = currentEntity(); if (!e) return null;
     if (selectedEntity !== e.id) selectedEntity = e.id;
-    const old = drafts.get(composeKey()); if (old) return old;
+    const old = drafts.get(composeKey()); if (old) return page==='style'&&session.features?.imageGeneration?{...old,count:'4'}:old;
     const source = approvedSources(currentAsset(),page,session.selection)[0];
-    return {prompt:defaultPrompt(e,page,plan.stylePrompt),sourceRevisionId:source?.id || '',count:'1',ratio:'',prepareKey:key()};
+    return {prompt:defaultPrompt(e,page,plan.stylePrompt),sourceRevisionId:source?.id || '',count:page==='style'&&session.features?.imageGeneration?'4':'1',ratio:'',prepareKey:key()};
   }
   function composeView() {
     const e = currentEntity(); if (!e) return empty('还没有资产档案','先在清单中添加角色、场景或道具。');
     if (selectedEntity !== e.id) selectedEntity = e.id;
     const draft = getCompose(), sources = approvedSources(currentAsset(),page,session.selection);
     const selectedSource = sources.find(s=>s.id===draft.sourceRevisionId), connected = session.selection?.providerAccountId && session.selection?.spaceId;
-    return `<section class="wf-panel"><h3>${esc(stageLabels[page])}</h3><p class="wf-muted">${page==='style'?'探索风格，先由你选定这一版，再制作 Image2 资产。':page==='asset'?'已审核的 MJ 风格作为依据，制作可复用的角色、场景和道具。':'使用原始 Image2 文件精修。退回后的 Nano 图片不会被当作新的原图。'}</p><form data-wf-form="compose" class="wf-compose"><label>资产档案<select data-wf-entity-select>${options(plan.entities.map(item=>[item.id,`${categories[item.category]} · ${item.name}`]),selectedEntity)}</select></label>${page!=='style'?`<label>上一阶段已审核参考<select name="sourceRevisionId" required><option value="">请选择当前账号 / 空间的已审核版本</option>${options(sources.map(r=>[r.id,`${stageLabels[r.stage]} · ${r.id.slice(-6)} · 已审核`]),draft.sourceRevisionId)}</select></label>${selectedSource?`<div class="wf-reference"><img src="${image(selectedSource.assetId,selectedSource.id)}" alt="已审核参考原图"><span class="wf-muted">${esc(selectedSource.ownership.accountLabelAtCreation || selectedSource.ownership.providerAccountId)} / ${esc(selectedSource.ownership.spaceNameAtCreation || selectedSource.ownership.spaceId)}</span></div>`:'<p class="wf-note">尚未选择可用参考。每一步需要先通过人工审核，且不能混用其他账号或空间的图片。</p>'}`:''}<label>制作要求<textarea name="prompt" rows="7" maxlength="20000" required>${esc(draft.prompt)}</textarea></label><div class="wf-form-grid"><label>候选数量<select name="count">${options([['1','1 张'],['2','2 张'],['3','3 张'],['4','4 张']],String(draft.count))}</select></label><label>画幅（可选）<select name="ratio">${options([['','使用官方模型默认'],['16:9','16:9'],['9:16','9:16'],['1:1','1:1']],draft.ratio)}</select></label></div>${!connected?'<div class="wf-note">请先选择已授权的 LibTV 账号与空间。当前草稿会保留。</div>':''}<div class="wf-actions"><button class="primary" type="submit" ${!connected || (page!=='style'&&!selectedSource)?'disabled':''}>准备任务并核对</button><button type="button" data-wf-nav="review">查看返回结果</button></div><p class="wf-muted">准备不会提交生成。模型与参数以官方适配器核验为准；金额未知时不会显示为免费。图片提交服务尚未启用；最终视频仍暂停。</p></form></section>${tasksView(e.id)}`;
+    return `<section class="wf-panel"><h3>${esc(stageLabels[page])}</h3><p class="wf-muted">${page==='style'?'探索风格，先由你选定这一版，再制作 Image2 资产。':page==='asset'?'已审核的 MJ 风格作为依据，制作可复用的角色、场景和道具。':'使用原始 Image2 文件精修。退回后的 Nano 图片不会被当作新的原图。'}</p><form data-wf-form="compose" class="wf-compose"><label>资产档案<select data-wf-entity-select>${options(plan.entities.map(item=>[item.id,`${categories[item.category]} · ${item.name}`]),selectedEntity)}</select></label>${page!=='style'?`<label>上一阶段已审核参考<select name="sourceRevisionId" required><option value="">请选择当前账号 / 空间的已审核版本</option>${options(sources.map(r=>[r.id,`${stageLabels[r.stage]} · ${r.id.slice(-6)} · 已审核`]),draft.sourceRevisionId)}</select></label>${selectedSource?`<div class="wf-reference"><img src="${image(selectedSource.assetId,selectedSource.id)}" alt="已审核参考原图"><span class="wf-muted">${esc(selectedSource.ownership.accountLabelAtCreation || selectedSource.ownership.providerAccountId)} / ${esc(selectedSource.ownership.spaceNameAtCreation || selectedSource.ownership.spaceId)}</span></div>`:'<p class="wf-note">尚未选择可用参考。每一步需要先通过人工审核，且不能混用其他账号或空间的图片。</p>'}`:''}<label>制作要求<textarea name="prompt" rows="7" maxlength="20000" required>${esc(draft.prompt)}</textarea></label><div class="wf-form-grid"><label>候选数量<select name="count">${options(page==='style'&&session.features?.imageGeneration?[['4','4 张（MJ 一组）']]:[['1','1 张'],['2','2 张'],['4','4 张']],String(draft.count))}</select></label><label>画幅（可选）<select name="ratio">${options([['','使用官方模型默认'],['16:9','16:9'],['9:16','9:16'],['1:1','1:1']],draft.ratio)}</select></label></div>${!connected?'<div class="wf-note">请先选择已授权的 LibTV 账号与空间。当前草稿会保留。</div>':''}<div class="wf-actions"><button class="primary" type="submit" ${!connected || (page!=='style'&&!selectedSource)?'disabled':''}>准备任务并核对</button><button type="button" data-wf-nav="review">查看返回结果</button></div><p class="wf-muted">准备不会提交生成。模型与参数以官方适配器核验为准；金额未知时不会显示为免费。${session.features?.imageGeneration?'提交后使用当前已授权账号的 LibTV 积分。':'图片提交服务尚未启用。'}</p></form></section>${tasksView(e.id)}`;
   }
   function taskLabel(task) {
     if(task.status!=='completed')return label(task.status);
@@ -148,7 +148,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function tasksView(entityId) {
     const rows = tasks.filter(t=>!entityId || t.entityId===entityId);
-    return `<section class="wf-panel" data-wf-task-feedback><h3>当前档案的任务</h3>${taskError?`<p class="wf-note">${esc(taskError)}</p>`:''}<p class="wf-muted">${lastChecked?'本地状态更新 '+esc(lastChecked.toLocaleTimeString()):'正在检查任务状态'} · 处理中的任务每 5 秒刷新</p>${rows.length?`<ul class="wf-task-list">${rows.map(t=>`<li>${tag(t.status,taskLabel(t))} <b>${esc(stageLabels[Object.keys(recipes).find(s=>recipes[s]===t.recipe)] || t.recipe)}</b><p class="wf-muted">${esc(t.ownership?.accountLabelAtCreation||t.ownership?.providerAccountId)} / ${esc(t.ownership?.spaceNameAtCreation||t.ownership?.spaceId)} · ${esc(t.id.slice(-8))}</p><p class="wf-muted">${esc(taskProgress(t))} · 更新于 ${esc(new Date(t.updatedAt).toLocaleTimeString())}</p>${['preparing','submitting','submitted','running','downloading'].includes(t.status)?'<progress aria-label="任务处理中，等待实际结果"></progress>':''}${t.error?`<p class="wf-note">${esc(t.error.message)}</p>`:''}${!t.submissionAttempted&&!['completed','cancelled'].includes(t.status)?`<button data-wf-cancel="${esc(t.id)}">取消未提交记录</button>`:''}${t.canRecover?`<button data-wf-recover="${esc(t.id)}">查询原任务并收取</button>`:''}</li>`).join('')}</ul>`:'<p class="wf-muted">还没有任务。准备后的任务归属会固定保存，切换账号不改变旧任务。</p>'}</section>`;
+    return `<section class="wf-panel" data-wf-task-feedback><h3>当前档案的任务</h3>${taskError?`<p class="wf-note">${esc(taskError)}</p>`:''}<p class="wf-muted">${lastChecked?'本地状态更新 '+esc(lastChecked.toLocaleTimeString()):'正在检查任务状态'} · 处理中的任务每 5 秒刷新</p>${rows.length?`<ul class="wf-task-list">${rows.map(t=>`<li>${tag(t.status,taskLabel(t))} <b>${esc(stageLabels[Object.keys(recipes).find(s=>recipes[s]===t.recipe)] || t.recipe)}</b><p class="wf-muted">${esc(t.ownership?.accountLabelAtCreation||t.ownership?.providerAccountId)} / ${esc(t.ownership?.spaceNameAtCreation||t.ownership?.spaceId)} · ${esc(t.id.slice(-8))}</p><p class="wf-muted">${esc(taskProgress(t))} · 更新于 ${esc(new Date(t.updatedAt).toLocaleTimeString())}</p>${['preparing','submitting','queued','submitted','running','downloading'].includes(t.status)?'<progress aria-label="任务处理中，等待实际结果"></progress>':''}${t.error?`<p class="wf-note">${esc(t.error.message)}</p>`:''}${!t.submissionAttempted&&!['completed','cancelled'].includes(t.status)?`<button data-wf-cancel="${esc(t.id)}">取消未提交记录</button>`:''}${t.canRecover?`<button data-wf-recover="${esc(t.id)}">查询原任务并收取</button>`:''}</li>`).join('')}</ul>`:'<p class="wf-muted">还没有任务。准备后的任务归属会固定保存，切换账号不改变旧任务。</p>'}</section>`;
   }
   function allRevisions() { return assets.filter(a=>!selectedEntity || a.entityId===selectedEntity).flatMap(a=>a.revisions.map(r=>({...r,asset:a}))); }
   function reviewView() {
@@ -164,7 +164,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function confirmationView() {
     const task=prepared.task, cost=prepared.cost || task.cost || {}, enabled=session.features?.imageGeneration===true;
-    return `<section class="wf-panel" data-confirmation tabindex="-1"><h3>核对这次任务</h3><p class="wf-note">任务账号：${esc(task.ownership?.accountLabelAtCreation||task.ownership?.providerAccountId)}<br>工作空间：${esc(task.ownership?.spaceNameAtCreation||task.ownership?.spaceId)}<br>费用：${cost.state==='known'?esc(`${cost.amount} ${cost.unit}`):'未知 · 不能视为免费'}</p><p class="wf-muted">切换页面上的账号不会改变这个任务的归属。${!enabled?'当前版本未启用图片提交；准备记录已保存。':''}</p><div class="wf-actions"><button data-wf-action="close-confirmation">保留准备记录</button><button data-wf-action="submit-task" class="primary" ${!enabled?'disabled':''}>确认并提交生成</button></div></section>`;
+    return `<section class="wf-panel" data-confirmation tabindex="-1"><h3>核对这次任务</h3><p>生成 ${esc(prepared.confirmation?.summary?.count || task.spec?.settings?.count || 1)} 张候选图</p><p class="wf-note">任务账号：${esc(task.ownership?.accountLabelAtCreation||task.ownership?.providerAccountId)}<br>工作空间：${esc(task.ownership?.spaceNameAtCreation||task.ownership?.spaceId)}<br>费用：${cost.state==='known'?esc(`${cost.amount} ${cost.unit}`):'未知 · 不能视为免费'}</p><p class="wf-muted">切换页面上的账号不会改变这个任务的归属。${!enabled?'当前版本未启用图片提交；准备记录已保存。':''}</p><div class="wf-actions"><button data-wf-action="close-confirmation">保留准备记录</button><button data-wf-action="submit-task" class="primary" ${!enabled||busy?'disabled':''}>确认并提交生成</button></div></section>`;
   }
   function deliveryView() {
     const approved = assets.flatMap(a=>a.revisions).filter(r=>r.review==='approved'&&r.status==='ready');
@@ -201,7 +201,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       if(selectedEntity && !plan.entities.some(e=>e.id===selectedEntity))selectedEntity='';
       persist('selectedProject',selected);emitProject();
     } catch(e) {if(alive&&serial===requestSerial)error=e.message||'读取项目失败，编辑草稿已保留。';}
-    finally {if(alive&&serial===requestSerial){loading=false;render();scheduleFlow();}}
+    finally {if(alive&&serial===requestSerial){loading=false;render();scheduleFlow();events.dispatchEvent(new CustomEvent('workflow:tasks-refreshed',{detail:{projectId:selected}}));}}
   }
   async function loadTasks(projectId) {
     let cursor, items=[];
@@ -216,14 +216,14 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     polling=true;
     try {
       const result=await loadTasks(projectId);
-      if(!alive||busy||serial!==requestSerial||projectId!==selected)return;
+      if(!alive||serial!==requestSerial||projectId!==selected)return;
       tasks=result.items;taskError='';lastChecked=new Date();
     } catch(e) {
-      if(!alive||busy||serial!==requestSerial||projectId!==selected)return;
+      if(!alive||serial!==requestSerial||projectId!==selected)return;
       taskError=e.message||'任务状态暂时无法读取，已有记录已保留。';
     } finally {
       polling=false;
-      if(alive&&!busy&&serial===requestSerial&&projectId===selected){
+      if(alive&&serial===requestSerial&&projectId===selected){
         // Keep form nodes and their caret intact while refreshing background status.
         const taskPanel=root.querySelector('[data-wf-task-feedback]');if(taskPanel)taskPanel.outerHTML=tasksView(selectedEntity);
         const guidePanel=root.querySelector('.wf-guide');if(guidePanel)guidePanel.outerHTML=guideView();
@@ -233,7 +233,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     }
   }
   function scheduleFlow() {
-    if(!alive||!project||editing||!drafts.get(`flow:${selected}`)||guide().kind!=='recover'){
+    if(!alive||!project||editing||!drafts.get(`flow:${selected}`)||guide().kind!=='recover'||!['queued','running','downloading','submitting'].includes(guide().task?.status)){
       clearTimeout(flowTimer);flowTimer=null;return;
     }
     // Five-second local polling must not postpone the eight-second receipt query.
@@ -268,7 +268,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(drafts.get(`flow:${selected}`))setTimeout(()=>{if(alive&&!busy)void continueFlow();},0);
   }
   async function perform(operation) {
-    if(busy)return;busy=true;busyStartedAt=Date.now();error='';render();
+    if(busy)return;busy=true;busyStartedAt=Date.now();error='';notice='';render();
     try {await operation();}catch(e){error=e.message||'操作未完成，原有数据与草稿已保留。';}
     finally {busy=false;render();}
   }

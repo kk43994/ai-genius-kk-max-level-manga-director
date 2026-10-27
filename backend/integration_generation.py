@@ -26,7 +26,7 @@ def original_context(ownership):
     return TenantContext(ctx.tenantId,ctx.siteSessionId,ctx.requestId)
 
 
-def make_adapter(services,task_repository):
+def make_adapter(services,task_repository, *, local_images=False):
     from backend.generation import (GenerationAdapter,GenerationPolicy,OfficialProjectResolver,
         ReferenceNodeRoute,StoreGenerationJournal,TaskSubmissionBridge,WorkflowReferenceReader,
         SafeMediaTransfer,ResponseContracts,ProjectBinding,GenerationError)
@@ -50,6 +50,28 @@ def make_adapter(services,task_repository):
         # A saved candidate must still pass the live official project/space check.
         return ProjectBinding(record['remoteProjectId'],record['ownership'],record['evidence'])
 
+    if local_images:
+        import json
+        from pathlib import Path
+        from backend.generation.live import LiveGenerationAdapter, PersonalProjects
+        from backend.generation.live_reference import LiveReferenceRoute
+        from backend.generation.media import PublicMediaResolver
+        from backend.generation import RecipeBinding
+        from backend.generation.contracts import ToolCatalog
+        catalog_path = Path(__file__).parent / 'generation/contracts/libtv-tools-public-2026-10-28.json'
+        catalog_data = json.loads(catalog_path.read_text())
+        return LiveGenerationAdapter(journal=StoreGenerationJournal(services.storage,original_context),
+            submission_bridge=TaskSubmissionBridge(task_repository,original_context),
+            project_resolver=PersonalProjects(services, original_context), references=WorkflowReferences(),
+            media_transfer=SafeMediaTransfer(allowed_hosts=('libtv-res.liblib.art','libtv-resource-prod.oss-accelerate.aliyuncs.com'),
+                resolver=PublicMediaResolver(('libtv-res.liblib.art','libtv-resource-prod.oss-accelerate.aliyuncs.com')),
+                evidence='2026-10-28 official prepare_project_delivery observed permanent media host'),
+            recipes={key:RecipeBinding(model, evidence='2026-10-28 official search_models and get_model')
+                for key,model in [('mj_style','mj-v8.1'),('image2_asset','lib-image-2'),('nano_refine','nebula-2.1')]},
+            catalog=ToolCatalog(catalog_data['tools'], evidence=catalog_data['source']),
+            reference_route=LiveReferenceRoute(),
+            policy=GenerationPolicy(allow_external_writes=True))
+
     return GenerationAdapter(journal=StoreGenerationJournal(services.storage,original_context),
         submission_bridge=TaskSubmissionBridge(task_repository,original_context),
         project_resolver=OfficialProjectResolver(saved_project_candidate),
@@ -59,6 +81,27 @@ def make_adapter(services,task_repository):
 
 def release_gates(adapter):
     from backend.generation import GenerationAdapter
+    from backend.generation.live import LiveGenerationAdapter
+    if isinstance(adapter, LiveGenerationAdapter):
+        # Configuration is not an acceptance claim or proof of the caller's
+        # grant. Every operation still checks the live, original account.
+        return {
+            'mode':'local_image_preview', 'adapterInstalled':True, 'requestScopeBound':True,
+            'creatorScopeVerified':False, 'authorizationCheck':'per_request_live_original_account',
+            'paidRunVerified':False, 'paidSubmissionEnabled':adapter.policy.allow_external_writes,
+            'reason':'local_full_workflow_acceptance_pending',
+            'evidence':'backend/generation/LOCAL_REAL_RUN_2026-10-28.md',
+            'missingProductionEvidence':['reference_generation_task_receipt',
+                'pending_and_failed_task_status_mapping','full_reviewed_workflow_delivery'],
+            'gates':{
+                'productionProtocolMapping':{'ready':False,'reason':'reference_run_and_nonterminal_status_acceptance_pending'},
+                'creatorAuthorization':{'ready':False,'reason':'checked_per_authenticated_operation',
+                    'requiredScopes':['libtv:account:read','libtv:project:read','libtv:project:write',
+                        'libtv:media:write','libtv:task:write','libtv:export:write']},
+                'publicOAuthCallback':{'ready':False,'reason':'separate_local_instance_only'},
+                'paidRealRun':{'ready':False,'reason':'mj_completed_full_workflow_pending'},
+            },
+        }
     installed=isinstance(adapter,GenerationAdapter)
     return {
         'adapterInstalled':installed,'requestScopeBound':installed,'creatorScopeVerified':False,

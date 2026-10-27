@@ -102,8 +102,8 @@ class Config:
             raise ConfigurationError("Ports 8768 and 8870 are reserved; use an independent port")
         if not 0 <= self.port <= 65535:
             raise ConfigurationError("Invalid port")
-        if self.allowPaidSubmission or self.videoGeneration:
-            raise ConfigurationError("Paid submission and final video cannot be enabled in this development release")
+        if self.videoGeneration or (self.allowPaidSubmission and (not self.local_client or self.host != "127.0.0.1")):
+            raise ConfigurationError("Image submission requires an explicitly enabled loopback local client; video remains disabled")
         if self.max_request_bytes < 1 or self.request_timeout_seconds < 1:
             raise ConfigurationError("Request limits must be positive")
         if self.secret_key_file is not None:
@@ -485,6 +485,7 @@ class Application:
                     self.services.storage, public_origin=config.public_origin), config)
                 if config.local_client:
                     self.services.sessions.features["providerAuthorization"] = True
+                    self.services.sessions.features["imageGeneration"] = config.allowPaidSubmission
                 if hasattr(module, "WorkspaceRecoveryService"):
                     self.services.workspace_recovery = module.WorkspaceRecoveryService(
                         self.services.storage, self.services.sessions)
@@ -508,7 +509,7 @@ class Application:
                 from .integration_generation import make_adapter
                 self.services.task_repository = StoreTaskRepository(self.services.storage,
                     selection_reader=self.services.selections._get)
-                self.services.generation = make_adapter(self.services,self.services.task_repository)
+                self.services.generation = make_adapter(self.services,self.services.task_repository,local_images=config.allowPaidSubmission)
                 self.services.providers = module.ProviderService(
                     StorageAuthRepository(self.services.storage), AesGcmSecretCodec({"v1": key}, "v1"), oauth,
                     workspace_recovery=self.services.get("workspace_recovery"),operation_adapter=self.services.generation)
@@ -541,7 +542,7 @@ class Application:
                     providers=self.services.providers, selections=SelectionAdapter(self.services.selections),
                     spaces=SpaceAdapter(self.services.spaces), inputs=self.services.workflow,
                     outputs=WorkflowOutputStore(self.services.workflow, repository),
-                    policy=module.TaskPolicy(confirmation_key=key), clock=self.services.clock)
+                    policy=module.TaskPolicy(confirmation_key=key,allow_paid_submission=config.allowPaidSubmission), clock=self.services.clock)
                 self.services.workflow.tasks = self.services.tasks
                 if hasattr(self.services.providers, "on_account_removed"):
                     self.services.providers.on_account_removed = self.services.tasks.block_account
@@ -551,7 +552,7 @@ class Application:
     def health(self, ctx, params):
         return Response(body={"status": "ok", "mode": "customer-development", "version": VERSION,
                               "apiVersion": 1, "customerReady": False, "modules": self.modules,
-                              "policy": {"allowPaidSubmission": False, "videoGeneration": False}})
+                              "policy": {"allowPaidSubmission": self.config.allowPaidSubmission, "videoGeneration": False}})
 
     def local_authorization_return(self, ctx, params):
         html = ('<!doctype html><html lang="zh-CN"><meta charset="utf-8">'
@@ -650,7 +651,7 @@ class Application:
             if route.capability == "videoGeneration" or (ctx.path == API_PREFIX + "/tasks/prepare"
                     and "video" in str(ctx.json.get("recipe", "")).lower()):
                 raise APIError(403, "VIDEO_GENERATION_DISABLED", "正式视频生成当前暂停")
-            if route.capability == "paidSubmission" or re.fullmatch(r"/api/v1/tasks/[^/]+/submit", ctx.path):
+            if not self.config.allowPaidSubmission and (route.capability == "paidSubmission" or re.fullmatch(r"/api/v1/tasks/[^/]+/submit", ctx.path)):
                 raise APIError(403, "PAID_SUBMISSION_DISABLED", "当前开发版本禁止提交收费生成")
             if ctx.method == "POST" and ctx.path == API_PREFIX + "/tasks/prepare":
                 if not re.fullmatch(r"[A-Za-z0-9._:-]{1,200}", ctx.headers.get("Idempotency-Key", "")):

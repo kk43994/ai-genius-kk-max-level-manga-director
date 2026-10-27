@@ -99,9 +99,41 @@ class MediaTests(unittest.TestCase):
         self.conn.response = Response(b'', status=204)
         self.media.put('https://media.invalid/upload', self.raw)
         self.assertEqual(self.conn.requests[0][0][0], 'PUT')
+        self.assertNotIn('Content-Type', self.conn.requests[0][1]['headers'])
         self.conn.response = Response(b'', status=307)
         self.error('MEDIA_TRANSFER_FAILED', lambda: self.media.put('https://media.invalid/upload', self.raw))
 
 
 if __name__ == '__main__':
     unittest.main()
+
+class FakeIPCompatibilityTests(unittest.TestCase):
+    def test_fake_ip_uses_public_resolver_and_pins_tls_host(self):
+        from backend.generation.media import PublicMediaResolver
+        import socket
+        hits=[]
+        def query(host):
+            hits.append(host)
+            return {'Status':0,'Question':[{'name':host+'.','type':1}],
+                    'Answer':[{'type':1,'data':'1.1.1.1'}]}
+        system=lambda host,port,**kw:[(socket.AF_INET,socket.SOCK_STREAM,6,'',('198.18.0.4',443))]
+        r=PublicMediaResolver(['media.example'],system=system,query=query)
+        self.assertEqual(r('media.example',443,type=socket.SOCK_STREAM)[0][4][0],'1.1.1.1')
+        r('media.example',443,type=socket.SOCK_STREAM)
+        self.assertEqual(hits,['media.example'])
+        with self.assertRaises(GenerationError):r('untrusted.example',443,type=socket.SOCK_STREAM)
+    def test_private_dns_is_not_replaced_or_allowed(self):
+        from backend.generation.media import PublicMediaResolver
+        import socket
+        system=lambda host,port,**kw:[(socket.AF_INET,socket.SOCK_STREAM,6,'',('127.0.0.1',443))]
+        r=PublicMediaResolver(['media.example'],system=system,query=lambda _:self.fail('No DNS fallback for private hosts'))
+        transfer=SafeMediaTransfer(['media.example'],evidence='synthetic test',resolver=r)
+        with self.assertRaises(GenerationError):transfer._target('https://media.example/image.png')
+    def test_bad_doh_response_and_private_answer_rejected(self):
+        from backend.generation.media import PublicMediaResolver
+        import socket
+        system=lambda host,port,**kw:[(socket.AF_INET,socket.SOCK_STREAM,6,'',('198.18.0.4',443))]
+        for body in ({'Status':0,'Question':[{'name':'other.example','type':1}],'Answer':[{'type':1,'data':'1.1.1.1'}]},
+                     {'Status':0,'Question':[{'name':'media.example','type':1}],'Answer':[{'type':1,'data':'10.0.0.1'}]}):
+            r=PublicMediaResolver(['media.example'],system=system,query=lambda _:body)
+            with self.assertRaises(GenerationError):r('media.example',443,type=socket.SOCK_STREAM)

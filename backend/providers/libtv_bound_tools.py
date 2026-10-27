@@ -14,6 +14,9 @@ from .libtv_oauth import SCOPES
 class BoundMCPTools:
     def __init__(self, service, ctx, ownership):
         self._service, self._ctx, self._owner = service, copy.copy(ctx), copy.deepcopy(ownership)
+        self._session = None
+        self._catalog = None
+        self._access_token = None
 
     def __repr__(self):
         return '<BoundMCPTools credentials=redacted>'
@@ -28,10 +31,14 @@ class BoundMCPTools:
         if (space_id != self._owner['spaceId'] or not isinstance(name, str)
                 or not isinstance(arguments, dict)):
             raise AuthError('OWNERSHIP_MISMATCH')
-        self._service._assert_space(self._ctx, self._owner)
         bundle, _ = self._service._bundle_for(self._ctx, self._owner)
-        session = MCPReadSession(self._service.oauth.http, bundle['tokens']['access_token'])
-        matches = [tool for tool in session.tools() if tool.get('name') == name]
+        token = bundle['tokens']['access_token']
+        if self._session is None or self._access_token != token:
+            self._session = MCPReadSession(self._service.oauth.http, token)
+            self._catalog = self._session.tools()
+            self._access_token = token
+        session = self._session
+        matches = [tool for tool in self._catalog if tool.get('name') == name]
         if len(matches) != 1:
             raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
         tool = matches[0]
@@ -54,6 +61,22 @@ class BoundMCPTools:
         if (type(readonly) is not bool
                 or (not readonly and not any(any(s.endswith(':write') for s in scopes) for scopes in candidates))):
             raise AuthError('PROVIDER_SCOPE_UNAVAILABLE')
-        result = session.call_tool(tool, copy.deepcopy(arguments))
+        account_tool = next((t for t in self._catalog if t.get('name') == 'account_user'), None)
+        snapshot = None
+        if (callable(getattr(getattr(self._service, 'account_reader', None), 'spaces_from_payload', None))
+                and callable(getattr(self._service, '_assert_space_payload', None))
+                and account_tool and account_tool.get('annotations', {}).get('readOnlyHint') is True
+                and 'libtv:account:read' in granted):
+            snapshot = session.call_tool(account_tool, {})
+            self._service._assert_space_payload(self._ctx, self._owner, snapshot)
+        else:
+            self._service._assert_space(self._ctx, self._owner)
+        # Check local revocation again after the live membership response and
+        # before invoking a mutation. Session reuse never caches membership.
+        self._service._bundle_for(self._ctx, self._owner)
+        if (snapshot is not None and not readonly and self._owner.get('spaceKind') == 'personal'
+                and str(snapshot.get('activeAccountId')) != self._owner['spaceId']):
+            raise AuthError('OWNERSHIP_MISMATCH')
+        result = snapshot if name == 'account_user' and arguments == {} and snapshot is not None else session.call_tool(tool, copy.deepcopy(arguments))
         self._service._bundle_for(self._ctx, self._owner)
         return result

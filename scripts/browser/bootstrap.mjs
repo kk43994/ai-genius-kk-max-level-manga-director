@@ -74,7 +74,8 @@ async function refreshTasks() {
   const root = document.getElementById('task-root');
   if(!root.childElementCount){const pending=document.createElement('p');pending.textContent='正在读取任务状态…';const bar=document.createElement('progress');bar.setAttribute('aria-label','正在读取任务状态');root.replaceChildren(pending,bar);}
   try {
-    const tasks = await listAllTasks(); root.replaceChildren();
+    const allTasks = await listAllTasks(), projectId=workflow?.getState().projectId;
+    const tasks=allTasks.filter(task=>!projectId||task.projectId===projectId).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)); root.replaceChildren();
     const count = tasks.filter(task=>running.has(task.status)).length;
     document.getElementById('taskCount').textContent = String(count);
     const note = document.createElement('p'); note.className='integration-task-note';
@@ -82,7 +83,7 @@ async function refreshTasks() {
     root.append(note);
     for (const task of tasks.slice(-20).reverse()) {
       const item=document.createElement('div'); item.className='integration-task';
-      const label=document.createElement('strong'); label.textContent=task.recipe+' · '+({draft:'待确认',preparing:'准备中',submitting:'正在提交',submitted:'已提交，等待生成',queued:'排队中',running:'生成中',downloading:'收取中',completed:'文件已收取',needs_attention:'待处理',blocked_authorization:'需原账号授权',failed:'失败',cancelled:'已取消',unknown_submission:'提交状态待核验'}[task.status] || task.status);
+      const label=document.createElement('strong'); label.textContent=({mj_style:'MJ 风格',image2_asset:'Image2 资产',nano_refine:'Nano 精修'}[task.recipe]||task.recipe)+' · '+({draft:'待确认',preparing:'准备中',submitting:'正在提交',submitted:'已提交，等待生成',queued:'排队中',running:'生成中',downloading:'收取中',completed:'文件已收取',needs_attention:'待处理',blocked_authorization:'需原账号授权',failed:'失败',cancelled:'已取消',unknown_submission:'提交状态待核验'}[task.status] || task.status);
       const owner=document.createElement('small'); owner.textContent=(task.ownership.accountLabelAtCreation || task.ownership.providerAccountId)+' / '+(task.ownership.spaceNameAtCreation || task.ownership.spaceId);
       item.append(label,owner);
       if(running.has(task.status)){const bar=document.createElement('progress');bar.setAttribute('aria-label','任务处理中，等待实际结果');bar.style.width='100%';item.append(bar);}
@@ -121,7 +122,11 @@ events.addEventListener('shell:action',event=>{
       '工作区主所有者用于找回本站资料；创作账号与个人、团队空间用于明确新任务归属。切换选择不会改动历史任务。',
       '制作顺序是 MJ 风格 → Image2 资产 → Nano 精修。每一步先审核，再使用已确认版本继续；返修始终追溯原始 Image2。',
       '下载只包含已审核的成果。更新页面会先保存草稿，处理中的任务或下载会阻止刷新。',
-      config.mode==='local-client'?'首次连接读取账号信息；制作需要在账号管理中另行开启创作权限。当前版本的收费生成与视频仍未开放。':'当前为集成预览，可以整理项目与保存草稿。官方连接、收费生成和视频尚未开放。']){
+      config.mode==='local-client'
+        ? session?.features?.imageGeneration
+          ? '首次连接读取账号信息；制作需要在账号管理中另行开启创作权限。点击确认后才会使用 LibTV 积分生成图片；视频生成仍暂停。'
+          : '首次连接读取账号信息。本次启动尚未启用图片生成，剧本和草稿可以正常保存；视频生成仍暂停。'
+        : '当前为集成预览，可以整理项目与保存草稿。官方连接、收费生成和视频尚未开放。']){
       const paragraph=document.createElement('p');paragraph.textContent=text;body.append(paragraph);
     }
     if(!dialog.open)dialog.showModal();
@@ -208,7 +213,7 @@ try {
   document.getElementById('update-root').replaceChildren();
   if(config.mode==='local-client') {
     const root=document.getElementById('update-root');
-    const note=document.createElement('p');note.textContent='本地工作台 '+currentBuild.version+' · 支持剧本初稿拆解；创作权限需单独授权，图片生成与自动安装更新尚未开放。';
+    const note=document.createElement('p');note.textContent='本地工作台 '+currentBuild.version+' · 支持剧本初稿拆解；首次制作需连接 LibTV 并授予创作权限；图片结果逐步审核与保存。';
     const stop=document.createElement('button');stop.type='button';stop.textContent='退出本地工作台';
     stop.addEventListener('click',async()=>{
       stop.disabled=true;

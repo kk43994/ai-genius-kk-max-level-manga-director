@@ -83,7 +83,7 @@ class SafeMediaTransfer:
             target = parsed.path or '/'
             if parsed.query:
                 target += '?' + parsed.query
-            headers = {'Accept': 'image/png,image/jpeg,image/webp'} if method == 'GET' else {'Content-Type': 'application/octet-stream'}
+            headers = {'Accept': 'image/png,image/jpeg,image/webp'} if method == 'GET' else {}  # Signed PUT tickets do not declare a Content-Type header.
             connection.request(method, target, body=body, headers=headers)
             response = connection.getresponse()
             if response.status not in ({200} if method == 'GET' else {200, 201, 204}):
@@ -122,3 +122,57 @@ class SafeMediaTransfer:
             raise GenerationError('OUTPUT_INVALID')
         inspect_image(raw, mime, max_bytes=max_bytes, max_pixels=max_pixels, sha256=sha256)
         return raw
+
+
+class PublicMediaResolver:
+    """Resolve allowlisted public media when a local TUN returns Fake-IP.
+
+    Only the reserved 198.18/15 proxy pool triggers DoH. Private/loopback DNS
+    answers remain rejected by SafeMediaTransfer. DoH returns public IPv4s;
+    the downloader still pins the address and validates the original TLS host.
+    """
+    FAKE_IP = ipaddress.ip_network('198.18.0.0/15')
+
+    def __init__(self, allowed_hosts, *, system=socket.getaddrinfo, query=None):
+        self.hosts, self.system, self.query = frozenset(allowed_hosts), system, query or self._query
+        self.cache = {}
+
+    @staticmethod
+    def _query(host):
+        import json
+        from urllib.request import Request, build_opener, HTTPRedirectHandler
+        from urllib.parse import urlencode
+        class NoRedirect(HTTPRedirectHandler):
+            def redirect_request(self, *args, **kwargs): return None
+        url = 'https://cloudflare-dns.com/dns-query?' + urlencode({'name':host, 'type':'A'})
+        request = Request(url, headers={'Accept':'application/dns-json'})
+        with build_opener(NoRedirect()).open(request, timeout=10) as response:
+            if response.status != 200: raise ValueError()
+            raw = response.read(16385)
+            if len(raw) > 16384: raise ValueError()
+            return json.loads(raw)
+
+    def __call__(self, host, port, *, type=socket.SOCK_STREAM):
+        if host not in self.hosts or port != 443 or type != socket.SOCK_STREAM:
+            raise GenerationError('UNSAFE_MEDIA_URL')
+        addresses = self.system(host, port, type=type)
+        if not addresses or not all(ipaddress.ip_address(a[4][0]) in self.FAKE_IP for a in addresses):
+            return addresses
+        now = time.monotonic()
+        cached = self.cache.get(host)
+        if cached and cached[0] > now: return cached[1]
+        try:
+            body = self.query(host)
+            question = body.get('Question', [])
+            if (body.get('Status') != 0 or len(question) != 1
+                    or question[0].get('name', '').rstrip('.').lower() != host or question[0].get('type') != 1):
+                raise ValueError()
+            rows = [r for r in body.get('Answer', []) if r.get('type') == 1]
+            if not rows or len(rows) > 32: raise ValueError()
+            ips = [ipaddress.ip_address(r['data']) for r in rows]
+            if any(ip.version != 4 or not ip.is_global for ip in ips): raise ValueError()
+            result = [(socket.AF_INET,socket.SOCK_STREAM,socket.IPPROTO_TCP,'',(str(ip),443)) for ip in ips]
+            self.cache[host] = (now + 60, result)
+            return result
+        except Exception:
+            raise GenerationError('UNSAFE_MEDIA_URL') from None

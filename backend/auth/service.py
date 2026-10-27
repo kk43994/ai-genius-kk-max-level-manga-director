@@ -517,6 +517,14 @@ class ProviderService:
             raise AuthError('OWNERSHIP_MISMATCH')
         return selected
 
+    def _assert_space_payload(self, ctx, ownership, payload):
+        self._bundle_for(ctx, ownership)
+        spaces = self.account_reader.spaces_from_payload(payload, expected_subject=ownership['providerSubject'])['items']
+        selected = next((row for row in spaces if row['id'] == ownership['spaceId']), None)
+        if selected is None or selected['access'] != 'available' or selected['kind'] != ownership['spaceKind']:
+            raise AuthError('OWNERSHIP_MISMATCH')
+        return selected
+
 
 class BoundAccountClient:
     """Only identity/space discovery before a space is selected. No generation API."""
@@ -539,6 +547,7 @@ class BoundProviderClient:
     def __init__(self, service, ctx, ownership):
         self._service, self._ctx = service, copy.copy(ctx)
         self._owner = copy.deepcopy(ownership)
+        self._tools = BoundMCPTools(service, ctx, ownership)
 
     def __repr__(self):
         return '<BoundProviderClient credentials=redacted>'
@@ -560,12 +569,11 @@ class BoundProviderClient:
         granted = frozenset(bundle['tokens'].get('scope', '').split())
         if not set(required_scopes) <= granted:
             raise AuthError('PROVIDER_SCOPE_UNAVAILABLE')
-        self._service._assert_space(self._ctx, self._owner)
         try:
             from backend.generation.types import AuthorizedMCP
         except ImportError:
             raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE') from None
-        tools = BoundMCPTools(self._service, self._ctx, self._owner)
+        tools = self._tools
         def call_tool(name, arguments):
             # The generation contract accepts an MCP result envelope. The inner
             # dictionary has already passed the standard tool-result parser.

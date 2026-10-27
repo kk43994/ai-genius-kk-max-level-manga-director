@@ -20,6 +20,12 @@ AUTH_CODES = frozenset({
 })
 
 PREPARATION_CODES = {
+    "UNSAFE_MEDIA_URL":"素材下载地址未通过网络校验，原生成和导出记录已保留。",
+    "MEDIA_TRANSFER_FAILED":"图片已经生成，下载暂未完成；请查询原任务继续收取。",
+    "DELIVERY_UNCONFIRMED":"原任务仍在生成或准备导出，请稍后查询原任务。",
+    "OUTPUT_INVALID":"返回文件未通过格式、数量或完整性校验，请核对原任务。",
+    "PROVIDER_PROTOCOL_ERROR":"官方返回的数据结构无法读取，请核对原任务。",
+    "OPERATION_UNKNOWN":"原操作结果待核对，系统不会另建任务或重复生成。",
     "PROVIDER_SCOPE_REQUIRED":"原账号缺少此操作所需权限，请先核对授权范围。",
     "PROVIDER_SCOPE_UNAVAILABLE":"原账号缺少此操作所需权限，请先核对授权范围。",
     "PROVIDER_TOOL_SCHEMA_REQUIRED":"此步骤的官方工具定义尚未核实。",

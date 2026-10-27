@@ -6,7 +6,7 @@ without screenplay structure remains unparsed rather than inventing entities.
 import hashlib
 import re
 
-VERSION = 'screenplay-rules-v2'
+VERSION = 'screenplay-rules-v3'
 LABELS = {'角色': 'character', '人物': 'character', '出场人物': 'character',
           '场景': 'scene', '地点': 'scene', '道具': 'prop', '关键道具': 'prop', '异象': 'effect'}
 NON_SPEAKERS = set(LABELS) | {'时间', '对白', '旁白', '画外音', '字幕', '音效', '音乐', '动作',
@@ -17,6 +17,7 @@ NUMBERED_CUE = re.compile(r'(?:场景|镜头|闪回|画面|分镜|段落|转场|
 def extract_plan(text):
     rows, seen, warnings = [], set(), []
     title, style = '', ''
+    section = None
 
     def add(category, name, quote, description=''):
         name = re.sub(r'^[\s\-•·\d.、]+', '', name).strip(' 《》「」【】')
@@ -35,8 +36,18 @@ def extract_plan(text):
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
+            section = None
             continue
         content = re.sub(r'^#{1,6}\s*', '', line)
+        header = re.fullmatch(r'(出场人物|关键道具|角色|人物|道具|异象)\s*[:：]?', content)
+        if header:
+            section = LABELS[header.group(1)]
+            continue
+        if section:
+            definition = re.fullmatch(r'([^:：]{1,60})[:：]\s*(.+)', content)
+            if definition:
+                add(section, definition.group(1), line, definition.group(2))
+                continue
         named_title = re.fullmatch(r'(?:剧名|标题)\s*[:：]\s*(.{1,120})', content)
         book_title = re.fullmatch(r'《([^》]{1,120})》', content)
         if not title and (named_title or book_title):
@@ -49,7 +60,8 @@ def extract_plan(text):
         labelled = re.fullmatch(r'(出场人物|关键道具|角色|人物|场景|地点|道具|异象)\s*[:：]\s*(.+)', content)
         if labelled:
             category, details = LABELS[labelled.group(1)], labelled.group(2)
-            for part in re.split(r'[、,，;；]', details):
+            parts = re.split(r'[;；]', details) if re.search(r'[:：]', details) else re.split(r'[、,，;；]', details)
+            for part in parts:
                 name, *description = re.split(r'[:：—]|\s+-\s+', part, maxsplit=1)
                 # Lists are reliable; long unstructured descriptions are not names.
                 add(category, name, line, description[0].strip() if description else '')

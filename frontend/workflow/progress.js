@@ -20,7 +20,7 @@ export function elapsedLabel(start, now = Date.now()) {
 
 export function taskProgress(task) {
   return ({preparing:'核对制作参数',draft:'等待确认制作',submitting:'等待官方回执',
-    submitted:'已提交，等待生成',running:'LibTV 正在生成',downloading:'正在下载并校验素材',
+    queued:'LibTV 已接收，正在排队',submitted:'已提交，等待生成',running:'LibTV 正在生成',downloading:'正在下载并校验素材',
     completed:'素材已收取',needs_attention:'需要处理',blocked_authorization:'原账号需要恢复授权',
     failed:'制作未完成',cancelled:'已取消'})[task.status] || '正在核对任务状态';
 }

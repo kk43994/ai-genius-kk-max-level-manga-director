@@ -1,7 +1,7 @@
 import {stages, recipes, stageLabels, belongsToSelection, defaultPrompt} from './model.js';
 
 // A projection of saved state. It never marks reviews, submits or changes owner.
-export function nextAction({project, plan, assets, tasks, bundles = [], selection, taskError = ''}) {
+export function nextAction({project, plan, assets, tasks, bundles = [], selection, taskError = '', styleCount = 1}) {
   const result = (kind, title, detail, extra = {}) => ({kind, title, detail, ...extra});
   if (!project) return result('start', '输入剧本，开始制作', '支持粘贴正文，或导入 TXT、Markdown、DOCX。');
   if (!project.scriptIds.length) return result('import', '先导入剧本', '原文会保存在这个项目中。');
@@ -42,10 +42,10 @@ export function nextAction({project, plan, assets, tasks, bundles = [], selectio
       if (current?.status === 'completed' && !candidates.length) return result('blocked', '结果尚未接入审核', '任务已返回，但没有可审核素材，请先核对文件收取记录。', {...extra, task: current});
       const spec = {projectId: project.id, entityId: entity.id, recipe: recipes[stage],
         prompt: defaultPrompt(entity, stage, plan.stylePrompt || '根据剧本的时代、环境与氛围保持统一视觉设定，不增改角色身份。'),
-        sourceRevisionIds: source ? [source.id] : [], settings: {count: 1},
+        sourceRevisionIds: source ? [source.id] : [], settings: {count: stage === 'style' ? styleCount : 1},
         ...(repair ? {repairOfRevisionId: repair.id} : {})};
       return result('prepare', `${repair ? '返修' : '制作'} ${entity.name} · ${stageLabels[stage]}`,
-        '制作要求、参考图和文件归属由系统填写，每项先生成 1 张候选图。', {...extra, spec});
+        `制作要求、参考图和文件归属由系统填写，本次生成 ${stage === 'style' ? styleCount : 1} 张候选图。`, {...extra, spec});
     }
   }
   // A new review invalidates an old download even when the plan did not change.

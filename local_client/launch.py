@@ -86,7 +86,7 @@ def hold_windows_process_lock(name="Local\\AssetLab.Workbench"):
 
 
 def run(instance, *, port=18874, open_browser=True, frontend=None, version=APP_VERSION,
-        base_path="/asset-lab/", process_lock="Local\\AssetLab.Workbench", configure_app=None):
+        base_path="/asset-lab/", process_lock="Local\\AssetLab.Workbench", configure_app=None, enable_images=False):
     from backend.app import Config, CustomerHTTPServer, Response, create_app
     from backend.storage import SCHEMA_VERSION
     key = provision(instance)
@@ -99,7 +99,7 @@ def run(instance, *, port=18874, open_browser=True, frontend=None, version=APP_V
         return 0
     hold_windows_process_lock(process_lock)
     config = Config(instance / "data", port=port, public_base_path=base,
-                    secret_key_file=key, local_client=True,
+                    secret_key_file=key, local_client=True, allowPaidSubmission=enable_images,
                     frontend_dir=frontend or SERVER / "frontend")
     app = create_app(config)
     app.build_info.update(version=version, channel="preview", dataSchemaVersion=SCHEMA_VERSION)
@@ -137,6 +137,7 @@ def main():
     parser.add_argument("--instance", type=Path)
     parser.add_argument("--port", type=int, default=18874)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--enable-image-generation", action="store_true", help="Enable authorized local LibTV image submissions")
     parser.add_argument("--frontend", type=Path)
     args = parser.parse_args()
     instance = (args.instance or default_instance()).absolute()
@@ -144,7 +145,7 @@ def main():
         private_directory(instance / "logs")
         logging.basicConfig(filename=instance / "logs/launcher.log", level=logging.ERROR,
                             format="%(asctime)s %(levelname)s %(message)s")
-        return run(instance, port=args.port, open_browser=not args.no_browser, frontend=args.frontend)
+        return run(instance, port=args.port, open_browser=not args.no_browser, frontend=args.frontend, enable_images=args.enable_image_generation)
     except Exception as error:
         # Never log URL queries, provider responses, tokens or credential contents.
         logging.error("launcher_failed type=%s", type(error).__name__)

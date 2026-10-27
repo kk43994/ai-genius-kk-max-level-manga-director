@@ -22,6 +22,11 @@ class LibTVAccountReader:
         identity, payload = self._reader.read_snapshot(tokens)
         if identity.subject != expected_subject:
             raise AuthError('PROVIDER_IDENTITY_MISMATCH')
+        return self.spaces_from_payload(payload, expected_subject=expected_subject)
+
+    def spaces_from_payload(self, payload, *, expected_subject):
+        if payload.get('user', {}).get('uuid') != expected_subject:
+            raise AuthError('PROVIDER_IDENTITY_MISMATCH')
         accounts = payload.get('accounts')
         rows = accounts.get('accounts') if isinstance(accounts, dict) else None
         if not isinstance(rows, list) or len(rows) > 1000:
@@ -39,7 +44,7 @@ class LibTVAccountReader:
             if type(account_type) is not int or account_type not in (1, 2):
                 # Do not silently label a future/unknown account type as personal.
                 raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
-            if account_type == 1 and row.get('ownerUuid') != identity.subject:
+            if account_type == 1 and row.get('ownerUuid') != expected_subject:
                 raise AuthError('PROVIDER_IDENTITY_MISMATCH')
             seen.add(account_id)
             result.append({'id': str(account_id), 'kind': 'personal' if account_type == 1 else 'team',

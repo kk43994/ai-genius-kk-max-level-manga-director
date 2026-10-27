@@ -81,6 +81,15 @@ class QuickStartTests(unittest.TestCase):
                          [('scene','山间小亭'),('character','叶宇')])
         self.assertTrue(all(e['quote'] in text for e in entities))
 
+    def test_character_definition_keeps_full_appearance_without_splitting_commas(self):
+        definition='九天阁大师兄，身形挺拔，黑发垂落，神态散漫慵懒。'
+        for script in ('人物：\n叶宇：'+definition+'\n\n叶宇：不必紧张。', '角色：叶宇：'+definition):
+            entities=extract_plan(script)['entities']
+            self.assertEqual(len(entities),1)
+            self.assertEqual(entities[0]['name'],'叶宇')
+            self.assertEqual(entities[0]['description'],definition)
+            self.assertIn(entities[0]['quote'],script)
+
     def test_reanalysis_preview_never_overwrites_existing_plan(self):
         result=start(self.workflow,self.ctx,self.payload)
         pid,sid=result['project']['id'],result['script']['id']
