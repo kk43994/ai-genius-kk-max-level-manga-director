@@ -1,0 +1,39 @@
+{
+  "source": "https://mcp.liblib.tv/mcp",
+  "observedDate": "2026-10-27",
+  "obtainedVia": "initialize + tools/list using browser-approved account-read OAuth",
+  "tool": {
+    "name": "account_user",
+    "title": "Read LibTV account",
+    "description": "Read the authenticated LibTV user and active account membership without exposing credentials.",
+    "inputSchema": {
+      "properties": {},
+      "title": "account_userArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": true,
+      "title": "account_userDictOutput",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    "_meta": {
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "libtv:account:read"
+          ]
+        }
+      ]
+    }
+  },
+  "upstreamFixture": "tests/auth/fixtures/libtv-tools-public-2026-10-27.json",
+  "upstreamSha256": "233e375f372e6552053d4c767707579c50abb54564155a4ce6acacdc1449eb46",
+  "note": "Public tool definition only. All account response values in the companion file are synthetic."
+}

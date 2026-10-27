@@ -101,6 +101,8 @@ class Providers:
         assert ownership["tenantId"] == ctx["tenantId"]
         assert ownership["providerAccountId"]
         assert ownership["providerSubject"]
+        if self.accounts[(ctx["tenantId"], ownership["providerAccountId"])]["authorization"]["state"] == "expired":
+            raise ProviderFailure("TOKEN_EXPIRED")
         client = BoundClient(ownership, self)
         self.clients.append(client)
         return client

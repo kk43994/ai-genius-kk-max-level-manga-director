@@ -68,7 +68,10 @@ class SpaceService:
             raise normalize.invalid_response()
         if account.get("removedAt") is not None or authorization.get("state") == "removed":
             raise SpaceError("NOT_FOUND", "未找到此账号。", status=404)
-        if authorization.get("state") != "connected":
+        # Expiry is a presentation state: the bound auth client may still rotate
+        # a valid refresh grant. It must validate/refresh before any identity or
+        # space read. Revoked/error/unconfigured accounts remain blocked here.
+        if authorization.get("state") not in ("connected", "expired"):
             raise SpaceError("PROVIDER_AUTHORIZATION_REQUIRED", "请先完成此 LibTV 账号的官方授权。", status=409)
         identity = normalize.identity(account.get("identity"))
         return account, identity
