@@ -1,5 +1,6 @@
 """Double-click entry for a self-contained Windows package; no CLI login needed."""
 import argparse
+import atexit
 import base64
 import hashlib
 import http.client
@@ -17,6 +18,7 @@ import webbrowser
 SERVER = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SERVER))
 from backend.storage.platform_fs import private_directory, open_private, no_links
+from local_client import APP_VERSION
 
 
 def default_instance():
@@ -64,7 +66,26 @@ def local_json(port, path):
         connection.close()
 
 
-def run(instance, *, port=18874, open_browser=True, frontend=None, version="0.2.0-local.1"):
+def hold_windows_process_lock():
+    """Keep the installer from replacing a running customer's application files."""
+    if os.name != "nt":
+        return
+    import ctypes as C
+    from ctypes import wintypes as W
+    kernel = C.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateMutexW.argtypes = [C.c_void_p, W.BOOL, W.LPCWSTR]
+    kernel.CreateMutexW.restype = W.HANDLE
+    kernel.CloseHandle.argtypes = [W.HANDLE]
+    handle = kernel.CreateMutexW(None, False, "Local\\AssetLab.Workbench")
+    if not handle:
+        raise C.WinError(C.get_last_error())
+    if C.get_last_error() == 183:
+        kernel.CloseHandle(handle)
+        raise RuntimeError("本地工作台已在启动或运行")
+    atexit.register(kernel.CloseHandle, handle)
+
+
+def run(instance, *, port=18874, open_browser=True, frontend=None, version=APP_VERSION):
     from backend.app import Config, CustomerHTTPServer, Response, create_app
     from backend.storage import SCHEMA_VERSION
     key = provision(instance)
@@ -75,6 +96,7 @@ def run(instance, *, port=18874, open_browser=True, frontend=None, version="0.2.
         if open_browser:
             webbrowser.open(origin + base)
         return 0
+    hold_windows_process_lock()
     config = Config(instance / "data", port=port, public_base_path=base,
                     secret_key_file=key, local_client=True,
                     frontend_dir=frontend or SERVER / "frontend")
@@ -127,6 +149,10 @@ def main():
         if os.name == "nt" and not args.no_browser:
             import ctypes
             ctypes.windll.user32.MessageBoxW(None, message, "资产实验室", 0x10)
+        elif sys.platform == "darwin" and getattr(sys, "frozen", False) and not args.no_browser:
+            import subprocess
+            native = Path(sys.executable).parents[2] / "MacOS/AssetLab"
+            subprocess.run([str(native), "--show-error"], check=False)
         else:
             print(message, file=sys.stderr)
         return 1

@@ -13,6 +13,8 @@ import zipfile
 from build_customer import build
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from local_client import APP_VERSION
 PYTHON_VERSION = "3.14.10"
 
 
@@ -62,7 +64,7 @@ def main():
     shutil.copytree(ROOT / ".build/server", stage / "server")
     client = stage / "server/local_client"
     client.mkdir()
-    for name in ("__init__.py", "launch.py"):
+    for name in ("__init__.py", "launch.py", "asset-lab.ico"):
         shutil.copyfile(ROOT / "local_client" / name, client / name)
     runtime = stage / "runtime"
     runtime.mkdir()
@@ -80,7 +82,7 @@ def main():
     command = '@echo off\r\nchcp 65001 >nul\r\nstart "" "%~dp0runtime\\pythonw.exe" "%~dp0server\\local_client\\launch.py" --frontend "%~dp0public"\r\n'
     (stage / "启动资产实验室.cmd").write_bytes(command.encode("utf-8"))
     (stage / "使用说明.txt").write_text(
-        "资产实验室 · Windows 本地连接预览 0.2.0-local.1\n\n"
+        f"资产实验室 · Windows 本地连接预览 {APP_VERSION}\n\n"
         "1. 将整个 ZIP 解压到一个文件夹。不要在压缩包预览中运行。\n"
         "2. 双击“启动资产实验室.cmd”，浏览器会打开本机工作台。无需安装 Python、Codex 或 CLI。\n"
         "3. 点击“授权 LibTV”，在 LibTV 官方页面登录并确认账号读取权限。\n"
@@ -92,13 +94,13 @@ def main():
         "开发机已完成真实官方只读授权、身份/空间回读和重启保留连接；Windows 实机验证仍待完成。\n",
         encoding="utf-8-sig")
     provenance.update(wheels=[{"file": w.name, "sha256": digest(w)} for w in wheels],
-                      platform="windows-amd64", python=PYTHON_VERSION, version="0.2.0-local.1",
+                      platform="windows-amd64", python=PYTHON_VERSION, version=APP_VERSION,
                       liveUserCredentialsIncluded=False, windowsRuntimeExecuted=False,
                       sourceCommit=subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip())
     (stage / "build-provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
     files = {p.relative_to(stage).as_posix(): digest(p) for p in sorted(stage.rglob("*")) if p.is_file()}
     (stage / "files-sha256.json").write_text(json.dumps(files, ensure_ascii=False, indent=2), encoding="utf-8")
-    target = args.output / "AssetLab-Windows-x64-0.2.0-local.1.zip"
+    target = args.output / f"AssetLab-Windows-x64-{APP_VERSION}.zip"
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
         for path in sorted(stage.rglob("*")):
             if path.is_symlink():

@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PREFIX = "asset-lab-customer/"
 ROOT_FILES = {"README.md", "requirements.txt", "pyproject.toml", "package.json", "package-lock.json", ".env.example", ".gitignore", "release-manifest.example.json"}
 SOURCE_DIRS = {"backend", "frontend", "docs", "examples", "scripts", "tests", "deploy", "local_client"}
-EXTENSIONS = {".py", ".js", ".mjs", ".cjs", ".html", ".css", ".md", ".txt", ".json", ".toml", ".sh", ".yml", ".yaml", ".svg", ".png", ".ico", ".woff2", ".service", ".conf"}
+EXTENSIONS = {".py", ".js", ".mjs", ".cjs", ".html", ".css", ".md", ".txt", ".json", ".toml", ".sh", ".yml", ".yaml", ".svg", ".png", ".ico", ".icns", ".m", ".nsi", ".woff2", ".service", ".conf"}
 DENIED_PARTS = {"legacy", "__pycache__", "node_modules", "private", "credentials", "secrets", "data", "runtime", "work", "outputs", ".git", ".libtv"}
 
 
@@ -26,7 +26,7 @@ def include(path):
         return False
     if path in ROOT_FILES:
         return True
-    return (pure.parts[0] in SOURCE_DIRS and (pure.suffix in EXTENSIONS or path.endswith((".service.example", ".conf.example")))
+    return (pure.parts[0] in SOURCE_DIRS and (pure.suffix in EXTENSIONS or path.endswith((".service.example", ".conf.example", "macos-postinstall")))
             and not any(part.startswith(".") for part in pure.parts))
 
 

@@ -1,8 +1,10 @@
 # 资产实验室 · 本地 LibTV 连接预览
 
-当前优先交付 Windows 本地连接：双击启动工作台，点击“授权 LibTV”，在官方页面确认后，由本机回调自动核验账号并读取个人／团队空间。仅申请 `libtv:account:read`；授权令牌由本地服务加密存储，不放入浏览器、源码包或 Windows 程序包。生成和自动安装更新未开放。
+当前提供 Mac（Apple 芯片）与 Windows（x64）连接体验版：安装后创建桌面快捷方式，双击启动工作台，点击“授权 LibTV”，在官方页面确认后，由本机回调自动核验账号并读取个人／团队空间。仅申请 `libtv:account:read`；授权令牌由本地服务加密存储，不放入浏览器、源码包或程序包。生成和自动安装更新未开放。
 
-Windows 包自带官方 Python 运行时和固定版本依赖，无需安装 Python、Codex 或 CLI。解压后双击 `启动资产实验室.cmd`。数据位于 `%LOCALAPPDATA%\\AssetLab`，与程序分开。只绑定 `127.0.0.1:18874`；页面底部可停止本地服务。Windows 实机启动与本机权限保护仍需实机验收，打包成功不代表该验收通过。
+下载入口：<https://kk666.best/asset-lab/>。Windows EXE 为中文向导，安装到当前用户的 Programs 目录，创建桌面和开始菜单快捷方式；Mac PKG 安装到“应用程序”并为当前登录用户创建桌面链接。均自带运行时，无需安装 Python、Codex 或 CLI。Windows 数据位于 `%LOCALAPPDATA%\\AssetLab`，Mac 数据位于 `~/Library/Application Support/AssetLab`，与程序分开。只绑定 `127.0.0.1:18874`；页面底部可停止本地服务。卸载保留独立的数据目录。
+
+Windows 安装流程、快捷方式与本机权限保护仍需 Windows 实机验收；Mac 系统安装流程也需验收。Mac 独立应用的启动、重复打开和重启持久化须以打包后的应用核验。Windows 未代码签名，Mac 仅有本地 ad-hoc 签名，尚无 Developer ID 签名和 Apple 公证；当前为小范围试用包。不要建议用户关闭系统安全保护。
 
 开发人员可运行：
 
@@ -15,7 +17,19 @@ Windows 包自带官方 Python 运行时和固定版本依赖，无需安装 Pyt
 ```sh
 .venv/bin/python -m pip download --only-binary=:all: --platform win_amd64 --python-version 3.14 --implementation cp --abi cp314 --dest work/windows-wheels -r requirements.txt
 .venv/bin/python scripts/build_windows_local.py --output /absolute/path/to/output
+.venv/bin/python scripts/build_windows_installer.py --output /absolute/path/to/output
 ```
+
+Windows 安装器需要 NSIS，使用命名互斥量避免覆盖正在运行的程序。ZIP 仅用于支持人员排查，公开下载页使用 EXE。Mac 需在 Apple 芯片电脑上，使用最低部署目标为 macOS 11 的 Python 3.14 构建环境：
+
+```sh
+python -m pip install -r local_client/macos-build-requirements.txt
+python scripts/build_macos_local.py --output /absolute/path/to/output
+```
+
+已用 Astral python-build-standalone `20261026` 的 CPython 3.14.10 aarch64-apple-darwin 运行时构建；下载归档 SHA-256 为 `95eb8c87d16af37c54e9765e31d8c56c0d8ffa9968ea0f704f73a9b83f84e9f9`。不要用最低系统版本高于 macOS 11 的宿主 Python 构建并宣称兼容 macOS 11。打包后检查全部 Mach-O 的最低系统版本与应用签名，再在独立测试实例验证启动和持久化。
+
+`scripts/build_download_site.py` 从两份安装包及校验文件生成黑白下载页。必须提供 `--installer`、`--mac-installer`、`--mac-verification`、`--output`；核验报告须包含匹配的 `version` 与 `packagedLaunchPassed: true`。公网页面只含静态文件、安装包及校验值，不能复制任何本地实例、密钥或数据库。
 
 本分支基于集成版本 `46464071006fb3e734073b54c7d3d5684327ad81`，下面保留公共网页模式的开发说明。网页模式的正式授权门槛没有放开；只有明确启用且严格绑定本机的本地模式开放账号读取。
 

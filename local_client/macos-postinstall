@@ -1,0 +1,16 @@
+#!/bin/sh
+# Install the requested desktop shortcut for the signed-in user, preserving any unrelated file.
+set -eu
+target_volume="${3:-/}"
+if [ "$target_volume" != "/" ]; then exit 0; fi
+console_user="$(/usr/bin/stat -f '%Su' /dev/console)"
+case "$console_user" in root|loginwindow|'') exit 0 ;; esac
+user_home="$(/usr/bin/dscl . -read "/Users/$console_user" NFSHomeDirectory | /usr/bin/sed 's/^NFSHomeDirectory: //')"
+case "$user_home" in /*) ;; *) exit 0 ;; esac
+desktop="$user_home/Desktop"
+shortcut="$desktop/资产实验室.app"
+if [ -d "$desktop" ] && [ ! -e "$shortcut" ] && [ ! -L "$shortcut" ]; then
+  /bin/ln -s "/Applications/资产实验室.app" "$shortcut"
+  /usr/sbin/chown -h "$console_user" "$shortcut"
+fi
+exit 0
