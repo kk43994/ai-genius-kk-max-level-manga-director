@@ -31,6 +31,7 @@
     {"id":"W02","scenario":"each MJ/Image2/Nano revision awaits human approval before becoming next-stage source","status":"pending_modules","modules":[7,8]},
     {"id":"W03","scenario":"Nano repair traces original Image2 revision; changed sources invalidate downstream output","status":"pending_modules","modules":[8]},
     {"id":"W04","scenario":"only approved revisions export; ZIP CRC/hash checked, ownership enforced, no credentials or signed URLs in manifest","status":"pending_modules","modules":[7,8]},
+    {"id":"W05","scenario":"server-authored immutable workflow plan/style snapshot persists through task query/recovery/collection; late result after source version change stays stale and missing snapshot blocks current-version import; browser snapshot is not trusted or passed to provider","status":"pending_modules","modules":[7,8]},
     {"id":"R01","scenario":"version and release notes, semantic comparison, startup/manual/visibility polling; offline is not up-to-date","status":"pending_modules","modules":[5,9]},
     {"id":"R02","scenario":"refresh waits for saved drafts, preserves unsaved conflicts/projects/assets/grants/tasks; incompatible version permits save/read only","status":"pending_modules","modules":[3,5,7,8,9]},
     {"id":"U02","scenario":"Chrome completes all synthetic customer flows on root and subpath, narrow layout, failure recovery, reopen and manual review","status":"pending_modules","modules":[5,6,7,8,9]},

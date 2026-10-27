@@ -51,6 +51,8 @@ sessions.verify_csrf(ctx, presented_token) -> bool
 
 ## 配置与就绪报告
 
+任务/工作流联调还须保留服务端生成的不可变 workflow snapshot/context（清单与风格版本），贯穿准备、持久化、查询、恢复和结果回收。缺少快照或源已换版时，旧任务结果不得入库为当前版本；浏览器提交的任意 snapshot 不能成为可信来源，也不能透传给 provider。字段持久化归任务模块，来源校验与入库归工作流模块，集成验收见矩阵 `W05`。
+
 服务可读取 snake_case 字段，也可读取以下契约属性：`dataDir`（Path）、`publicOrigin`、`publicBasePath`（尾斜杠）、`apiBase`（无尾斜杠）、`allowPaidSubmission=False`、`videoGeneration=False`。clock 是 `services.clock()`，返回 UTC aware datetime。不得从浏览器接收本地根目录或任意上游 URL。
 
 服务可提供无副作用的 `readiness() -> {ready:bool,reason:'stable_machine_code'}`。缺少接口是 `readiness_not_reported`，异常为 `readiness_check_failed`。公开 reason 只允许短的小写机器码，防止泄露上游响应。`GET <apiBase>/health` 只报进程存活；`GET <apiBase>/ready` 对缺失或未就绪服务返回 503。真实 callback、subject/空间/模型、双账号和公网发布验收单列 false，不自动由 fake 测试或 factory 加载改为完成。
