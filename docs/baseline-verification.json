@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "scope": "Offline baseline verification only; does not assert production customer readiness",
+  "checks": [
+    {
+      "check": "Canonical preview entry and explicit baseline notice",
+      "passed": true
+    },
+    {
+      "check": "All linked scripts and styles resolve from browser document URL",
+      "passed": true
+    },
+    {
+      "check": "Synthetic blank scripts jobs and assets",
+      "passed": true
+    },
+    {
+      "check": "Disconnected account and unknown quota",
+      "passed": true
+    },
+    {
+      "check": "Source traversal hidden and all mutation/provider submission paths disabled",
+      "passed": true
+    },
+    {
+      "check": "Original service 8768 still returns HTTP 200",
+      "passed": true
+    },
+    {
+      "check": "Python source AST and JSON parse",
+      "passed": true
+    },
+    {
+      "check": "JavaScript syntax checks",
+      "passed": true
+    },
+    {
+      "check": "All 24 copied source files and originals match initial provenance hashes",
+      "passed": true
+    },
+    {
+      "check": "Targeted secret literal scan has no findings",
+      "passed": true
+    },
+    {
+      "check": "Git root is the new project itself",
+      "passed": true
+    }
+  ],
+  "browserObservation": {
+    "browser": "Chrome",
+    "port": 8870,
+    "observed": "Styled workflow, empty asset warehouse, no connected account, explicit baseline warning",
+    "oauthAuthorized": false,
+    "paidSubmission": false,
+    "deployed": false
+  }
+}

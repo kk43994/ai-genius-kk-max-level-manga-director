@@ -1,0 +1,28 @@
+{
+  "data": {
+    "session": {
+      "id": "session_example",
+      "expiresAt": "2026-11-26T00:00:00Z"
+    },
+    "tenant": {
+      "id": "tenant_example"
+    },
+    "csrfToken": "SYNTHETIC-NOT-A-CREDENTIAL",
+    "selection": {
+      "providerAccountId": null,
+      "spaceId": null,
+      "revision": 0
+    },
+    "features": {
+      "providerAuthorization": false,
+      "imageGeneration": false,
+      "videoGeneration": false,
+      "scriptAnalysis": false,
+      "persistentProjects": false
+    }
+  },
+  "meta": {
+    "requestId": "req_example",
+    "apiVersion": 1
+  }
+}

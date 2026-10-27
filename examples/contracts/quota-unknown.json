@@ -1,0 +1,19 @@
+{
+  "data": {
+    "providerAccountId": "pa_example",
+    "spaceId": "space_example",
+    "state": "unknown",
+    "remaining": null,
+    "unit": "credits",
+    "buckets": [],
+    "planName": null,
+    "source": "official",
+    "observedAt": null,
+    "expiresAt": null,
+    "reason": "provider_did_not_return_balance"
+  },
+  "meta": {
+    "requestId": "req_example",
+    "apiVersion": 1
+  }
+}

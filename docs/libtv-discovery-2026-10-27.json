@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "clientTimezone": "Asia/Shanghai",
+  "scope": "Read-only public discovery; no user or client authorization, no token exchange, no generation",
+  "observations": [
+    {
+      "observedAt": "2026-10-27T08:36:47.511560+00:00",
+      "method": "GET only; no credentials/cookies; no redirects; no client registration or user authorization",
+      "records": [
+        {
+          "url": "https://mcp.liblib.tv/mcp",
+          "status": 401,
+          "headers": {
+            "content-type": "application/json",
+            "www-authenticate": "Bearer error=\"invalid_token\", error_description=\"Authentication required\", resource_metadata=\"https://mcp.liblib.tv/.well-known/oauth-protected-resource/mcp\""
+          },
+          "body": {
+            "error": "invalid_token",
+            "error_description": "Authentication required"
+          }
+        },
+        {
+          "url": "https://mcp.liblib.tv/.well-known/oauth-protected-resource",
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": {
+            "resource": "https://mcp.liblib.tv/mcp",
+            "authorization_servers": [
+              "https://mcp.liblib.tv/"
+            ],
+            "scopes_supported": [
+              "libtv:account:read",
+              "libtv:project:read",
+              "libtv:project:write",
+              "libtv:media:write",
+              "libtv:task:write",
+              "libtv:export:write"
+            ],
+            "resource_documentation": "https://mcp.liblib.tv/docs"
+          }
+        },
+        {
+          "url": "https://mcp.liblib.tv/.well-known/oauth-authorization-server",
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": {
+            "issuer": "https://mcp.liblib.tv/",
+            "authorization_endpoint": "https://mcp.liblib.tv/authorize",
+            "token_endpoint": "https://mcp.liblib.tv/token",
+            "registration_endpoint": "https://mcp.liblib.tv/register",
+            "scopes_supported": [
+              "libtv:account:read",
+              "libtv:project:read",
+              "libtv:project:write",
+              "libtv:media:write",
+              "libtv:task:write",
+              "libtv:export:write"
+            ],
+            "response_types_supported": [
+              "code"
+            ],
+            "grant_types_supported": [
+              "authorization_code",
+              "refresh_token"
+            ],
+            "token_endpoint_auth_methods_supported": [
+              "client_secret_post",
+              "client_secret_basic",
+              "none"
+            ],
+            "service_documentation": "https://mcp.liblib.tv/docs",
+            "revocation_endpoint": "https://mcp.liblib.tv/revoke",
+            "revocation_endpoint_auth_methods_supported": [
+              "client_secret_post",
+              "client_secret_basic",
+              "none"
+            ],
+            "code_challenge_methods_supported": [
+              "S256"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "observedAt": "2026-10-27T08:37:09.133848+00:00",
+      "method": "Public GET/OPTIONS only; no cookies, credentials, client registration, token exchange, user authorization or generation",
+      "records": [
+        {
+          "method": "GET",
+          "url": "https://mcp.liblib.tv/.well-known/oauth-protected-resource/mcp",
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": {
+            "resource": "https://mcp.liblib.tv/mcp",
+            "authorization_servers": [
+              "https://mcp.liblib.tv/"
+            ],
+            "scopes_supported": [],
+            "bearer_methods_supported": [
+              "header"
+            ]
+          }
+        },
+        {
+          "method": "GET",
+          "url": "https://mcp.liblib.tv/docs",
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": {
+            "service": "libtv-remote-mcp-gateway",
+            "version": "0.1.0",
+            "environment": "prod",
+            "endpoints": {
+              "mcp": "/mcp",
+              "health": "/health",
+              "readiness": "/health/ready",
+              "protected_resource_metadata": "/.well-known/oauth-protected-resource",
+              "authorization_server_metadata": "/.well-known/oauth-authorization-server"
+            },
+            "authorization": {
+              "type": "oauth2.1_authorization_code_pkce",
+              "issuer": "https://mcp.liblib.tv/",
+              "scopes": [
+                "libtv:account:read",
+                "libtv:project:read",
+                "libtv:project:write",
+                "libtv:media:write",
+                "libtv:task:write",
+                "libtv:export:write"
+              ]
+            }
+          }
+        },
+        {
+          "method": "OPTIONS",
+          "url": "https://mcp.liblib.tv/register",
+          "status": 500,
+          "headers": {
+            "content-type": "text/plain; charset=utf-8"
+          },
+          "body": "Internal Server Error"
+        },
+        {
+          "method": "GET",
+          "url": "https://mcp.liblib.tv/.well-known/openid-configuration",
+          "status": 404,
+          "headers": {
+            "content-type": "text/plain; charset=utf-8"
+          },
+          "body": "Not Found"
+        }
+      ]
+    }
+  ]
+}

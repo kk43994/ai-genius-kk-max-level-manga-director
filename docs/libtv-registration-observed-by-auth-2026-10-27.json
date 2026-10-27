@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceThreadId": "01a17c7f-68c7-7482-968d-272832e83e2f",
+  "sourceThreadTitle": "资产实验室：LibTV 官方授权",
+  "provenance": "Read-only inspection of sibling authorization session command outputs and safe summary files. This baseline session did not repeat POST registration. No identifiers or credentials copied.",
+  "results": [
+    {
+      "sourceFile": "/Users/zhoukaihao/Documents/Codex/2026-10-27/asset-lab-task-02/work/dcr-probe-summary.json",
+      "records": [
+        {
+          "status": 400,
+          "responseFields": [
+            "error",
+            "error_description"
+          ],
+          "httpsRedirectAccepted": false,
+          "authMethod": null,
+          "grants": null,
+          "scope": null,
+          "clientIdPresent": false,
+          "clientSecretPresent": false,
+          "noRealUserAuthorized": true,
+          "callbackDomain": "asset-lab.invalid (reserved, not a live deployment)"
+        }
+      ]
+    },
+    {
+      "sourceFile": "/Users/zhoukaihao/Documents/Codex/2026-10-27/asset-lab-task-02/work/dcr-redirect-evidence.json",
+      "records": [
+        {
+          "redirectUri": "https://example.com/api/v1/oauth/libtv/callback",
+          "status": 400,
+          "error": "invalid_redirect_uri",
+          "description": "redirect URI is not allowed",
+          "clientIdPresent": false,
+          "clientSecretPresent": false,
+          "authMethod": null,
+          "scope": null,
+          "noUserAuthorization": true
+        },
+        {
+          "redirectUri": "https://localhost:18872/api/v1/oauth/libtv/callback",
+          "status": 400,
+          "error": "invalid_redirect_uri",
+          "description": "redirect URI is not allowed",
+          "clientIdPresent": false,
+          "clientSecretPresent": false,
+          "authMethod": null,
+          "scope": null,
+          "noUserAuthorization": true
+        },
+        {
+          "redirectUri": "http://127.0.0.1:18872/api/v1/oauth/libtv/callback",
+          "status": 201,
+          "error": null,
+          "description": null,
+          "clientIdPresent": true,
+          "clientSecretPresent": false,
+          "authMethod": "none",
+          "scope": "libtv:account:read",
+          "noUserAuthorization": true
+        }
+      ]
+    },
+    {
+      "sourceFile": "/Users/zhoukaihao/Documents/Codex/2026-10-27/asset-lab-task-02/work/candidate-domain-evidence.json",
+      "records": [
+        {
+          "redirectUri": "https://kk666.best/asset-lab/api/v1/oauth/libtv/callback",
+          "status": 400,
+          "error": "invalid_redirect_uri",
+          "description": "redirect URI is not allowed",
+          "clientIdPresent": false,
+          "clientSecretPresent": false,
+          "noUserAuthorization": true
+        }
+      ]
+    }
+  ]
+}

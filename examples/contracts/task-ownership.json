@@ -1,0 +1,11 @@
+{
+  "tenantId": "tenant_example",
+  "provider": "libtv",
+  "providerAccountId": "pa_example",
+  "providerSubject": "official-subject-example",
+  "spaceId": "space_example",
+  "spaceKind": "personal",
+  "boundAt": "2026-10-27T00:00:00Z",
+  "accountLabelAtCreation": "我的账号",
+  "spaceNameAtCreation": "个人空间"
+}

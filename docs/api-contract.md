@@ -17,6 +17,8 @@
 
 最终公共接口统一 `/api/v1/`；JSON UTF-8、时间 UTC ISO-8601、内部 ID 为不透明字符串。GET 无写入业务副作用（首次站点 session 引导除外）。Cookie 会话的变更请求带 `X-CSRF-Token`；创建/提交任务带 `Idempotency-Key`。同键同正文返回同结果，同键不同正文返回 409；幂等记录在进程/发布重启后保留。
 
+上面的路径相对站点安装前缀。若第 9 会话采用候选 `/asset-lab/`，配置 `ASSET_LAB_BASE_PATH=/asset-lab`，外部路径为 `/asset-lab/api/v1/...`，公共 adapter 去前缀后匹配本文路由。OAuth redirect URI 必须包含实际前缀并经官方准入；前端从统一 bootstrap 的 basePath 构造资源/API URL，不能硬写根目录。这是部署适配约定，不是已上线地址。
+
 成功：`{"data": {...}, "meta": {"requestId":"...", "apiVersion":1}}`。列表 data 为 `{items, nextCursor}`。错误：`{"error":{"code":"...","message":"面向用户的简短原因","retryable":false,"details":{}},"meta":{"requestId":"...","apiVersion":1}}`。501 `NOT_IMPLEMENTED`、401 `SESSION_REQUIRED`、403 `FORBIDDEN`/`CSRF_FAILED`、404 `NOT_FOUND`、409 `VERSION_CONFLICT`/`SELECTION_CHANGED`/`OWNERSHIP_MISMATCH`、422 `VALIDATION_FAILED`、503 `PROVIDER_UNAVAILABLE`。不要把原始官方响应或签名 URL 作为 error details。
 
 更新对象带整数 `expectedVersion`，成功原子递增 `version`。选择上下文使用 `expectedRevision`。请求 body 不接受 `tenantId`；所有 SQL/文件操作必须带服务端 `ctx.tenantId`。

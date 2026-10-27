@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": "NOT_IMPLEMENTED",
+    "message": "客户版模块尚未接入",
+    "retryable": false,
+    "details": {}
+  },
+  "meta": {
+    "requestId": "req_example",
+    "apiVersion": 1
+  }
+}
