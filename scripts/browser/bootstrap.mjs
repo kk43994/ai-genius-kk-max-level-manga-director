@@ -20,7 +20,7 @@ accountDialog.append(closeAccounts,accountRoot);document.body.append(accountDial
 const openAccounts=()=>{if(!accountDialog.open)accountDialog.showModal();};
 accountButton.addEventListener('click',openAccounts);closeAccounts.addEventListener('click',()=>accountDialog.close());
 accountDialog.addEventListener('close',()=>accountButton.focus());
-let readOnly = false, activeDownloads = 0, pendingWrites = 0;
+let readOnly = false, activeDownloads = 0, pendingWrites = 0, switchingWorkspace=false;
 let workflow, accounts, drafts, shell, session;
 const status = document.createElement('div'); status.className = 'integration-notice'; status.setAttribute('role','status');
 const save = document.createElement('button'); save.type='button'; save.textContent='保存当前草稿';
@@ -37,7 +37,7 @@ const api = {...transport, async request(path, options = {}) {
 
 async function saveDraft() {
   await workflow?.flushDrafts(); await accounts?.flush();
-  return drafts.save();
+  return drafts.save({force:true});
 }
 save.addEventListener('click', () => saveDraft().then(result => {
   display(result.saved ? '草稿已保存到当前工作区。' : '刚才的草稿已保存，最新输入仍在保存中。');
@@ -120,7 +120,7 @@ events.addEventListener('session:changed',event=>{
   const next=event.detail.session || event.detail;
   if(session && next?.tenant?.id && next.tenant.id !== session.tenant.id){
     // Owner UI waits for the server's cookie rotation before this event.
-    drafts.destroy(); location.assign(config.publicBasePath); return;
+    switchingWorkspace=true; drafts.destroy(); location.assign(config.publicBasePath); return;
   }
 });
 events.addEventListener('tasks:changed',()=>void refreshTasks());
@@ -145,7 +145,7 @@ try {
   await refreshTasks();
   document.getElementById('update-root').replaceChildren();
   mountUpdates({root:document.getElementById('update-root'),api,events,session,currentBuild,getSafetyState:safety,saveDraft,publicBasePath:config.publicBasePath});
-  window.addEventListener('beforeunload',event=>{if(drafts.hasPending() || pendingWrites || activeDownloads){event.preventDefault();event.returnValue='';}});
+  window.addEventListener('beforeunload',event=>{if(!switchingWorkspace && (drafts.hasPending() || pendingWrites || activeDownloads)){event.preventDefault();event.returnValue='';}});
   if(!drafts.conflict) void drafts.save().catch(()=>{});
 } catch(error) {
   display(error.message || '工作区暂时无法载入，请稍后重试。'); save.disabled=true;

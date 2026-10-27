@@ -31,3 +31,13 @@ test('account authorization attempts and URLs are excluded from draft persistenc
   const f=setup();await f.drafts.load();f.storage.setItem(f.drafts.accountKey,JSON.stringify({draft:{providerAccountId:'pa',spaceId:'sp'},attempt:{authorizationUrl:'never-persist-this'}}));
   const saving=f.drafts.save();f.ack(1);await saving;assert.deepEqual(f.calls[0].body.content.accountSelection,{providerAccountId:'pa',spaceId:'sp'});assert.equal(JSON.stringify(f.calls).includes('never-persist-this'),false);f.drafts.destroy();
 });
+test('opening an empty customer page does not create false workspace content',async()=>{
+  const f=setup();await f.drafts.load();f.storage.setItem(f.drafts.workflowKey,JSON.stringify({page:'plan',selectedProject:''}));
+  f.storage.setItem(f.drafts.accountKey,JSON.stringify({draft:{providerAccountId:null,spaceId:null}}));
+  assert.equal(f.drafts.hasPending(),false);assert.deepEqual(await f.drafts.save(),{saved:true,savedDrafts:[]});assert.equal(f.calls.length,0);f.drafts.destroy();
+});
+test('owner confirmation can request a fresh durable draft receipt',async()=>{
+  const content={workflow:{'new-project':{name:'已保存草稿'}},accountSelection:null};
+  const f=setup({version:4,content});await f.drafts.load();const saving=f.drafts.save({force:true});
+  assert.equal(f.calls[0].body.expectedVersion,4);f.ack(5);assert.equal((await saving).savedDrafts[0].version,5);f.drafts.destroy();
+});

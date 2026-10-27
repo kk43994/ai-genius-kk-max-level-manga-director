@@ -45,14 +45,21 @@ export class DraftCoordinator {
   checkpoint() {
     this.storage.setItem(this.metaKey, encode({version:this.version, fingerprint:this.ack}));
   }
-  hasPending() { return this.conflict || Boolean(this.pendingSave) || encode(this.snapshot()) !== this.ack; }
+  hasContent() {
+    const {workflow,accountSelection}=this.snapshot();
+    return Boolean(accountSelection?.providerAccountId || accountSelection?.spaceId || workflow.selectedProject
+      || Object.entries(workflow).some(([key,value]) => key.startsWith('plan:') || key.startsWith('compose:') || key.startsWith('review:')
+        || (key==='new-project' && Object.values(value || {}).some(text=>String(text).trim()))));
+  }
+  hasPending() { return this.conflict || Boolean(this.pendingSave) || ((this.version>0 || this.hasContent()) && encode(this.snapshot()) !== this.ack); }
   changed() { clearTimeout(this.timer); this.onState(this); this.timer = setTimeout(() => this.save().catch(() => {}), 800); }
-  async save() {
+  async save({force=false}={}) {
     clearTimeout(this.timer);
-    if (this.pendingSave) { await this.pendingSave; return this.save(); }
+    if (this.pendingSave) { await this.pendingSave; return this.save({force}); }
     if (this.conflict) throw new Error(this.error);
+    if (!force && !this.version && !this.hasContent()) return {saved:true,savedDrafts:[]};
     const snapshot = this.snapshot(), fingerprint = encode(snapshot);
-    if (fingerprint === this.ack && this.version) return {saved:true, savedDrafts:[{collection:'drafts',id:'browser_drafts_v1',version:this.version}]};
+    if (!force && fingerprint === this.ack && this.version) return {saved:true, savedDrafts:[{collection:'drafts',id:'browser_drafts_v1',version:this.version}]};
     this.pendingSave = this.api.request('/drafts/browser', {method:'PUT', body:{expectedVersion:this.version,content:snapshot}});
     this.onState(this);
     try {
