@@ -11,7 +11,7 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = "asset-lab-customer/"
 ROOT_FILES = {"README.md", "requirements.txt", "pyproject.toml", "package.json", "package-lock.json", ".env.example", ".gitignore", "release-manifest.example.json"}
-SOURCE_DIRS = {"backend", "frontend", "docs", "examples", "scripts", "tests", "deploy"}
+SOURCE_DIRS = {"backend", "frontend", "docs", "examples", "scripts", "tests", "deploy", "local_client"}
 EXTENSIONS = {".py", ".js", ".mjs", ".cjs", ".html", ".css", ".md", ".txt", ".json", ".toml", ".sh", ".yml", ".yaml", ".svg", ".png", ".ico", ".woff2", ".service", ".conf"}
 DENIED_PARTS = {"legacy", "__pycache__", "node_modules", "private", "credentials", "secrets", "data", "runtime", "work", "outputs", ".git", ".libtv"}
 

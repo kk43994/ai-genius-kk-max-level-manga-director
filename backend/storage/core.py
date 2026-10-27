@@ -22,6 +22,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .errors import StorageError, conflict, invalid, not_found
+from . import platform_fs
 
 SCHEMA_VERSION = 2
 _ID = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,127}\Z")
@@ -102,18 +103,17 @@ def _no_credentials(value):
 
 
 def _no_symlinks(path):
-    for item in [*reversed(path.parents), path]:
-        if item.is_symlink():
-            raise StorageError("UNSAFE_DATA_PATH", "数据路径不能经过符号链接", 500)
+    try:
+        platform_fs.no_links(path)
+    except OSError:
+        raise StorageError("UNSAFE_DATA_PATH", "数据路径不能经过链接", 500) from None
 
 
 def _private_directory(path):
-    _no_symlinks(path)
-    path.mkdir(mode=0o700, parents=True, exist_ok=True)
-    info = path.stat()
-    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
-        raise StorageError("UNSAFE_DATA_PATH", "数据目录所有者不符合要求", 500)
-    path.chmod(0o700)
+    try:
+        platform_fs.private_directory(path)
+    except OSError:
+        raise StorageError("UNSAFE_DATA_PATH", "数据目录权限不符合要求", 500) from None
 
 
 def _inside(path, root):
@@ -156,11 +156,11 @@ class Store:
         if _inside(key_path.resolve(), data_path.resolve()) or _inside(key_path.resolve(), release):
             raise StorageError("UNSAFE_SECRET_PATH", "密钥必须独立于数据和发布目录", 500)
         try:
-            fd = os.open(key_path, os.O_RDONLY | os.O_NOFOLLOW)
+            fd = platform_fs.open_private(key_path, os.O_RDONLY)
             with os.fdopen(fd, "rb") as handle:
                 info = os.fstat(handle.fileno())
-                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
-                        or info.st_mode & 0o077 or info.st_nlink != 1):
+                if (not stat.S_ISREG(info.st_mode) or not platform_fs.owned(info)
+                        or not platform_fs.private_mode(info) or info.st_nlink != 1):
                     raise StorageError("UNSAFE_SECRET_PATH", "密钥文件需为当前服务用户独占的普通文件", 500)
                 encoded = handle.read(256).strip()
             key = base64.b64decode(encoded, validate=True)
@@ -175,12 +175,12 @@ class Store:
         for path in (self.db_path, Path(str(self.db_path) + "-wal"), Path(str(self.db_path) + "-shm")):
             if path.exists() or path.is_symlink():
                 info = path.lstat()
-                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                if (not stat.S_ISREG(info.st_mode) or not platform_fs.owned(info)
                         or info.st_nlink != 1):
                     raise StorageError("UNSAFE_DATA_PATH", "数据库文件路径不安全", 500)
                 path.chmod(0o600)
         # Create the initial database without a permissive umask window.
-        fd = os.open(self.db_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fd = platform_fs.open_private(self.db_path, os.O_CREAT | os.O_RDWR, 0o600)
         os.close(fd)
         connection = sqlite3.connect(str(self.db_path), timeout=10, isolation_level=None)
         connection.row_factory = sqlite3.Row

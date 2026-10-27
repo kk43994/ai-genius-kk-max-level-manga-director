@@ -1,4 +1,25 @@
-# 资产实验室 · 客户网页版集成预览
+# 资产实验室 · 本地 LibTV 连接预览
+
+当前优先交付 Windows 本地连接：双击启动工作台，点击“授权 LibTV”，在官方页面确认后，由本机回调自动核验账号并读取个人／团队空间。仅申请 `libtv:account:read`；授权令牌由本地服务加密存储，不放入浏览器、源码包或 Windows 程序包。生成和自动安装更新未开放。
+
+Windows 包自带官方 Python 运行时和固定版本依赖，无需安装 Python、Codex 或 CLI。解压后双击 `启动资产实验室.cmd`。数据位于 `%LOCALAPPDATA%\\AssetLab`，与程序分开。只绑定 `127.0.0.1:18874`；页面底部可停止本地服务。Windows 实机启动与本机权限保护仍需实机验收，打包成功不代表该验收通过。
+
+开发人员可运行：
+
+```sh
+.venv/bin/python local_client/launch.py --instance /absolute/path/outside-source/local-instance
+```
+
+构建 Windows 包前，下载固定版本的 Windows x64 wheels，再调用构建脚本。脚本从 Python 官方发布清单确定内嵌运行时并校验 SHA-256；只复制公共前端、服务器代码和依赖，不复制任何运行实例。
+
+```sh
+.venv/bin/python -m pip download --only-binary=:all: --platform win_amd64 --python-version 3.14 --implementation cp --abi cp314 --dest work/windows-wheels -r requirements.txt
+.venv/bin/python scripts/build_windows_local.py --output /absolute/path/to/output
+```
+
+本分支基于集成版本 `46464071006fb3e734073b54c7d3d5684327ad81`，下面保留公共网页模式的开发说明。网页模式的正式授权门槛没有放开；只有明确启用且严格绑定本机的本地模式开放账号读取。
+
+## 公共网页模式的集成状态
 
 公共入口已装配 SQLite 存储、本站会话、LibTV 授权生命周期、账号与空间选择、项目工作流、任务归属与恢复、版本更新。前端只有一个 bootstrap，共享 API client 和事件通道。项目与草稿可以保存、刷新和重启恢复，角色、场景、道具分别保留制作与人工审核记录。
 

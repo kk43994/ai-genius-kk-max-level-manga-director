@@ -65,7 +65,7 @@ async function listAllTasks() {
 async function safety() {
   const tasks = await listAllTasks();
   const state = workflow.getState();
-  return {hasUnsavedChanges:boundary.frozen || accounts.getDirtyState().ownerActive || drafts.hasPending() || pendingWrites > 0 || state.busy || Boolean(state.saveError),
+  return {hasUnsavedChanges:boundary.frozen || accounts.getDirtyState().ownerActive || accounts.getDirtyState().authorizationActive || drafts.hasPending() || pendingWrites > 0 || state.busy || Boolean(state.saveError),
     activeTasks:tasks.filter(task => running.has(task.status)).length, activeDownloads};
 }
 async function refreshTasks() {
@@ -106,7 +106,7 @@ events.addEventListener('release:changed', event=>{
   else if(event.detail.compatibleNow===true && readOnly){readOnly=false;delete document.body.dataset.readOnly;drafts?.onState(drafts);}
 });
 events.addEventListener('shell:action',event=>{
-  if(event.detail.action==='connect'){event.preventDefault();openAccounts();}
+  if(event.detail.action==='connect'){event.preventDefault();openAccounts();if(config.mode==='local-client')void accounts?.authorize();}
   if(event.detail.action==='manual-plan')shell.setView({workspaceState:'ready'});
   if(event.detail.action==='help'){
     event.preventDefault();const dialog=document.getElementById('shell-info-dialog');
@@ -116,7 +116,7 @@ events.addEventListener('shell:action',event=>{
       '工作区主所有者用于找回本站资料；创作账号与个人、团队空间用于明确新任务归属。切换选择不会改动历史任务。',
       '制作顺序是 MJ 风格 → Image2 资产 → Nano 精修。每一步先审核，再使用已确认版本继续；返修始终追溯原始 Image2。',
       '下载只包含已审核的成果。更新页面会先保存草稿，处理中的任务或下载会阻止刷新。',
-      '当前为集成预览，可以整理项目与保存草稿。官方连接、收费生成和视频尚未开放。']){
+      config.mode==='local-client'?'本地版可点击“授权 LibTV”连接自己的账号。当前仅读取账号信息，收费生成和视频尚未开放。':'当前为集成预览，可以整理项目与保存草稿。官方连接、收费生成和视频尚未开放。']){
       const paragraph=document.createElement('p');paragraph.textContent=text;body.append(paragraph);
     }
     if(!dialog.open)dialog.showModal();
@@ -179,10 +179,15 @@ try {
     const label=document.getElementById('saveStatus'); if(label)label.textContent=state.error?'草稿待处理':state.hasPending()?'正在保存草稿':'草稿已保存';
   }});
   await drafts.load();
-  accounts=mountAccounts({root:document.getElementById('account-root'),api,events,session,publicBasePath:config.publicBasePath,workspaceRecovery:workspaceRecoveryHooks()});
+  accounts=mountAccounts({root:document.getElementById('account-root'),api,events,session,publicBasePath:config.publicBasePath,workspaceRecovery:workspaceRecoveryHooks(),localClient:config.mode==='local-client'});
   drafts.readAccountDraft=()=>accounts.getDraftSelection();
   workflow=mountWorkflow({root:document.getElementById('workflow-root'),api,events,session,...config,storage:drafts.adapter});
   await Promise.all([accounts.ready,workflow.ready]);
+  if(config.mode==='local-client') {
+    const authorize=document.createElement('button');authorize.type='button';authorize.className='lab-button integration-account-trigger';authorize.textContent='授权 LibTV';
+    accountButton.before(authorize);
+    authorize.addEventListener('click',()=>{openAccounts();void accounts.authorize();});
+  }
   drafts.onState(drafts);
   if(workflow.getState().projectId || Object.keys(drafts.snapshot().workflow).some(key=>key==='new-project'||key.startsWith('plan:'))) shell.setView({workspaceState:'ready'});
   document.querySelectorAll('#workflow-root,#account-root').forEach(root=>{
@@ -190,7 +195,26 @@ try {
   });
   await refreshTasks();
   document.getElementById('update-root').replaceChildren();
-  updates=mountUpdates({root:document.getElementById('update-root'),api,events,session,currentBuild,getSafetyState:safety,saveDraft,publicBasePath:config.publicBasePath});
+  if(config.mode==='local-client') {
+    const root=document.getElementById('update-root');
+    const note=document.createElement('p');note.textContent='本地连接预览 '+currentBuild.version+' · 仅开放 LibTV 账号读取，生成和自动安装更新尚未开放。';
+    const stop=document.createElement('button');stop.type='button';stop.textContent='退出本地工作台';
+    stop.addEventListener('click',async()=>{
+      stop.disabled=true;
+      try {
+        const saved=await saveDraft();const safe=await safety();
+        if(saved?.saved!==true||safe.hasUnsavedChanges||safe.activeTasks||safe.activeDownloads)throw new Error('请先完成保存、授权或运行中的任务，再退出。');
+        await api.request('/local-runtime/stop',{method:'POST',body:{}});
+        switchingWorkspace=true;drafts.destroy();workflow.unmount();accounts.unmount();freezeEditing(true);
+        root.inert=false;
+        note.textContent='本地工作台已退出。再次双击启动即可继续。';
+        display(note.textContent);
+      } catch(error){display(error.message);stop.disabled=false;}
+    });
+    root.append(note,stop);
+  } else {
+    updates=mountUpdates({root:document.getElementById('update-root'),api,events,session,currentBuild,getSafetyState:safety,saveDraft,publicBasePath:config.publicBasePath});
+  }
   window.addEventListener('beforeunload',event=>{if(!switchingWorkspace && (drafts.hasPending() || pendingWrites || activeDownloads)){event.preventDefault();event.returnValue='';}});
   if(!drafts.conflict) void drafts.save().catch(()=>{});
 } catch(error) {

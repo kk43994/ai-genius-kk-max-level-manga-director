@@ -8,7 +8,7 @@ const idPath = value => encodeURIComponent(value);
 const freshKey = () => globalThis.crypto?.randomUUID?.() || `accounts-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /** Mount only into the shell's account-root; never replace any project/workflow content. */
-export function mount({ root, api, events = new EventTarget(), session = null, publicBasePath = '/', pollInterval = 2500, workspaceRecovery = {} }) {
+export function mount({ root, api, events = new EventTarget(), session = null, publicBasePath = '/', pollInterval = 2500, workspaceRecovery = {}, localClient = false }) {
   if (!root?.ownerDocument || typeof api?.request !== 'function') throw new TypeError('accounts.mount requires root and api.request');
   const document = root.ownerDocument;
   const win = document.defaultView;
@@ -75,6 +75,12 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     </section>`;
   const refs = Object.fromEntries([...root.querySelectorAll('[data-view]')].map(el => [el.dataset.view, el]));
   const buttons = Object.fromEntries([...root.querySelectorAll('button[data-action]')].map(el => [el.dataset.action, el]));
+  if (localClient) {
+    buttons.add.textContent = '授权 LibTV';
+    root.querySelector('.al-accounts__generation-title').textContent = '连接我的 LibTV';
+    root.querySelector('.al-accounts__intro').textContent = '点击授权 → 在 LibTV 官方页面登录并确认 → 自动连接账号与空间。此次仅读取账号信息，不会上传素材或发起生成。';
+    refs['owner-root'].hidden = true;
+  }
   const text = (name, value) => { if (refs[name].textContent !== value) refs[name].textContent = value; };
   const setError = value => { error = value; render(); };
 
@@ -386,7 +392,14 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
         authorizationUrl = null; closePopup(); if (!saveLocal(true)) return;
         if (result.status === 'completed') {
           status = 'LibTV 已返回授权完成，正在核对账号状态…'; await refresh();
-          if (!disposed && localEpoch === epoch && !error) status = '官方授权已完成。请选择账号与工作空间，再应用到新任务。';
+          if (!disposed && localEpoch === epoch && !error) {
+            if (localClient && accounts.some(a => a.id === result.providerAccountId && accountState(a) === 'connected')) {
+              draft = { providerAccountId: result.providerAccountId, spaceId: null };
+              dirty = !sameSelection(draft, selection()); saveLocal();
+              await loadSpaces();
+            }
+            status = localClient ? (spacesError ? 'LibTV 账号已连接，空间暂未读到，请刷新状态重试。' : 'LibTV 账号已连接。请在下方选择要使用的个人或团队空间。') : '官方授权已完成。请选择账号与工作空间，再应用到新任务。';
+          }
         }
         else status = '';
       }
@@ -485,10 +498,10 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   render();
   const ready = refresh({ rereadSession: !session });
   return {
-    ready, refresh,
+    ready, refresh, authorize: () => beginAuthorization(),
     // The integration persists this live value even when optional localStorage fails.
     getDraftSelection: () => dirty ? {providerAccountId:draft.providerAccountId, spaceId:draft.spaceId} : null,
-    getDirtyState: () => ({ dirty: dirty || Boolean(busy) || ownerModule.getDirtyState().dirty, ownerActive:ownerModule.isActive(), reason: busy ? '账号操作尚未完成，请稍候' : dirty ? '账号或空间选择尚未应用' : ownerModule.getDirtyState().reason }),
+    getDirtyState: () => ({ dirty: dirty || Boolean(busy) || ownerModule.getDirtyState().dirty, authorizationActive:activeAttempt(attempt), ownerActive:ownerModule.isActive(), reason: busy ? '账号操作尚未完成，请稍候' : dirty ? '账号或空间选择尚未应用' : ownerModule.getDirtyState().reason }),
     flush: async () => { if (busy) throw fail('ACCOUNT_OPERATION_IN_PROGRESS'); await ownerModule.flush(); saveLocal(); },
     unmount() {
       if (disposed) return;

@@ -85,6 +85,7 @@ class Config:
     secret_key_file: Path | None = None
     release_root: Path | None = None
     running_manifest: Path | None = None
+    local_client: bool = False
 
     def __post_init__(self):
         supplied = Path(self.data_dir)
@@ -122,6 +123,11 @@ class Config:
         if api == "/" or api == base.rstrip("/"):
             raise ConfigurationError("API_BASE must not replace the frontend mount")
         object.__setattr__(self, "public_origin", normalize_origin(origin))
+        if self.local_client and (self.host != "127.0.0.1" or
+                urlsplit(self.public_origin).scheme != "http" or
+                urlsplit(self.public_origin).hostname != "127.0.0.1" or
+                urlsplit(self.public_origin).port != self.port or self.port == 0):
+            raise ConfigurationError("Local authorization requires a fixed 127.0.0.1 listener and origin")
         object.__setattr__(self, "public_base_path", base)
         object.__setattr__(self, "api_base", api)
         object.__setattr__(self, "data_dir", resolved)
@@ -163,7 +169,7 @@ class Config:
 
     def browser_config(self):
         return {"publicBasePath": self.public_base_path, "apiBase": self.api_base,
-                "apiVersion": 1, "mode": "customer-development"}
+                "apiVersion": 1, "mode": "local-client" if self.local_client else "customer-development"}
 
 
 class Headers(dict):
@@ -424,6 +430,8 @@ class Application:
                 register(ModuleRouter(self.router, getattr(module, "PUBLIC_ROUTES", ())), self.services)
         self.router.add("GET", API_PREFIX + "/health", self.health, public=True)
         self.router.add("GET", API_PREFIX + "/ready", self.ready, public=True)
+        if config.local_client:
+            self.router.add("GET", API_PREFIX + "/oauth/libtv/return", self.local_authorization_return, public=True)
         if not isinstance(self.services.storage, UnavailableService):
             from .integration_drafts import register_routes as register_drafts
             register_drafts(self.router, self.services)
@@ -475,6 +483,8 @@ class Application:
             else:
                 self.services.sessions = SessionHTTPAdapter(module.SessionService(
                     self.services.storage, public_origin=config.public_origin), config)
+                if config.local_client:
+                    self.services.sessions.features["providerAuthorization"] = True
                 if hasattr(module, "WorkspaceRecoveryService"):
                     self.services.workspace_recovery = module.WorkspaceRecoveryService(
                         self.services.storage, self.services.sessions)
@@ -492,6 +502,7 @@ class Application:
                 oauth = LibTVOAuth(OAuthConfig(
                     redirect_uri=config.public_origin + callback_base + "/oauth/libtv/callback",
                     return_paths=tuple(dict.fromkeys(("/", config.public_base_path))),
+                    client_name="资产实验室 · 本地客户端" if config.local_client else "资产研究室 · 客户网页",
                     allow_loopback_development=config.public_origin.startswith("http:")))
                 from .tasks.adapters import StoreTaskRepository
                 from .integration_generation import make_adapter
@@ -542,6 +553,17 @@ class Application:
                               "apiVersion": 1, "customerReady": False, "modules": self.modules,
                               "policy": {"allowPaidSubmission": False, "videoGeneration": False}})
 
+    def local_authorization_return(self, ctx, params):
+        html = ('<!doctype html><html lang="zh-CN"><meta charset="utf-8">'
+                '<meta name="viewport" content="width=device-width,initial-scale=1">'
+                '<title>LibTV 本地授权</title><body style="font-family:system-ui;padding:40px;line-height:1.8">'
+                '<h1>请回到资产实验室查看连接结果</h1>'
+                '<p>本机已收到官方返回。原工作台会自动核对账号状态，完成后关闭这个窗口。</p>'
+                '<p>如果原窗口已经关闭，可以重新打开工作台。</p>'
+                '<a href="' + self.config.public_base_path + '">打开资产实验室</a></body></html>')
+        return Response(body=html.encode(), headers={"Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
     def ready(self, ctx, params):
         checks = {}
         for name in REQUIRED:
@@ -549,7 +571,7 @@ class Application:
             try:
                 result = report() if callable(report) else {}
                 if name == "providers" and self.modules.get("auth") == "loaded" and not isinstance(self.services.providers, UnavailableService):
-                    result = {"ready": False, "reason": "public_oauth_callback_unverified"}
+                    result = {"ready": self.config.local_client, "reason": "local_readonly_oauth_enabled" if self.config.local_client else "public_oauth_callback_unverified"}
                 if name in {"spaces", "workflow", "tasks"} and not isinstance(self.services.get(name), UnavailableService):
                     result = {"ready": True, "reason": "module_wired"}
                 if name == "releases" and self.services.releases is not None and not isinstance(self.services.releases, UnavailableService):
@@ -617,8 +639,12 @@ class Application:
                 expected_session = ctx.headers.get("X-Asset-Lab-Session", "")
                 if not expected_session or not hmac.compare_digest(expected_session, ctx.siteSessionId):
                     raise APIError(409, "WORKSPACE_CONTEXT_CHANGED", "工作区会话已改变；旧页面的写入未执行，请同步工作区")
-            if ctx.path == API_PREFIX + "/provider-accounts/authorize" or re.fullmatch(r"/api/v1/provider-accounts/[^/]+/reauthorize", ctx.path):
-                raise APIError(503, "PROVIDER_UNCONFIGURED", "本站正式回调尚未通过验证，官方网页连接暂未开放")
+            authorizing = ctx.path == API_PREFIX + "/provider-accounts/authorize" or re.fullmatch(r"/api/v1/provider-accounts/[^/]+/reauthorize", ctx.path)
+            if authorizing:
+                if not self.config.local_client:
+                    raise APIError(503, "PROVIDER_UNCONFIGURED", "本站正式回调尚未通过验证，官方网页连接暂未开放")
+                if ctx.json.get("intent", "connect") != "connect" or ctx.json.get("purpose", "provider_account") != "provider_account":
+                    raise APIError(503, "PROVIDER_UNCONFIGURED", "本地版目前仅开放连接 LibTV 账号")
             if "tenantId" in ctx.json:
                 raise APIError(422, "VALIDATION_FAILED", "客户归属由本站会话确定，不能从请求指定")
             if route.capability == "videoGeneration" or (ctx.path == API_PREFIX + "/tasks/prepare"
@@ -647,7 +673,9 @@ class Application:
             response = self.services.sessions.response_cookie(response)
         if ctx.path == API_PREFIX + "/oauth/libtv/callback":
             location = response.headers.get("Location", "")
-            if location == "/" or location.startswith("/?"):
+            if self.config.local_client and response.status == 303:
+                response.headers["Location"] = self.config.api_base + "/oauth/libtv/return"
+            elif location == "/" or location.startswith("/?"):
                 response.headers["Location"] = self.config.public_base_path + location[1:]
         return response
 
@@ -887,6 +915,7 @@ def main(argv=None):
     parser.add_argument("--release-root", type=Path, default=os.environ.get("ASSET_LAB_RELEASE_ROOT"))
     parser.add_argument("--running-manifest", type=Path, default=os.environ.get("ASSET_LAB_RUNNING_MANIFEST"))
     parser.add_argument("--check-config", action="store_true")
+    parser.add_argument("--local-client", action="store_true", help="Enable only account-read OAuth on a fixed loopback origin")
     args = parser.parse_args(argv)
     try:
         for key in ("ASSET_LAB_ALLOW_PAID_SUBMISSION", "ASSET_LAB_VIDEO_GENERATION"):
@@ -895,7 +924,7 @@ def main(argv=None):
         config = Config(Path(args.data_dir), args.host, args.port, args.public_origin,
                         args.public_base_path, args.api_base, secret_key_file=args.secret_key_file,
                         frontend_dir=args.frontend_dir, release_root=args.release_root,
-                        running_manifest=args.running_manifest)
+                        running_manifest=args.running_manifest, local_client=args.local_client)
         if args.check_config:
             print(json.dumps({"configurationSyntaxValid": True, "databaseInitialized": False,
                               "customerReady": False, **config.browser_config()}))
