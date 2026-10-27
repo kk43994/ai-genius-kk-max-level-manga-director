@@ -1,54 +1,62 @@
-# 资产实验室 · 客户网页版集成骨架
+# 资产实验室 · 客户网页版集成预览
 
-当前检查点为 `0.1.0-integration.1`。公共启动、HTTP 路由、安全边界、空白客户预览和验收工具已实现；各业务模块等待合并。**这不是已经完成授权、保存与制作的客户成品。** `health=200` 只代表进程存活，`ready=503` 列出未接入模块，`customerReady` 保持 `false`。
+公共入口已装配 SQLite 存储、本站会话、LibTV 授权生命周期、账号与空间选择、项目工作流、任务归属与恢复、版本更新。前端只有一个 bootstrap，共享 API client 和事件通道。项目与草稿可以保存、刷新和重启恢复，角色、场景、道具分别保留制作与人工审核记录。
 
-客户最终通过网址操作，无需安装 Codex 或 CLI。以下命令只给开发/部署人员使用。原工作台 8768 和基线 8870 不受本服务影响，也不能用作本副本端口。
+**当前仍是集成预览，customerReady=false。** 收费提交、正式视频和未验收的网页授权入口由服务器关闭。真实图片 provider 的模型、准备、提交、查询、上传、下载适配尚待后续模块提交；这与创作 scope 尚未取得、收费实测尚未进行是不同缺项。协调会话确认另一隔离实例已完成本机官方只读授权；该实例的凭据不复制到本仓库或发布包。公网回调准入、两个真实身份隔离和公网部署尚待独立验收。
+
+客户最终通过网址操作，无需 Codex 或 CLI。以下命令只给开发和部署人员使用。8768 与 8870 是原工作台和基线端口，禁止此副本占用。
 
 ## 本地运行
 
-Python 3.10+；本检查点使用标准库，无需安装第三方依赖。从独立仓库或解压后的运行包目录执行：
+运行环境已在 Python 3.14.7 验证。requirements.txt 固定凭据加密与图片完整性检查所需依赖。
 
 ```sh
-python3 -m backend.app --port 8890 --data-dir /absolute/path/outside-release/customer-data
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python scripts/init_local_instance.py --directory /absolute/path/outside-release/local-instance
+.venv/bin/python -m backend.app --port 8890 --data-dir /absolute/path/outside-release/local-instance/data --secret-key-file /absolute/path/outside-release/local-instance/secrets/storage.key
 ```
 
-打开 `http://127.0.0.1:8890/`。当前页面是明确标注的空白集成预览，未连接任何真实账号；额度显示未知。首次 session 接口暂时返回 501，私有业务接口要求真实本站 session。缺少模块不会借用本机 LibTV 登录或调用旧引擎，也不会制造模拟客户状态。
+打开 http://127.0.0.1:8890/。初始化只为新实例生成密钥，绝不覆盖已有密钥。数据与密钥分别存放在代码发布目录之外；密钥须为当前服务用户独占的普通文件，不能软链接、随数据备份或进入发布包。更换密钥会影响已有加密授权，不能用重新初始化代替恢复。
 
-独立子路径预览：
+子路径实例添加 --public-base-path /asset-lab/，使用独立端口与实例目录，访问 http://127.0.0.1:8891/asset-lab/。API 自动位于 /asset-lab/api/v1，根 /api 不被占用。--api-base 可显式指定另一个同源路径。Cookie 按根/子路径和本地实例隔离。
+
+环境变量见 .env.example，命令行优先，程序不自动加载 .env。--check-config 只检查配置语法，不创建或迁移数据库。实际数据库 schema 为 **2**。指定发布清单时，先校验 schema 再初始化存储。回滚不能擅自把 schema 2 数据交给只支持 schema 1 的代码。
+
+## 已装配行为
+
+- tenantId/siteSessionId 仅从安全 Cookie 查服务端会话。项目、任务、文件下载、审核、草稿都校验工作区归属；浏览器不能指定其他租户。
+- 写入验证 Origin、CSRF、字段白名单、对象版本、任务幂等。未知异常只记录随机请求号和异常类型，不记录 OAuth code/state、URL 或 Cookie。
+- 主所有者恢复使用独立服务，与创作用账号分开。只有新鲜官方身份验证、意图校验和必要确认成功后才能轮换会话。授权 hook 和 UI 的后续提交完成前，不宣称客户已能找回。
+- 导入 TXT/MD/DOCX 或手工整理清单，导入不等于模型分析。MJ 风格、Image2 资产、Nano 精修逐阶段人工审核；返修追溯原始 Image2。
+- 任务 owner 和工作流快照固定持久化。切换当前账号不改变历史任务，恢复只查询原回执，不重提生成。源换版时阻止旧结果混入当前资产。
+- PUT /drafts/browser 保存新项目、计划、提示词、审核备注及待应用选择，采用 CAS。更新必须收到服务器保存确认，本机缓存不能代替确认。冲突保留双方副本并阻止自动覆盖。
+- 版本模块使用页面构建时写入的标记，定期或手动提示。检查不会自动刷新；客户点击后再次检查草稿、任务、下载。页面与服务不兼容时拦截业务写入，仍可保存草稿。
+
+health=200 只表示进程存活。ready 报告模块装配和官方授权、双真实账号、公网部署、生成门槛，未满足时保持 503。模块测试、合成 provider 或本地升级不代表客户成品完成。
+
+## 检查与打包
 
 ```sh
-python3 -m backend.app --port 8891 --public-base-path /asset-lab/ --data-dir /absolute/path/outside-release/customer-subpath-data
+.venv/bin/python scripts/check_all.py --output /absolute/path/to/evidence/all-checks.json
+.venv/bin/python scripts/check_integration.py --output /absolute/path/to/evidence/http-tests.json
+.venv/bin/python scripts/build_bundle.py --output /absolute/path/to/asset-lab-customer-source.zip
 ```
 
-打开 `http://127.0.0.1:8891/asset-lab/`。该实例的 `/` 和 `/api/v1/health` 返回 404，不占用其他应用根路径。API 位于 `/asset-lab/api/v1/`。也可通过 `--api-base /customer-api/v1` 显式指定同域 API 路径。
+源码包从指定 Git commit 白名单生成，ZIP 内含每文件 SHA-256，外附整包校验和，同 commit 可重复构建。排除旧引擎、客户数据、密钥、Git 元数据、本地测试实例、原工程媒体和未提交改动。
 
-`ASSET_LAB_HOST`、`ASSET_LAB_PORT`、`ASSET_LAB_DATA_DIR`、`ASSET_LAB_PUBLIC_ORIGIN`、`ASSET_LAB_PUBLIC_BASE_PATH`、`ASSET_LAB_API_BASE` 对应同名命令行配置；命令行优先。服务不自动加载 `.env`。默认数据目录为代码目录旁的 `work/customer-data`，必须位于 release 之外。骨架只验证数据路径，尚不创建持久化客户业务数据。指定 `--check-config` 可只检查配置与模块加载情况。
+发布结构由 scripts/build_customer.py 生成 .build/public 和 .build/server，不带测试假服务。deploy/release.py 根据真实 build spec 生成清单、完整 SHA-256 inventory 和不可变版本资源基址。示例 buildId、时间、版本、说明须替换为实际值。
 
-`ASSET_LAB_ALLOW_PAID_SUBMISSION` 或 `ASSET_LAB_VIDEO_GENERATION` 设为真会直接拒绝启动。本开发版本不提供打开收费/正式视频开关的途径。服务端拦截任务 submit 和视频 prepare，不依赖按钮状态。
-
-## 接线约定
-
-公共业务协议与责任分工见 `docs/api-contract.md`、`docs/module-ownership.md`。具体 Python 适配接口、前端配置注入与合并步骤见 `tests/integration/README.md`；完整待验收项见 `tests/integration/acceptance-matrix.json`。
-
-模块可提供 `create_service(services)`；按 storage → sessions → providers → auth → spaces → tasks → workflow → releases 的顺序装配。所有服务绑定完成后，调用各模块的 `register_routes(router, services)`。未实现的路由保留明确占位，模块内依赖损坏会阻止启动，避免静默当成“模块未安装”。不导入 `backend/legacy/`。
-
-前端统一读取同挂载目录的 `app-config.json`，或显式导入 `_app/config.js` 的 `config`。已迁移 HTML 还会得到 `#asset-lab-config` 惰性 JSON。内容为 `{publicBasePath, apiBase, apiVersion, mode}`，不写入 window 全局，不含路径、账号、凭据。组件由后续装配入口以参数方式接收配置。尚未收到页面模块时显示 `scripts/templates/integration-shell.html`；当 `frontend/api-client.js` 存在后使用模块 5 的 `frontend/asset-lab.html`。本检查点不替换其他会话的前端源码。
-
-## 验证与打包
+scripts/prepare_local_release.py 可完整构建、校验、解包到仓库外独立 loopback 实例，用于升级验收，不连接远程主机。发布包从 server 目录启动：
 
 ```sh
-python3 scripts/check_integration.py --output /absolute/path/to/evidence/http-tests.json
-python3 scripts/build_bundle.py --output /absolute/path/to/asset-lab-customer-checkpoint.zip
+python -m backend.app --frontend-dir ../public --release-root /absolute/runtime-root --running-manifest ../release.json --public-base-path /asset-lab/ --port 8892 --data-dir /absolute/instance/data --secret-key-file /absolute/instance/secrets/storage.key
 ```
 
-HTTP 测试启动独立临时端口，用合成 session 验证公共边界；不会调用 LibTV，也不证明真实双账号、数据库持久化或完整业务已通过。覆盖根路径及子路径、会话上下文、跨租户请求隔离、Origin/CSRF、幂等标识、收费/视频禁用、错误脱敏、静态路径、JSON/体积限制和模块装配。
+## 发布边界
 
-运行包从指定 Git commit 的白名单源码生成，排除 `backend/legacy`、运行数据、凭据、Git 元数据。ZIP 内含 `BUNDLE-MANIFEST.json`（每文件 SHA-256），外部附整包 SHA-256；同 commit 生成内容相同。构建不会自动收录未提交改动。解压后可直接按“本地运行”启动。后续合并新增依赖时要同步锁定并重验。
+未操作 ssh kelao，未修改公网路由。https://kk666.best/asset-lab/ 仅为候选路径，实际官方注册曾拒绝该候选 callback，不能推广为所有公网回调都不支持。
 
-## 部署人员须知
+部署、回滚、SSH/Hub 流程保留在 deploy/，生产 hooks、反向代理、服务用户、备份迁移、公网验收还须配置执行。工具要求真实空闲检查、预检、激活、停用和探针 hooks；示例命令不是已安装的服务。
 
-本检查点没有连接 `ssh kelao` 或修改公网服务。发布由第 9 会话负责；`https://kk666.best/asset-lab/` 仍是候选位置。此 adapter 供联调使用，生产发布前还需完成并发/资源限制及反向代理验收。
-
-反向代理应保留挂载前缀和原始 `Host`。本站设置 `ASSET_LAB_PUBLIC_ORIGIN=https://已确认域名`、`ASSET_LAB_PUBLIC_BASE_PATH=/asset-lab/`，API 自动为 `/asset-lab/api/v1`；本站 Origin/Host 按配置严格校验，不信任请求提供的 tenantId 或 Forwarded 头。生产 Cookie 的 Secure/HttpOnly/SameSite 和 Path 由 session 模块落实，Path 应对应 publicBasePath。TLS、服务用户、外置数据目录、备份迁移、原子发布及回滚由发布模块核验后再部署。
-
-需要分开记录三种状态：服务进程能响应、业务模块就绪、真实客户流程验收。官方公网 callback 准入、稳定 subject 与空间/模型读取、真实双账号隔离、公网部署均尚未验收；ready 的 acceptance 项现在明确为 false，不得仅因本地 200 或 fake 测试改成 true。已有官方核查见 `docs/libtv-official-evidence.md`。正式视频保持暂停，本轮不提交付费生成。
+allowPaidSubmission 与 videoGeneration 目前不可开启。新增收费路径必须受同一提交门槛控制，最终视频继续暂停。

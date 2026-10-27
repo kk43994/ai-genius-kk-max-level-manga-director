@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import importlib
 import json
 import logging
@@ -20,10 +21,11 @@ from pathlib import Path
 from urllib.parse import parse_qsl, unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.1.0-integration.1"
+RELEASE_TREE = ROOT.parent if (ROOT.parent / "release.json").is_file() else ROOT
+VERSION = "0.1.0-preview.1"
 API_PREFIX = "/api/v1"  # Internal contract paths; public mounting is configurable.
 MODULES = tuple((name, f"backend.{name}") for name in (
-    "storage", "sessions", "providers", "auth", "spaces", "tasks", "workflow", "releases"))
+    "storage", "sessions", "providers", "auth", "spaces", "workflow", "tasks", "releases"))
 REQUIRED = ("storage", "sessions", "providers", "spaces", "tasks", "workflow", "releases")
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 LOG = logging.getLogger("asset_lab.http")
@@ -81,13 +83,15 @@ class Config:
     allowPaidSubmission: bool = False
     videoGeneration: bool = False
     secret_key_file: Path | None = None
+    release_root: Path | None = None
+    running_manifest: Path | None = None
 
     def __post_init__(self):
         supplied = Path(self.data_dir)
         if not supplied.is_absolute():
             raise ConfigurationError("DATA_DIR must be absolute and outside the release")
         resolved = supplied.resolve()
-        if resolved == ROOT or resolved.is_relative_to(ROOT) or ROOT.is_relative_to(resolved):
+        if resolved == RELEASE_TREE or resolved.is_relative_to(RELEASE_TREE) or RELEASE_TREE.is_relative_to(resolved):
             raise ConfigurationError("DATA_DIR must be outside the release directory")
         if any(path.is_symlink() for path in (supplied, *supplied.parents)):
             raise ConfigurationError("DATA_DIR must not pass through symlinks")
@@ -105,7 +109,7 @@ class Config:
             key_path = Path(self.secret_key_file)
             if not key_path.is_absolute():
                 raise ConfigurationError("SECRET_KEY_FILE must be an absolute path")
-            if key_path.resolve().is_relative_to(ROOT) or key_path.resolve().is_relative_to(resolved):
+            if key_path.resolve().is_relative_to(RELEASE_TREE) or key_path.resolve().is_relative_to(resolved):
                 raise ConfigurationError("SECRET_KEY_FILE must be outside release and data directories")
             object.__setattr__(self, "secret_key_file", key_path)
         origin = self.public_origin
@@ -122,6 +126,11 @@ class Config:
         object.__setattr__(self, "api_base", api)
         object.__setattr__(self, "data_dir", resolved)
         object.__setattr__(self, "frontend_dir", Path(self.frontend_dir).resolve())
+        if (self.release_root is None) != (self.running_manifest is None):
+            raise ConfigurationError("RELEASE_ROOT and RUNNING_MANIFEST must be configured together")
+        if self.release_root is not None:
+            object.__setattr__(self, "release_root", Path(self.release_root).resolve())
+            object.__setattr__(self, "running_manifest", Path(self.running_manifest).resolve())
 
     @property
     def dataDir(self):
@@ -374,25 +383,56 @@ class Application:
                 continue
             imported[name] = module
             self.modules[name] = "loaded"
+        # Validate the release/schema contract before Store can create or migrate data.
+        if config.running_manifest is not None:
+            release_module = imported.get("releases")
+            if release_module is None:
+                raise ConfigurationError("A running manifest requires the release module")
+            from .storage import SCHEMA_VERSION
+            try:
+                self.services.releases = release_module.ReleaseService(release_root=config.release_root,
+                    running_manifest=config.running_manifest, origin=config.public_origin,
+                    base_path=config.public_base_path)
+                if self.services.releases.current()["dataSchemaVersion"] != SCHEMA_VERSION:
+                    raise ConfigurationError("Running release manifest has an incompatible data schema")
+            except release_module.ReleaseUnavailable:
+                raise ConfigurationError("Running release manifest is invalid") from None
         for name, module in imported.items():
             factory = getattr(module, "create_service", None)
             if factory:
                 self.services[name] = factory(self.services)
             self._wire_builtin(name, module, imported)
         for name, module in imported.items():
-            if name == "sessions" and isinstance(self.services.sessions, UnavailableService):
+            binding = "providers" if name == "auth" else name
+            if name != "providers" and isinstance(self.services.get(binding), UnavailableService):
                 continue  # Retain the explicit 501 placeholder until configured.
             register = getattr(module, "register_routes", None)
             if register:
                 register(ModuleRouter(self.router, getattr(module, "PUBLIC_ROUTES", ())), self.services)
         self.router.add("GET", API_PREFIX + "/health", self.health, public=True)
         self.router.add("GET", API_PREFIX + "/ready", self.ready, public=True)
+        if not isinstance(self.services.storage, UnavailableService):
+            from .integration_drafts import register_routes as register_drafts
+            register_drafts(self.router, self.services)
         for method, paths in PLACEHOLDERS.items():
             for path in paths:
                 full_path = API_PREFIX + path
                 if not any(r.method == method and route_shape(r.pattern) == route_shape(full_path)
                            for r in self.router.routes):
                     self.router.add(method, full_path, not_implemented, public=path in PUBLIC)
+        from .storage import SCHEMA_VERSION
+        if self.services.releases is not None and not isinstance(self.services.releases, UnavailableService):
+            manifest = self.services.releases.current()
+            self.build_info = {key: manifest[key] for key in ("schemaVersion", "product", "version", "buildId", "channel", "apiVersion", "dataSchemaVersion")}
+        else:
+            digest = hashlib.sha256()
+            for folder in (ROOT / "frontend", ROOT / "backend", ROOT / "scripts"):
+                for path in sorted(folder.rglob("*")):
+                    if path.is_file() and not path.is_symlink() and path.suffix in {".py", ".js", ".mjs", ".html", ".css"} and "legacy" not in path.parts:
+                        digest.update(path.relative_to(ROOT).as_posix().encode()); digest.update(path.read_bytes())
+            self.build_info = {"schemaVersion": 1, "product": "asset-lab-customer", "version": VERSION,
+                "buildId": "dev-" + digest.hexdigest()[:16], "channel": "preview", "apiVersion": 1,
+                "dataSchemaVersion": SCHEMA_VERSION}
 
     def _wire_builtin(self, name, module, imported):
         # Keep explicit adapters in dependency order with optional module factories.
@@ -405,7 +445,7 @@ class Application:
                     self.modules["storage"] = "unconfigured"
                 else:
                     try:
-                        self.services.storage = storage_module.Store.from_env(release_root=ROOT, environ={
+                        self.services.storage = storage_module.Store.from_env(release_root=RELEASE_TREE, environ={
                             "ASSET_LAB_DATA_DIR": str(config.data_dir),
                             "ASSET_LAB_SECRET_KEY_FILE": str(config.secret_key_file),
                         })
@@ -420,6 +460,26 @@ class Application:
             else:
                 self.services.sessions = SessionHTTPAdapter(module.SessionService(
                     self.services.storage, public_origin=config.public_origin), config)
+                if hasattr(module, "WorkspaceRecoveryService"):
+                    self.services.workspace_recovery = module.WorkspaceRecoveryService(
+                        self.services.storage, self.services.sessions)
+        if name == "auth" and isinstance(self.services.providers, UnavailableService):
+            if isinstance(self.services.storage, UnavailableService):
+                self.modules[name] = "unconfigured"
+            else:
+                from .auth.storage_adapter import StorageAuthRepository
+                from .auth.secrets import AesGcmSecretCodec
+                from .providers.libtv_oauth import LibTVOAuth, OAuthConfig
+                # This is a server-only secret subkey, never a browser CSRF token.
+                key = hmac.digest(self.services.storage._csrf_key, b"asset-lab/libtv-aead/v1", "sha256")
+                # Authorization stays gated below until official identity/callback verification.
+                callback_base = config.api_base if config.api_base.endswith("/api/v1") else config.public_base_path + "api/v1"
+                oauth = LibTVOAuth(OAuthConfig(
+                    redirect_uri=config.public_origin + callback_base + "/oauth/libtv/callback",
+                    return_paths=tuple(dict.fromkeys(("/", config.public_base_path))),
+                    allow_loopback_development=config.public_origin.startswith("http:")))
+                self.services.providers = module.ProviderService(
+                    StorageAuthRepository(self.services.storage), AesGcmSecretCodec({"v1": key}, "v1"), oauth)
         if name == "spaces" and isinstance(self.services.spaces, UnavailableService):
             selections = self.services.get("selections")
             if selections is None and not isinstance(self.services.storage, UnavailableService):
@@ -431,6 +491,30 @@ class Application:
                 self.services.selections = selections
             self.services.spaces = module.SpaceService(
                 providers=self.services.providers, selections=selections, clock=self.services.clock)
+        if name == "workflow" and isinstance(self.services.workflow, UnavailableService):
+            if not isinstance(self.services.storage, UnavailableService):
+                self.services.workflow = module.WorkflowService(module.WorkflowRepository(self.services.storage),
+                                                                 api_base=config.api_base)
+                if isinstance(self.services.sessions, SessionHTTPAdapter):
+                    self.services.sessions.features["persistentProjects"] = True
+        if name == "tasks" and isinstance(self.services.tasks, UnavailableService):
+            if (not isinstance(self.services.storage, UnavailableService)
+                    and not isinstance(self.services.workflow, UnavailableService)):
+                from .tasks.adapters import StoreTaskRepository, SelectionAdapter, SpaceAdapter
+                from .workflow import WorkflowOutputStore
+                repository = StoreTaskRepository(self.services.storage,
+                    selection_reader=self.services.selections._get)
+                key = hmac.digest(self.services.storage._csrf_key, b"asset-lab/task-confirmation/v1", "sha256")
+                self.services.tasks = module.TaskService(repository=repository,
+                    providers=self.services.providers, selections=SelectionAdapter(self.services.selections),
+                    spaces=SpaceAdapter(self.services.spaces), inputs=self.services.workflow,
+                    outputs=WorkflowOutputStore(self.services.workflow, repository),
+                    policy=module.TaskPolicy(confirmation_key=key), clock=self.services.clock)
+                self.services.workflow.tasks = self.services.tasks
+                if hasattr(self.services.providers, "on_account_removed"):
+                    self.services.providers.on_account_removed = self.services.tasks.block_account
+        if name == "releases" and isinstance(self.services.releases, UnavailableService):
+            self.services.releases = None  # Module responds with a deliberate 503 when unconfigured.
 
     def health(self, ctx, params):
         return Response(body={"status": "ok", "mode": "customer-development", "version": VERSION,
@@ -443,10 +527,11 @@ class Application:
             report = getattr(self.services.get(name), "readiness", None)
             try:
                 result = report() if callable(report) else {}
-                if name == "storage" and not isinstance(self.services.storage, UnavailableService):
-                    with self.services.storage._system_transaction(write=False) as connection:
-                        schema = connection.execute("PRAGMA user_version").fetchone()[0]
-                    result = {"ready": schema == 1, "reason": "schema_ready" if schema == 1 else "schema_incompatible"}
+                if name in {"spaces", "workflow", "tasks"} and not isinstance(self.services.get(name), UnavailableService):
+                    result = {"ready": True, "reason": "module_wired"}
+                if name == "releases" and self.services.releases is not None and not isinstance(self.services.releases, UnavailableService):
+                    self.services.releases.current()
+                    result = {"ready": True, "reason": "running_manifest_loaded"}
                 result = result if isinstance(result, dict) else {}
                 reason = result.get("reason", "ready" if result.get("ready") is True else "readiness_not_reported")
                 if not isinstance(reason, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", reason):
@@ -459,6 +544,9 @@ class Application:
             "ready": ready, "customerReady": False, "checks": checks,
             "acceptance": {"officialPublicCallback": False, "verifiedIdentitySpacesModels": False,
                            "realTwoAccountIsolation": False, "publicDeployment": False},
+            "generation": {"adapterInstalled": False, "creatorScopeVerified": False,
+                           "paidRunVerified": False, "paidSubmissionEnabled": False,
+                           "reason": "official_generation_adapter_pending"},
             "reason": "customer_acceptance_pending" if ready else "modules_not_ready"})
 
     def authenticate(self, ctx):
@@ -497,6 +585,8 @@ class Application:
             if not token or not callable(verify) or verify(ctx, token) is not True:
                 raise APIError(403, "CSRF_FAILED", "页面校验已失效，请刷新后重试")
             ctx.csrfVerified = True
+            if ctx.path == API_PREFIX + "/provider-accounts/authorize" or re.fullmatch(r"/api/v1/provider-accounts/[^/]+/reauthorize", ctx.path):
+                raise APIError(503, "PROVIDER_UNCONFIGURED", "官方网页授权与身份读取尚未完成验收，连接暂未开放")
             if "tenantId" in ctx.json:
                 raise APIError(422, "VALIDATION_FAILED", "客户归属由本站会话确定，不能从请求指定")
             if route.capability == "videoGeneration" or (ctx.path == API_PREFIX + "/tasks/prepare"
@@ -521,6 +611,10 @@ class Application:
             raise RuntimeError("Handler must return Response or JSON object")
         if isinstance(self.services.sessions, SessionHTTPAdapter):
             response = self.services.sessions.response_cookie(response)
+        if ctx.path == API_PREFIX + "/oauth/libtv/callback":
+            location = response.headers.get("Location", "")
+            if location == "/" or location.startswith("/?"):
+                response.headers["Location"] = self.config.public_base_path + location[1:]
         return response
 
     def static(self, ctx):
@@ -532,6 +626,19 @@ class Application:
         if not ctx.path.startswith(base):
             raise APIError(404, "NOT_FOUND", "资源不存在")
         path = ctx.path[len(base):]
+        static_root = self.config.frontend_dir
+        immutable = False
+        if path.startswith("releases/"):
+            parts = path.split("/", 2)
+            if (self.config.release_root is None or len(parts) != 3
+                    or not re.fullmatch(r"[A-Za-z0-9._-]{1,150}", parts[1])):
+                raise APIError(404, "NOT_FOUND", "发布资源不存在")
+            release = self.config.release_root / "releases" / parts[1]
+            if release.resolve().parent != self.config.release_root / "releases":
+                raise APIError(404, "NOT_FOUND", "发布资源不存在")
+            static_root, path, immutable = (release / "public").resolve(), parts[2], True
+            if not path:
+                path = "index.html"
         if path in {"app-config.json", "_app/config.js"}:
             config = json.dumps(self.config.browser_config(), ensure_ascii=False)
             raw = ("export const config = Object.freeze(" + config + "); export default config;\n"
@@ -547,22 +654,22 @@ class Application:
                 raw = (ROOT / "scripts/templates/integration-shell.html").read_text()
                 raw = raw.replace("{{PUBLIC_BASE_PATH}}", base).replace("{{API_BASE}}", self.config.api_base)
                 return Response(body=raw.encode(), headers={"Content-Type": "text/html; charset=utf-8"})
-            path = "asset-lab.html"
-        target = (self.config.frontend_dir / path).resolve()
-        allowed = {".html", ".js", ".css", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico", ".woff2"}
-        if not target.is_relative_to(self.config.frontend_dir) or not target.is_file() or target.suffix.lower() not in allowed:
+            path = "index.html" if (static_root / "index.html").is_file() else "asset-lab.html"
+        if path.startswith("_app/") and not (static_root / path).is_file() and not immutable:
+            static_root, path = ROOT / "scripts/browser", path[len("_app/"):]
+        target = (static_root / path).resolve()
+        allowed = {".html", ".js", ".mjs", ".css", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".ico", ".woff2"}
+        if not target.is_relative_to(static_root) or not target.is_file() or target.suffix.lower() not in allowed:
             raise APIError(404, "NOT_FOUND", "资源不存在")
         mime = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
         raw = target.read_bytes()
         if target.suffix.lower() == ".html":
-            # Explicit inert configuration, consumed by the integration bootstrap; no globals.
-            config = json.dumps(self.config.browser_config()).replace("<", "\\u003c")
-            tag = f'<script type="application/json" id="asset-lab-config">{config}</script>'
-            raw = raw.replace(b"</head>", tag.encode() + b"</head>", 1)
-        if target.suffix.lower() in {".html", ".js", ".css", ".svg"}:
+            from scripts.customer_entry import entry_html
+            raw = entry_html(raw.decode(), self.config.browser_config(), self.build_info, add_base=True).encode()
+        if target.suffix.lower() in {".html", ".js", ".mjs", ".css", ".svg"}:
             mime += "; charset=utf-8"
         hashed = bool(re.search(r"[.-][0-9a-f]{12,}\.", target.name))
-        cache = "public, max-age=31536000, immutable" if hashed and target.suffix != ".html" else "no-cache"
+        cache = "public, max-age=31536000, immutable" if (hashed or immutable) and target.suffix != ".html" else "no-cache"
         return Response(body=raw, headers={"Content-Type": mime, "Cache-Control": cache})
 
 
@@ -696,6 +803,10 @@ class Handler(BaseHTTPRequestHandler):
                 "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
             }
             protected = {k.lower() for k in fixed} | {"content-length", "transfer-encoding"}
+            for key in ("Referrer-Policy", "Content-Security-Policy"):
+                # Callback modules deliberately use a stricter, non-rendering policy.
+                if key in headers:
+                    fixed[key] = headers[key]
             for key, value in headers.items():
                 if key.lower() not in protected:
                     self.send_header(key, value)
@@ -738,6 +849,9 @@ def main(argv=None):
     parser.add_argument("--public-base-path", default=os.environ.get("ASSET_LAB_PUBLIC_BASE_PATH", "/"))
     parser.add_argument("--api-base", default=os.environ.get("ASSET_LAB_API_BASE"))
     parser.add_argument("--secret-key-file", type=Path, default=os.environ.get("ASSET_LAB_SECRET_KEY_FILE"))
+    parser.add_argument("--frontend-dir", type=Path, default=ROOT / "frontend")
+    parser.add_argument("--release-root", type=Path, default=os.environ.get("ASSET_LAB_RELEASE_ROOT"))
+    parser.add_argument("--running-manifest", type=Path, default=os.environ.get("ASSET_LAB_RUNNING_MANIFEST"))
     parser.add_argument("--check-config", action="store_true")
     args = parser.parse_args(argv)
     try:
@@ -745,7 +859,9 @@ def main(argv=None):
             if os.environ.get(key, "false").lower() not in {"false", "0", "no", "off", ""}:
                 raise ConfigurationError(f"{key} cannot be enabled in this development release")
         config = Config(Path(args.data_dir), args.host, args.port, args.public_origin,
-                        args.public_base_path, args.api_base, secret_key_file=args.secret_key_file)
+                        args.public_base_path, args.api_base, secret_key_file=args.secret_key_file,
+                        frontend_dir=args.frontend_dir, release_root=args.release_root,
+                        running_manifest=args.running_manifest)
         if args.check_config:
             print(json.dumps({"configurationSyntaxValid": True, "databaseInitialized": False,
                               "customerReady": False, **config.browser_config()}))

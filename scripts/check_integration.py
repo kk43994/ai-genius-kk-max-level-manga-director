@@ -21,7 +21,7 @@ def main():
     result = unittest.TextTestRunner(stream=stream, verbosity=2).run(suite)
     report = {
         "observedAt": datetime.now(timezone.utc).isoformat(),
-        "scope": "HTTP adapter with synthetic principals; not real provider or full customer acceptance",
+        "scope": "Real HTTP with actual SQLite/session/workflow and synthetic principals in boundary tests; no real provider generation or customer acceptance",
         "success": result.wasSuccessful(), "testsRun": result.testsRun,
         "failures": len(result.failures), "errors": len(result.errors), "skipped": len(result.skipped),
         "paidSubmissionAttempted": False, "realAuthorizationAttempted": False,

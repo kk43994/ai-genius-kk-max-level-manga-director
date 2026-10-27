@@ -1,6 +1,6 @@
-# 公共装配与验收接口 · 检查点 1
+# 公共装配与验收接口 · 检查点 2
 
-业务 HTTP 契约仍以 `docs/api-contract.md` 为准。本文件补充第 10 会话已经实现的 Python adapter 细节，避免模块自行猜测。当前只验收公共骨架；合成测试不计入真实账号/项目/任务业务验收。
+业务 HTTP 契约仍以 `docs/api-contract.md` 为准。本文件补充第 10 会话已经实现的 Python adapter 细节，避免模块自行猜测。当前已装配全部现有模块并验收真实本地持久化；合成 provider 测试不计入官方账号或真实生成验收。
 
 ## 后端接线
 
@@ -24,13 +24,13 @@ def register_routes(router, services):
 
 路由参数名可为 `{id}` 或 `{taskId}`。同方法且形状相同的两个路由是启动错误，不能靠注册先后覆盖。静态片段优先于参数片段。HEAD 沿用 GET，只省略响应正文；GET 不得写入业务状态（契约允许的首次 session 引导除外）。公共路由须显式传 `public=True`；除此之外均先校验本站 session。
 
-`create_service(services)` 按 `storage, sessions, providers, auth, spaces, tasks, workflow, releases` 顺序执行，返回值绑定到同名服务。随后统一 `register_routes(router,services)`。没有工厂的模块也可以在注册时向 services 写入已构造服务，但应避免依赖注册顺序。服务暂缺时拿到 `UnavailableService`，其 `available=False`，不能当成有效 provider；丢失内部依赖会阻止启动。
+`create_service(services)` 按 `storage, sessions, providers, auth, spaces, workflow, tasks, releases` 顺序执行，返回值绑定到同名服务。随后统一 `register_routes(router,services)`。没有工厂的模块也可以在注册时向 services 写入已构造服务，但应避免依赖注册顺序。服务暂缺时拿到 `UnavailableService`，其 `available=False`，不能当成有效 provider；丢失内部依赖会阻止启动。
 
 RequestContext 字段：`requestId, tenantId, siteSessionId, method, path, headers, query, json, csrfVerified, origin, cookies, session, publicPath`。`path` 是内部 `/api/v1/...`，`publicPath` 是浏览器实际挂载 URL；`headers.get()` 大小写不敏感；query 为字符串键值字典，重复键拒绝；json 为对象；cookies 是已解析的字符串字典。不要把 context/session 整体序列化进响应或日志。
 
 返回 `Response(status, body, headers)`，或 `{status,body,headers}`，或作为成功数据的普通 dict。JSON 自动加 `{data,meta:{requestId,apiVersion}}`，已包好的 `{data,meta}` 不重复套层。`APIError(status,code,message,retryable=False,details={})` 生成规范 error；只使用面向客户的安全 message/details，不放上游原始响应。非预期异常只返回 `INTERNAL_ERROR`，日志仅含随机 requestId 和异常类型。二进制下载用 bytes 加 Content-Type/Content-Disposition；仍要求 session 与对象归属。只允许本站相对 Location，公开 OAuth URL 应通过 authorize JSON 返回给浏览器。
 
-模块错误/成功响应不能覆盖公共安全头与 API no-store 缓存策略。所有 Cookie 写请求先检查配置 Origin，再调 sessions.verify_csrf。`tenantId` 作为顶层 body 参数会被拒绝。模块仍须验证字段白名单、ownership、事务、对象版本、任务来源和幂等摘要；公共层不代替这些检查。
+模块错误/成功响应不能放宽 API no-store 缓存策略；OAuth callback 的 no-referrer 和更严格 CSP 保持原样。所有 Cookie 写请求先检查配置 Origin，再调 sessions.verify_csrf。`tenantId` 作为顶层 body 参数会被拒绝。模块仍须验证字段白名单、ownership、事务、对象版本、任务来源和幂等摘要；公共层不代替这些检查。
 
 ## 站点 session 模块的最小适配
 
@@ -63,9 +63,9 @@ sessions.verify_csrf(ctx, presented_token) -> bool
 
 所有外部 URL 由 `publicBasePath`、`apiBase` 明确配置。路由注册仍写内部 `/api/v1/...`，adapter 在边界映射。静态文件相对 publicBasePath 提供；子路径实例不暴露根 `/api`。旧 `/dashixiong-scene-studio/...` URL 只在本挂载内做相对重定向，避免首页相对资源路径漂移。
 
-页面可读取与入口同目录的 `app-config.json`（普通 JSON）或 `_app/config.js`（导出 `config`），已迁移 HTML 中另有 `script#asset-lab-config[type=application/json]`。集成 bootstrap 后续应读取这一个配置并以参数传入 `api` 和 `mount({root,api,events,session})`，不猜 window 全局，不给每个模块另建账户/session 状态。
+页面可读取与入口同目录的 `app-config.json`（普通 JSON）或 `_app/config.js`（导出 `config`），已迁移 HTML 中另有 `script#asset-lab-config[type=application/json]`。scripts/browser/bootstrap.mjs 读取这一个配置并以参数传入 `api` 和 `mount({root,api,events,session})`，不猜 window 全局，不给每个模块另建账户/session 状态。
 
-尚未合并模块 5/6/7/8/9 的 JS，因此本检查点只提供空白集成页。不会创建账户/更新/任务组件的假实现，也不会修改它们的独占目录。
+模块 5/6/7/8/9 已合并。集成入口唯一挂载 shell、accounts、workflow、updates，并通过真实 /tasks 查询显示任务栏；账号根节点移动到原生 dialog，关闭面板不销毁模块或草稿。服务器草稿接口 /drafts/browser 使用真实 Store/CAS，升级保存返回 savedDrafts 可供主所有者恢复核验。页面构建标记写入 HTML，不从最新版本接口猜旧页版本。
 
 ## 合并与最终验收顺序
 
@@ -76,3 +76,9 @@ sessions.verify_csrf(ctx, presented_token) -> bool
 5. 真实 OAuth 与公网部署按独立门槛处理；付费生成和视频本轮保持禁用。打包前确认未把原工程数据、凭据、媒体或旧运行目录带入。
 
 当前测试命令：`python3 scripts/check_integration.py --output /absolute/evidence.json`。Tests 里的 FixtureSessions 仅用于公共 HTTP 边界测试，不是任何可部署服务。对 fake 对象返回 404 只能证明 context 接线正确，不能替代实际 storage 的跨租户查询验收。
+
+## 检查点 2 已验证与边界
+
+真实 HTTP 集成 48 项通过；新测试覆盖项目跨租户读取、持久化草稿 CAS/重启、未开放授权的服务器拦截、callback 子路径和严格头、唯一 bootstrap 与发布资源、schema 不符时禁止创建数据库。前端纯逻辑 46 项通过。Chrome 已实测项目草稿刷新、三类资产清单、390px 抽屉搜索保持，以及实际解包服务 preview.1 → preview.2 保存后升级。版本与存储通过不代表官方图片生成或公网部署通过。
+
+持久化授权 AEAD key 与任务确认签名 key 均从 Store 的服务器秘密子密钥通过不同固定 HMAC label 派生，不是浏览器 csrfToken；服务重启不随机换钥。所有实际凭据仍由 Store 的加密 secrets 机制隔离。

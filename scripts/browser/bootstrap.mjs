@@ -1,0 +1,138 @@
+import {createApiClient, ApiError} from '../api-client.js';
+import {mount as mountShell} from '../shell/index.js';
+import {mount as mountAccounts} from '../accounts/index.js';
+import {mount as mountWorkflow} from '../asset-lab.js';
+import {mount as mountUpdates} from '../updates/index.js';
+import {DraftCoordinator} from './drafts.mjs';
+
+const config = JSON.parse(document.getElementById('asset-lab-config').textContent);
+const currentBuild = JSON.parse(document.getElementById('asset-lab-build').textContent);
+const events = new EventTarget();
+const transport = createApiClient(config);
+// Account management is a panel; keep the production canvas in the first viewport.
+const accountRoot = document.getElementById('account-root');
+const accountButton = document.createElement('button'); accountButton.type='button';accountButton.className='lab-button integration-account-trigger';accountButton.textContent='管理工作区与账号';
+accountButton.setAttribute('aria-haspopup','dialog');accountButton.setAttribute('aria-controls','integration-account-dialog');
+accountRoot.before(accountButton);
+const accountDialog=document.createElement('dialog');accountDialog.id='integration-account-dialog';accountDialog.className='integration-account-dialog';accountDialog.setAttribute('aria-label','工作区与 LibTV 账号');
+const closeAccounts=document.createElement('button');closeAccounts.type='button';closeAccounts.className='lab-button integration-account-close';closeAccounts.textContent='关闭账号面板';
+accountDialog.append(closeAccounts,accountRoot);document.body.append(accountDialog);
+const openAccounts=()=>{if(!accountDialog.open)accountDialog.showModal();};
+accountButton.addEventListener('click',openAccounts);closeAccounts.addEventListener('click',()=>accountDialog.close());
+accountDialog.addEventListener('close',()=>accountButton.focus());
+let readOnly = false, activeDownloads = 0, pendingWrites = 0;
+let workflow, accounts, drafts, shell, session;
+const status = document.createElement('div'); status.className = 'integration-notice'; status.setAttribute('role','status');
+const save = document.createElement('button'); save.type='button'; save.textContent='保存当前草稿';
+const message = document.createElement('span'); status.append(message, save);
+document.getElementById('update-root').before(status);
+function display(messageText) { message.textContent = messageText; }
+const api = {...transport, async request(path, options = {}) {
+  const write = !['GET','HEAD'].includes((options.method || 'GET').toUpperCase());
+  if (readOnly && write && path !== '/drafts/browser') throw new ApiError('页面版本需要更新；请先保存草稿，再刷新。',{code:'CLIENT_VERSION_INCOMPATIBLE'});
+  if (write) pendingWrites++;
+  try { return await transport.request(path,options); }
+  finally { if(write) pendingWrites--; }
+}};
+
+async function saveDraft() {
+  await workflow?.flushDrafts(); await accounts?.flush();
+  return drafts.save();
+}
+save.addEventListener('click', () => saveDraft().then(result => {
+  display(result.saved ? '草稿已保存到当前工作区。' : '刚才的草稿已保存，最新输入仍在保存中。');
+}).catch(error => display(error.message)));
+
+const running = new Set(['preparing','submitting','queued','running','downloading']);
+async function listAllTasks() {
+  const rows = []; let cursor = null; const seen = new Set();
+  do {
+    const value = await api.request('/tasks' + (cursor ? '?cursor='+encodeURIComponent(cursor) : ''));
+    rows.push(...value.items); cursor = value.nextCursor;
+    if (cursor && seen.has(cursor)) throw new Error('任务列表尚未完整读取');
+    seen.add(cursor);
+  } while(cursor);
+  return rows;
+}
+async function safety() {
+  const tasks = await listAllTasks();
+  return {hasUnsavedChanges:drafts.hasPending() || pendingWrites > 0 || workflow.getState().busy,
+    activeTasks:tasks.filter(task => running.has(task.status)).length, activeDownloads};
+}
+async function refreshTasks() {
+  const root = document.getElementById('task-root');
+  try {
+    const tasks = await listAllTasks(); root.replaceChildren();
+    const count = tasks.filter(task=>running.has(task.status)).length;
+    document.getElementById('taskCount').textContent = String(count);
+    const note = document.createElement('p'); note.className='integration-task-note';
+    note.textContent = tasks.length ? `共 ${tasks.length} 个任务，${count} 个正在处理。` : '还没有任务。准备或生成后的记录会保留在这里。';
+    root.append(note);
+    for (const task of tasks.slice(-20).reverse()) {
+      const item=document.createElement('div'); item.className='integration-task';
+      const label=document.createElement('strong'); label.textContent=task.recipe+' · '+({draft:'待确认',queued:'排队中',running:'生成中',downloading:'收取中',completed:'文件已收取',blocked_authorization:'需原账号授权',failed:'失败',cancelled:'已取消',unknown_submission:'提交状态待核验'}[task.status] || task.status);
+      const owner=document.createElement('small'); owner.textContent=(task.ownership.accountLabelAtCreation || task.ownership.providerAccountId)+' / '+(task.ownership.spaceNameAtCreation || task.ownership.spaceId);
+      item.append(label,owner);
+      if(task.canRecover) {const button=document.createElement('button');button.textContent='查询原任务并收取';button.addEventListener('click',async()=>{button.disabled=true;try{await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version}});events.dispatchEvent(new CustomEvent('tasks:changed'));}catch(error){display(error.message);}finally{button.disabled=false;}});item.append(button);}
+      root.append(item);
+    }
+  } catch(error) {root.textContent='任务状态暂时无法读取；刷新更新将保持锁定。';}
+}
+
+// ZIP fetches go through the authenticated transport and are counted until body receipt.
+document.addEventListener('click', async event => {
+  const link=event.target.closest('a[href]'); if(!link || event.defaultPrevented || event.button!==0) return;
+  const url=new URL(link.href);
+  if(url.origin!==location.origin || !url.pathname.startsWith(config.apiBase+'/') || !(/\/projects\/[^/]+\/export$/.test(url.pathname)||/\/bundles\/[^/]+\/content$/.test(url.pathname))) return;
+  event.preventDefault(); activeDownloads++;
+  try {
+    const blob=await api.request(url.pathname.slice(config.apiBase.length)+url.search,{responseType:'blob'});
+    const object=URL.createObjectURL(blob), anchor=document.createElement('a'); anchor.href=object;anchor.download='资产实验室交付包.zip';document.body.append(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(object),60000);
+  } catch(error) {display(error.message);} finally{activeDownloads--;}
+},true);
+
+events.addEventListener('release:changed', event=>{
+  if(event.detail.compatibleNow===false){readOnly=true;document.body.dataset.readOnly='true';display('页面与服务版本不兼容，当前处于只读状态；输入可继续保留为草稿。');}
+});
+events.addEventListener('shell:action',event=>{
+  if(event.detail.action==='connect'){event.preventDefault();openAccounts();}
+  if(event.detail.action==='manual-plan')shell.setView({workspaceState:'ready'});
+});
+events.addEventListener('provider-accounts:changed',event=>{
+  const items=event.detail.items || []; shell.setView({connectionState:items.some(item=>item.authorization?.state==='connected')?'connected':'disconnected'});
+});
+events.addEventListener('session:changed',event=>{
+  const next=event.detail.session || event.detail;
+  if(session && next?.tenant?.id && next.tenant.id !== session.tenant.id){
+    // Owner UI waits for the server's cookie rotation before this event.
+    drafts.destroy(); location.assign(config.publicBasePath); return;
+  }
+});
+events.addEventListener('tasks:changed',()=>void refreshTasks());
+
+try {
+  session=await api.request('/session');
+  shell=mountShell({root:document,events,session});
+  drafts=new DraftCoordinator({api,storage:localStorage,tenantId:session.tenant.id,apiBase:config.apiBase,onState:state=>{
+    if(readOnly) return;
+    display(state.error || (state.hasPending() ? '草稿待保存到当前工作区…' : '当前草稿已保存到工作区。'));
+    const label=document.getElementById('saveStatus'); if(label)label.textContent=state.error?'草稿待处理':state.hasPending()?'正在保存草稿':'草稿已保存';
+  }});
+  await drafts.load();
+  accounts=mountAccounts({root:document.getElementById('account-root'),api,events,session,publicBasePath:config.publicBasePath,getSafetyState:safety,saveDraft});
+  workflow=mountWorkflow({root:document.getElementById('workflow-root'),api,events,session,...config,storage:drafts.adapter});
+  await Promise.all([accounts.ready,workflow.ready]);
+  drafts.onState(drafts);
+  if(workflow.getState().projectId || Object.keys(drafts.snapshot().workflow).some(key=>key==='new-project'||key.startsWith('plan:'))) shell.setView({workspaceState:'ready'});
+  document.querySelectorAll('#workflow-root,#account-root').forEach(root=>{
+    for(const type of ['input','change']) root.addEventListener(type,()=>queueMicrotask(()=>drafts.changed()));
+  });
+  await refreshTasks();
+  document.getElementById('update-root').replaceChildren();
+  mountUpdates({root:document.getElementById('update-root'),api,events,session,currentBuild,getSafetyState:safety,saveDraft,publicBasePath:config.publicBasePath});
+  window.addEventListener('beforeunload',event=>{if(drafts.hasPending() || pendingWrites || activeDownloads){event.preventDefault();event.returnValue='';}});
+  if(!drafts.conflict) void drafts.save().catch(()=>{});
+} catch(error) {
+  display(error.message || '工作区暂时无法载入，请稍后重试。'); save.disabled=true;
+  document.getElementById('workflow-root').textContent='工作区未能载入，现有数据未被替换。';
+}
