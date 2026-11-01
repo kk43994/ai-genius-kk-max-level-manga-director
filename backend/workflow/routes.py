@@ -92,6 +92,10 @@ def register_routes(router, services):
                                   'Content-Disposition': f'attachment; filename="{filename}"',
                                   'X-Content-Type-Options': 'nosniff'})
 
+    if getattr(workflow, 'production', None):
+        add('GET', '/production-jobs/{productionId}/storyboard-export', lambda c,p,b,q:
+            download(workflow.production.export_storyboard(c,p['productionId'])[0], 'storyboard-script.zip'))
+
     add('GET', '/projects/{projectId}/export', lambda c, p, b, q:
         download(workflow.export(c, p['projectId'])[0], 'approved-assets.zip'))
     add('GET', '/projects/{projectId}/bundles', lambda c, p, b, q: workflow.list_bundles(c, p['projectId']))

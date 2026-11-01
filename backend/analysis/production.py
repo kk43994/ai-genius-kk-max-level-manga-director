@@ -305,6 +305,10 @@ class ProductionService(AnalysisService):
         from .production_bindings import save
         return save(self, ctx, identity, body)
 
+    def export_storyboard(self, ctx, identity):
+        from .storyboard_export import export
+        return export(self, ctx, identity)
+
     def save_review(self, ctx, identity, body):
         from .production_review import inspect
         public_input(body, {'expectedVersion', 'expectedEditVersion', 'result'})

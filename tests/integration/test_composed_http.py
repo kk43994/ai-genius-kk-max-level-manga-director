@@ -94,6 +94,8 @@ class ComposedHTTPTests(unittest.TestCase):
         for operation in ('revalidate', 'repair'):
             self.assertEqual(self.request('/production-jobs/prd_unknown/'+operation,'POST',cookie=cookie,body={})[0],403)
         self.assertEqual(self.request('/production-jobs/prd_unknown',cookie=other)[0],404)
+        self.assertEqual(self.request('/production-jobs/prd_unknown/storyboard-export')[0],401)
+        self.assertEqual(self.request('/production-jobs/prd_unknown/storyboard-export',cookie=other)[0],404)
 
     def test_quickstart_http_csrf_restart_and_tenant_boundary(self):
         cookie, session = self.session()
