@@ -26,5 +26,15 @@ test('preview is honest about missing pictures and escapes model output',()=>{
  const html=previewFrame(job,0,{selection});
  assert.match(html,/文字图板预演/);assert.match(html,/&lt;人物&gt;/);assert.doesNotMatch(html,/<不要执行脚本>/);
  const panel=productionPanel({script:{id:'script'},analysis:{status:'ready'},job,models:[],assets:[],selection,apiBase:'/api/v1'});
- assert.match(panel,/保存分镜调整/);assert.match(panel,/分镜静帧提示词/);assert.match(panel,/视频动作提示词/);assert.match(panel,/不是生成的视频/);
+ assert.match(panel,/保存修改并检查/);assert.match(panel,/分镜静帧提示词/);assert.match(panel,/视频动作提示词/);assert.match(panel,/不是生成的视频/);
+});
+
+
+test('minor validation failures expose all work and offer manual corrections',()=>{
+ const draftJob={...job,status:'needs_review',result:null,draftResult:job.result,bindings:[],validationIssues:[{code:'source_quote',path:'assets.0.evidence.0',label:'人物引用',message:'核对引用',sourceText:'原文 <不能执行>',startLine:1,endLine:1}]};
+ const html=productionPanel({script:{id:'script'},job:draftJob,models:[],selection});
+ assert.match(html,/物料与状态清单/);assert.match(html,/逐镜设计与提示词/);
+ assert.match(html,/采用右侧原文/);assert.match(html,/原文 &lt;不能执行&gt;/);
+ assert.match(html,/data-wf-action="production-plan" disabled/);
+ assert.match(previewFrame(draftJob,0,{selection}),/看清信封/);
 });

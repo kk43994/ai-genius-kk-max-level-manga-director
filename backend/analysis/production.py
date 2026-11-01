@@ -230,6 +230,7 @@ class ProductionService(AnalysisService):
         return result
 
     def get(self, ctx, identity):
+        from .production_review import decode, inspect
         result = super().get(ctx, identity)
         data = self._get(ctx, identity)['data']
         plan = self.services.workflow.get_plan(ctx, result['projectId'])
@@ -239,12 +240,40 @@ class ProductionService(AnalysisService):
         result['dialogues'] = copy.deepcopy(data['context']['analysis']['dialogues'])
         result['characters'] = [{'id': c['id'], 'name': c['name']} for c in data['context']['analysis']['characters']]
         result['editVersion'] = 0
+        edit_shots = {}
         try:
             edit = self.store.get(ctx, 'production.edits', identity)
             result['editVersion'] = edit['version']
-            result['result'] = self._apply_edits(result['result'], edit['data']['shots'])
+            edit_shots = edit['data']['shots']
         except Exception as error:
             if getattr(error, 'code', None) != 'NOT_FOUND': raise
+        script = self.services.workflow.get_script(ctx, result['projectId'], result['scriptId'])
+        result.update(reviewVersion=0, draftResult=None, validationIssues=[], manuallyEdited=False,
+                      returnedText=data.get('productionDraft') or (json.dumps(data['result'], ensure_ascii=False, indent=2) if data.get('result') else None))
+        preview = result['result'] or decode(data.get('productionDraft'))
+        try:
+            review = self.store.get(ctx, 'production.reviews', identity)
+            result['reviewVersion'] = review['version']
+            result['manuallyEdited'] = True
+            result['canRepairProduction'] = False
+            result['canRevalidate'] = False
+            preview = copy.deepcopy(review['data']['result'])
+        except Exception as error:
+            if getattr(error, 'code', None) != 'NOT_FOUND': raise
+        if preview is not None and data['status'] not in ACTIVE:
+            preview = self._apply_edits(preview, edit_shots)
+            issues = inspect(preview, script, data['context'])
+            result['validationIssues'] = issues
+            result['result'] = None if issues else preview
+            result['draftResult'] = preview if issues else None
+            result['status'] = 'needs_review' if issues else 'ready'
+            result['canRefresh'] = False
+            result['message'] = (f'AI 内容已返回，有 {len(issues)} 处需要核对。可以直接修改并保存，无需重新生成。'
+                if issues else '修改已保存，引用与关联检查通过；可继续核对物料。' if result['manuallyEdited']
+                else '制作方案已返回，可查看、修改并继续制作。')
+            # Original job failure is retained internally; the readable draft
+            # has a separate review state, not a transport or generation error.
+            result['error'] = None
         result['bindings'] = []
         if result['result']:
             script = self.services.workflow.get_script(ctx, result['projectId'], result['scriptId'])
@@ -257,6 +286,39 @@ class ProductionService(AnalysisService):
                     binding = next(b for b in result['bindings'] if b['entityId'] == entity_id(result['scriptId'], asset['id'], state['id']))
                     binding.update(assetId=asset['id'], stateId=state['id'])
         return result
+
+    def save_review(self, ctx, identity, body):
+        from .production_review import inspect
+        public_input(body, {'expectedVersion', 'expectedEditVersion', 'result'})
+        job = self.get(ctx, identity)
+        original = self._get(ctx, identity)
+        data = original['data']
+        if data['status'] in ACTIVE or job['stale'] or not (job.get('result') or job.get('draftResult')):
+            raise WorkflowError('PRODUCTION_NOT_READY', '请先取得当前剧本的返回内容，再保存修改。', 409)
+        edited = body.get('result')
+        script = self.services.workflow.get_script(ctx, job['projectId'], job['scriptId'])
+        issues = inspect(edited, script, data['context'])
+        if any(i['code'] == 'structure' for i in issues):
+            raise WorkflowError('PRODUCTION_EDIT_INVALID', '部分字段格式不正确，修改草稿已保留，请核对后保存。', 422)
+        with self.store.transaction(ctx) as tx:
+            if tx.get(self.collection, identity)['version'] != original['version']:
+                raise WorkflowError('VERSION_CONFLICT', '任务状态已变化，请刷新核对；本机修改仍保留。', 409)
+            def optional(collection):
+                try: return tx.get(collection, identity)
+                except Exception as error:
+                    if getattr(error, 'code', None) != 'NOT_FOUND': raise
+                    return None
+            old, legacy = optional('production.reviews'), optional('production.edits')
+            if (type(body.get('expectedVersion')) is not int or body['expectedVersion'] != (old['version'] if old else 0)
+                or type(body.get('expectedEditVersion')) is not int or body['expectedEditVersion'] != (legacy['version'] if legacy else 0)):
+                raise WorkflowError('VERSION_CONFLICT', '方案已被另一页面修改，请刷新核对；本机修改仍保留。', 409)
+            payload = {'jobId': identity, 'result': copy.deepcopy(edited), 'validated': not issues}
+            if old: tx.update('production.reviews', identity, payload, expected_version=old['version'])
+            else: tx.create('production.reviews', payload, record_id=identity)
+            # The full review includes previous shot edits; retire their overlay
+            # atomically so it cannot replace a newer manual correction.
+            if legacy: tx.update('production.edits', identity, {'jobId': identity, 'shots': {}}, expected_version=legacy['version'])
+        return self.get(ctx, identity)
 
     @staticmethod
     def _apply_edits(result, edits):
@@ -279,7 +341,11 @@ class ProductionService(AnalysisService):
             public_input(values, allowed)
         data = self._get(ctx, identity)['data']
         script = self.services.workflow.get_script(ctx, job['projectId'], job['scriptId'])
-        validate(self._apply_edits(data['result'], edits), script, data['context'])
+        base = data['result']
+        try: base = self.store.get(ctx, 'production.reviews', identity)['data']['result']
+        except Exception as error:
+            if getattr(error, 'code', None) != 'NOT_FOUND': raise
+        validate(self._apply_edits(base, edits), script, data['context'])
         with self.store.transaction(ctx) as tx:
             try: old = tx.get('production.edits', identity)
             except Exception as error:
@@ -299,7 +365,7 @@ class ProductionService(AnalysisService):
         except WorkflowError as error:
             if error.code != 'ANALYSIS_RESULT_INVALID': raise
             return {'result': None, 'completedCalls': count, 'status': 'failed',
-                    'productionDraft': text if isinstance(text, str) and len(text) <= 200_000 else None,
+                    'productionDraft': text if isinstance(text, str) and len(text) <= 2_000_000 else None,
                     'error': {'code': error.code, 'message': str(error)}}
         return {'result': result, 'completedCalls': count, 'status': 'ready', 'error': None}
 
@@ -307,6 +373,8 @@ class ProductionService(AnalysisService):
         public_input(body, {'confirmSpend'})
         if not self.enabled or body.get('confirmSpend') is not True:
             raise WorkflowError('ANALYSIS_SPEND_CONFIRMATION_REQUIRED', '修正需要额外 1 次 AI 调用，请确认使用原账号积分。', 409)
+        if self.get(ctx, identity)['manuallyEdited']:
+            raise WorkflowError('PRODUCTION_REPAIR_UNAVAILABLE', '已有手动保存的方案，请继续编辑；原始返回已保留。', 409)
         with self.store.transaction(ctx) as tx:
             row = tx.get(self.collection, identity); data = row['data']
             if data['status'] in ACTIVE and data.get('productionRepair'):

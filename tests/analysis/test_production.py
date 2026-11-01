@@ -83,7 +83,7 @@ class ProductionTests(unittest.TestCase):
 
     def test_invalid_output_stops_without_paid_repair(self):
         self.result['shots'][0]['dialogueIds']=[];self.provider.text=json.dumps(self.result)
-        job=self.finish();self.assertEqual(job['status'],'failed');self.assertFalse(job['canResumeReview'])
+        job=self.finish();self.assertEqual(job['status'],'needs_review');self.assertFalse(job['canResumeReview'])
         self.assertFalse(job['canRepairResult']);self.assertEqual(len(self.provider.submissions),1)
 
     def test_revalidation_reads_same_receipt_without_resubmission(self):
@@ -154,6 +154,59 @@ class ProductionTests(unittest.TestCase):
         result=copy.deepcopy(self.result);result['assets'][1]['name']=result['assets'][0]['name']
         names=[r['name'] for r in candidates(result,self.script)]
         self.assertEqual(len(names),len(set(names)))
+
+    def test_readable_invalid_draft_can_be_saved_then_corrected_without_ai(self):
+        original_quote=self.result['assets'][0]['evidence'][0]['quote']
+        # Deep-copy this quote because fixture evidence is shared by other rows.
+        self.result['assets'][0]['evidence']=[{'startLine':1,'endLine':1,'quote':'缩写...'}]
+        self.provider.text=json.dumps(self.result)
+        job=self.finish();raw=copy.deepcopy(self.production._get(self.ctx,job['id'])['data'])
+        self.assertEqual(job['status'],'needs_review')
+        self.assertEqual(job['validationIssues'][0]['path'],'assets.0.evidence.0')
+        self.assertEqual(job['validationIssues'][0]['sourceText'],original_quote)
+        self.assertEqual(len(job['draftResult']['shots']),2)
+        self.assertEqual(job['returnedText'],self.provider.text)
+        with self.assertRaises(WorkflowError):self.production.candidate(self.ctx,job['id'])
+        body={'expectedVersion':0,'expectedEditVersion':0,'result':job['draftResult']}
+        saved=self.production.save_review(self.ctx,job['id'],body)
+        self.assertEqual(saved['status'],'needs_review');self.assertEqual(saved['reviewVersion'],1)
+        self.assertTrue(saved['manuallyEdited'])
+        with self.assertRaises(WorkflowError):self.production.save_review(self.ctx,job['id'],body)
+        edited=copy.deepcopy(saved['draftResult'])
+        edited['assets'][0]['evidence'][0]['quote']=original_quote
+        ready=self.production.save_review(self.ctx,job['id'],{'expectedVersion':1,'expectedEditVersion':0,'result':edited})
+        self.assertEqual(ready['status'],'ready');self.assertEqual(ready['validationIssues'],[])
+        self.assertEqual(self.production.candidate(self.ctx,job['id'])['addedCount'],4)
+        self.assertEqual(len(self.provider.submissions),1)
+        self.assertEqual(self.production._get(self.ctx,job['id'])['data'],raw)
+        self.assertEqual(self.production.get(self.ctx,job['id'])['result'],edited)
+
+    def test_manual_review_handles_structure_owner_stale_and_legacy_versions(self):
+        job=self.finish()
+        body={'expectedVersion':0,'expectedEditVersion':0,'result':copy.deepcopy(job['result'])}
+        with self.assertRaises((WorkflowError,StorageError)):self.production.save_review(self.other,job['id'],body)
+        broken=copy.deepcopy(body);broken['result']['shots'][0]['durationSeconds']='invalid'
+        with self.assertRaises(WorkflowError):self.production.save_review(self.ctx,job['id'],broken)
+        legacy=self.production.save_edits(self.ctx,job['id'],{'expectedVersion':0,'shots':{'shot_1':{'performance':'用户先修改表演'}}})
+        with self.assertRaises(WorkflowError):self.production.save_review(self.ctx,job['id'],body)
+        body.update(expectedEditVersion=legacy['editVersion'],result=legacy['result'])
+        body['result']['shots'][0]['performance']='更新的表演'
+        saved=self.production.save_review(self.ctx,job['id'],body)
+        self.assertEqual(saved['result']['shots'][0]['performance'],'更新的表演')
+        self.assertEqual(self.production._get(self.ctx,job['id'])['data']['result'],self.result)
+        # Older clients may still edit shot fields after a whole-plan review.
+        newer=self.production.save_edits(self.ctx,job['id'],{'expectedVersion':saved['editVersion'],'shots':{'shot_1':{'durationSeconds':9}}})
+        self.assertEqual(newer['result']['shots'][0]['performance'],'更新的表演')
+        self.assertEqual(newer['result']['shots'][0]['durationSeconds'],9)
+        plan=self.workflow.get_plan(self.ctx,self.project['id'])
+        self.workflow.save_plan(self.ctx,self.project['id'],{'expectedVersion':plan['version'],'entities':plan['entities'],'stylePrompt':'changed'})
+        with self.assertRaises(WorkflowError):self.production.save_review(self.ctx,job['id'],body)
+
+    def test_unparseable_output_is_still_visible_as_original_text(self):
+        self.provider.text='{"shots": [unfinished'
+        job=self.finish()
+        self.assertEqual(job['status'],'failed');self.assertIsNone(job['draftResult'])
+        self.assertEqual(job['returnedText'],self.provider.text)
 
     def test_prompt_separates_facts_design_and_generation(self):
         text=instruction(self.script,self.context)

@@ -58,6 +58,7 @@ def register_routes(router, services):
         add('POST', '/projects/{projectId}/scripts/{scriptId}/production', lambda c,p,b,q: production.start_plan(c,p['projectId'],p['scriptId'],b))
         add('GET', '/production-jobs/{productionId}', lambda c,p,b,q: production.get(c,p['productionId']))
         add('PUT', '/production-jobs/{productionId}/edits', lambda c,p,b,q: production.save_edits(c,p['productionId'],b))
+        add('PUT', '/production-jobs/{productionId}/review', lambda c,p,b,q: production.save_review(c,p['productionId'],b))
         add('POST', '/production-jobs/{productionId}/refresh', lambda c,p,b,q: production.refresh(c,p['productionId']))
         add('POST', '/production-jobs/{productionId}/revalidate', lambda c,p,b,q: production.revalidate(c,p['productionId']))
         add('POST', '/production-jobs/{productionId}/repair', lambda c,p,b,q: production.repair_plan(c,p['productionId'],b))
