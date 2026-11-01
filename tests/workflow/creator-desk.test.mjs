@@ -20,3 +20,15 @@ test('existing images require explicit linking and unsafe names are escaped',()=
  const html=bindingPicker({job,asset:{id:'a',name:'A'},state:{id:'s',name:'Base'},assets:[],apiBase:'/api/v1'});
  assert.match(html,/确认适用，关联此档案/);assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>/);
 });
+test('state assets offer approved styles of the same material only, without merging archives',()=>{
+ const result={assets:[{id:'hero',category:'character',states:[{id:'rain',name:'雨中'}]}]};
+ const job={ownership:owner,bindings:[{assetId:'hero',stateId:'base',entityId:'base',saved:true},
+  {assetId:'hero',stateId:'rain',entityId:'rain',saved:false},{assetId:'other',stateId:'base',entityId:'other',saved:true}]};
+ const assets=[{entityId:'base',name:'主角基础形象',active:true,revisions:[{...revision('chosen','style'),entityId:'base',review:'approved'},revision('pending','style')]},
+  {entityId:'other',active:true,revisions:[{...revision('foreign','style'),review:'approved'}]}];
+ const c=generationContext({result,job,view:{kind:'assets',index:0,stage:'asset'},assets,selection:owner});
+ assert.deepEqual(c.sources.map(r=>r.id),['chosen']);assert.equal(c.sources[0].sourceName,'主角基础形象');
+ assert.equal(c.binding.entityId,'rain');assert.equal(c.library,undefined);
+ job.bindings[0].changed=true;
+ assert.equal(generationContext({result,job,view:{kind:'assets',index:0,stage:'asset'},assets,selection:owner}).sources.length,0);
+});

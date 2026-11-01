@@ -74,6 +74,12 @@ def coverage(workflow, tx, project):
         revisions = [r for r in approved if r['entityId'] == target] if applicable else []
         stages = {stage: any(r['stage'] == stage for r in revisions)
                   for stage in (('storyboard',) if candidate['category'] == 'shot' else ('style', 'asset', 'refine'))}
+        if applicable and candidate['category'] != 'shot' and not stages['style']:
+            from .production_lineage import same_state_family
+            shared_styles = [r for r in approved if r['stage'] == 'style'
+                             and same_state_family(tx, project, target, r['entityId'])]
+            stages['style'] = bool(shared_styles)
+            exports.update(r['id'] for r in shared_styles)
         required = ('storyboard',) if candidate['category'] == 'shot' else ('style', 'asset')
         rows.append(dict(entityId=target, name=candidate['name'], category=candidate['category'],
                          stages=stages, ready=style_ready and all(stages[s] for s in required), **identity))

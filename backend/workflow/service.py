@@ -154,6 +154,10 @@ class WorkflowService:
             source = tx.state['revisions'].get(source_id)
             if not source or not self._valid(tx, source, True, seen):
                 return False
+            if revision['stage'] == 'asset' and source['entityId'] != revision['entityId']:
+                from .production_lineage import same_state_family
+                if not same_state_family(tx, project, revision['entityId'], source['entityId']):
+                    return False
         return True
 
     def _public_revision(self, tx, revision):
@@ -385,7 +389,9 @@ class WorkflowService:
                         raise WorkflowError('OWNERSHIP_MISMATCH', '精修来源属于其他账号或空间。', 409)
                     original_id = candidate.get('refineSourceRevisionId')
                     candidate = self._revision(tx, original_id)
-                source = self._source(tx, project['id'], entity['id'], candidate['id'], ownership)
+                from .production_lineage import same_state_family
+                shared_style = stage == 'asset' and same_state_family(tx, project, entity['id'], candidate['entityId'])
+                source = self._source(tx, project['id'], entity['id'], candidate['id'], ownership, cross_entity=shared_style)
                 if source['stage'] != ('style' if stage == 'asset' else 'asset'):
                     invalid('Image2 需要 MJ 风格图；Nano 需要原始 Image2 资产图。')
                 refs = [source['id']]
@@ -446,7 +452,9 @@ class WorkflowService:
                 invalid('任务参考链不完整。')
             for source_id in refs:
                 source = self._revision(tx, source_id)
-                if (source['projectId'] != project['id'] or (recipe != 'storyboard_image' and source['entityId'] != entity['id'])
+                from .production_lineage import same_state_family
+                shared_style = recipe == 'image2_asset' and same_state_family(tx, project, entity['id'], source['entityId'])
+                if (source['projectId'] != project['id'] or (recipe != 'storyboard_image' and not shared_style and source['entityId'] != entity['id'])
                         or owner_key(source['ownership']) != owner_key(ownership)
                         or snapshot['sourceHashes'].get(source_id) != source['sha256']
                         or source['stage'] not in (('asset','refine') if recipe == 'storyboard_image' else ('style',) if recipe == 'image2_asset' else ('asset',))):
@@ -602,7 +610,11 @@ class WorkflowService:
         with self.repository.transaction(ctx) as tx:
             sources = []
             for identity in prepared['sourceRevisionIds']:
-                source = self._source(tx, spec['projectId'], spec['entityId'], identity, ownership, cross_entity=spec['recipe']=='storyboard_image')
+                from .production_lineage import same_state_family
+                project = self._project(tx, spec['projectId'])
+                candidate = self._revision(tx, identity)
+                shared_style = spec['recipe'] == 'image2_asset' and same_state_family(tx, project, spec['entityId'], candidate['entityId'])
+                source = self._source(tx, spec['projectId'], spec['entityId'], identity, ownership, cross_entity=spec['recipe']=='storyboard_image' or shared_style)
                 if hashlib.sha256(tx.get_blob(source['blobId'])).hexdigest() != source['sha256']:
                     conflict('参考文件校验未通过。')
                 sources.append(dict(revisionId=identity, ownership=copy.deepcopy(source['ownership']),
