@@ -57,6 +57,22 @@ class StateStyleTests(unittest.TestCase):
             with self.assertRaises(WorkflowError):
                 self.workflow.build_spec(self.ctx, body, owner)
 
+    def test_image25_exploration_is_not_a_formal_state_and_keeps_master_lineage(self):
+        self.setup_states()
+        style = self.image(self.master, 'image25_style')
+        self.assertEqual(style['stage'], 'style')
+        self.workflow.confirm_art_direction(self.ctx, self.project['id'], {
+            'revisionId':style['id'], 'sha256':style['sha256'], 'notes':'新版手绘方向',
+            'expectedVersion':1, 'confirmStyle':True})
+        master = self.image(self.master, 'image25_asset', [style['id']])
+        child = self.image(self.rain, 'image25_asset', [master['id']])
+        self.assertEqual(child['stage'], 'asset')
+        self.assertEqual(child['sourceRevisionIds'], [master['id']])
+        for body in ({**self.spec(), 'recipe':'image25_style', 'sourceRevisionIds':[]},
+                     {**self.spec(), 'recipe':'image25_asset', 'sourceRevisionIds':[style['id']]}):
+            with self.assertRaises(WorkflowError):
+                self.workflow.build_spec(self.ctx, body, self.owner)
+
     def test_changed_state_definition_invalidates_shared_source_and_existing_result(self):
         self.setup_states()
         asset = self.image(self.rain, 'image2_asset', [self.master_image['id']])

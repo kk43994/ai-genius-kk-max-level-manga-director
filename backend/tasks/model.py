@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from .errors import TaskError
 
-RECIPES = frozenset({"mj_style", "image2_asset", "nano_refine", "storyboard_image", "script_analysis"})
+RECIPES = frozenset({"mj_style", "image25_style", "image2_asset", "image25_asset", "nano_refine", "storyboard_image", "image25_storyboard", "script_analysis"})
 ACTIVE = frozenset({"preparing", "submitting", "queued", "running", "downloading"})
 TERMINAL = frozenset({"completed", "cancelled"})
 RECEIPT_KEYS = frozenset({"taskId", "projectId", "nodeId", "requestId"})

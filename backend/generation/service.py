@@ -18,7 +18,7 @@ from .project_coordination import project_mutation
 from .types import (AuthorizedMCP, GenerationPolicy, ProjectBinding, RecipeBinding,
                     VerifiedReference, digest, opaque, owner, safe_receipt, same_owner)
 
-RECIPES = {'mj_style', 'image2_asset', 'nano_refine', 'storyboard_image'}
+RECIPES = {'mj_style', 'image25_style', 'image2_asset', 'image25_asset', 'nano_refine', 'storyboard_image', 'image25_storyboard'}
 DELIVERY_FIELDS = ('operationId', 'projectId', 'status', 'files', 'fileUrl', 'fileMime',
                    'fileNodeId', 'fileOutputIndex')
 RESERVED = {'model', 'provider', 'modeType', 'scene', 'prompt', 'imageList', 'videoList',
@@ -122,8 +122,9 @@ class BoundImageClient:
                 or any(not isinstance(x, dict) for x in snapshots)
                 or len(ids) != len(set(ids)) or [x.get('revisionId') for x in snapshots] != ids):
             raise GenerationError('SOURCE_CHANGED')
-        if (recipe in {'nano_refine', 'image2_asset'} and len(ids) != 1
-                or recipe == 'mj_style' and ids or recipe == 'storyboard_image' and not 1 <= len(ids) <= 20):
+        if (recipe in {'nano_refine', 'image2_asset', 'image25_asset'} and len(ids) != 1
+                or recipe in {'mj_style','image25_style'} and ids
+                or recipe in {'storyboard_image','image25_storyboard'} and not 1 <= len(ids) <= 20):
             raise GenerationError('SOURCE_REVIEW_REQUIRED')
         results = []
         for snap in snapshots:
@@ -136,7 +137,7 @@ class BoundImageClient:
             if (not isinstance(ref, VerifiedReference) or not same_owner(ref.ownership, self._owner)
                     or ref.revision_id != snap['revisionId'] or ref.sha256 != snap['sha256']
                     or not ref.approved or ref.stale
-                    or ref.stage not in (('asset','refine') if recipe=='storyboard_image' else ('style','asset') if recipe=='image2_asset' else ('asset',))):
+                    or ref.stage not in (('asset','refine') if recipe in {'storyboard_image','image25_storyboard'} else ('style','asset') if recipe in {'image2_asset','image25_asset'} else ('asset',))):
                 raise GenerationError('SOURCE_CHANGED')
             inspect_image(ref.content, ref.mime, max_bytes=self.a.policy.max_image_bytes,
                           max_pixels=self.a.policy.max_pixels, sha256=ref.sha256)

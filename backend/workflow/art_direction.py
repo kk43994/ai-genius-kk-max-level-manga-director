@@ -33,7 +33,7 @@ def confirm(workflow, ctx, project_id, payload):
         if revision['projectId'] != project_id or owner_key(revision['ownership']) != owner_key(owner):
             raise WorkflowError('OWNERSHIP_MISMATCH', '风格图须属于本项目和当前账号空间。', 409)
         if revision['stage'] != 'style' or not workflow._valid(tx, revision, require_approved=True):
-            raise WorkflowError('STYLE_REVIEW_REQUIRED', '请先选用一张有效的 MJ 风格候选图。', 409)
+            raise WorkflowError('STYLE_REVIEW_REQUIRED', '请先选用一张有效的风格候选图。', 409)
         if revision['sha256'] != payload.get('sha256'):
             conflict('风格图片版本已变化，请刷新核对。')
         if current.get('revisionId') == revision['id'] and current.get('notes') == notes:
@@ -65,7 +65,7 @@ def apply(workflow, tx, project, prompt, ownership, recipe):
     direction = describe(workflow, tx, project)
     if not direction:
         return prompt, 0
-    if recipe != 'mj_style' and not direction['valid']:
+    if recipe not in ('mj_style','image25_style') and not direction['valid']:
         raise WorkflowError('STYLE_REVIEW_REQUIRED', '本剧风格参考已变化，请先重新确认风格。', 409)
     if owner_key({**direction['ownership'], 'tenantId':project['tenantId']}) != owner_key(ownership):
         raise WorkflowError('OWNERSHIP_MISMATCH', '请切回本剧风格原账号与空间继续制作。', 409)

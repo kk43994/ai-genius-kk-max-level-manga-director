@@ -389,7 +389,7 @@ class ProductionService(AnalysisService):
             raise WorkflowError('SELECTION_CHANGED', '当前账号选择已变化，请重新核对。', 409)
         recipe = body.get('recipe')
         script = self.services.workflow.get_script(ctx, job['projectId'], job['scriptId'])
-        if recipe == 'storyboard_image':
+        if recipe in ('storyboard_image','image25_storyboard'):
             packet = self.reference_packet(ctx, identity, body.get('shotId'))
             if not packet['ready']:
                 raise WorkflowError('REFERENCE_REQUIRED', '本镜还有物料未制图、未审核或未选定版本，请在引用卡片中处理。', 409)
@@ -402,7 +402,7 @@ class ProductionService(AnalysisService):
                 prompt='\n'.join(r['name']+'='+ '{{reference:'+r['revisionId']+'}}' for r in packet['references'])+'\n'+prompt
             from backend.workflow.production_coverage import shot_candidate
             candidate = shot_candidate(job['scriptId'], shot, refs, job['result']['shots'].index(shot)+1)
-        elif recipe in ('mj_style','image2_asset','nano_refine'):
+        elif recipe in ('mj_style','image25_style','image2_asset','image25_asset','nano_refine'):
             target = entity_id(job['scriptId'], str(body.get('assetId')), str(body.get('stateId')))
             candidate = next((e for e in candidates(job['result'],script) if e['id']==target), None)
             if candidate is None:

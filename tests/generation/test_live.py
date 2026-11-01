@@ -38,6 +38,24 @@ class LiveTests(unittest.TestCase):
                 with self.assertRaises(ConfigurationError):Config(Path(d).resolve(),**kwargs)
             c=Config(Path(d).resolve(),allowPaidSubmission=True,local_client=True)
             self.assertTrue(c.allowPaidSubmission);self.assertFalse(c.videoGeneration)
+    def test_new_image25_routes_preserve_legacy_models_and_require_exact_live_contract(self):
+        from backend.integration_generation import make_adapter
+        adapter = make_adapter(SimpleNamespace(storage=None), None, local_images=True)
+        self.assertEqual(adapter.recipes['image2_asset'].model, 'lib-image-2')
+        self.assertEqual(adapter.recipes['storyboard_image'].model, 'lib-image-2')
+        client = LiveImageClient(adapter, OWNER, None)
+        seen = []
+        def contract(model):
+            seen.append(model)
+            return {'inputContract':{'model':model,'modality':'image',
+                'parameterSchemas':{'generate':{'type':'object','properties':{'count':{'enum':[1]}},'additionalProperties':False}}}}
+        client.get_model = contract
+        for recipe in ('image25_style','image25_asset','image25_storyboard'):
+            self.assertEqual(client._model({'recipe':recipe,'prompt':'合成模型路由测试','settings':{'count':1}})[0], 'lib-image-2.5-s')
+        self.assertEqual(seen, ['lib-image-2.5-s'] * 3)
+        client.get_model = lambda _: contract('lib-image-2')
+        with self.assertRaises(GenerationError):
+            client._model({'recipe':'image25_asset','prompt':'合成测试','settings':{'count':1}})
 if __name__=='__main__':unittest.main()
 
 class DurableResponseTests(unittest.TestCase):

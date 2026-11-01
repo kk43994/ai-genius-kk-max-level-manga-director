@@ -1,6 +1,8 @@
 export const stages = ['style', 'asset', 'refine'];
 export const stageLabels = {style: 'MJ 风格', asset: 'Image2 资产', refine: 'Nano 精修', storyboard: '分镜图'};
-export const recipes = {style: 'mj_style', asset: 'image2_asset', refine: 'nano_refine'};
+export const recipes = {style: 'mj_style', asset: 'image25_asset', refine: 'nano_refine'};
+export const recipeLabels={mj_style:'MJ 风格',image25_style:'Image2.5 风格',image2_asset:'Image2 资产',image25_asset:'Image2.5 资产',nano_refine:'Nano 精修',storyboard_image:'Image2 分镜图',image25_storyboard:'Image2.5 分镜图'};
+export const revisionLabel=revision=>recipeLabels[revision.recipe]||stageLabels[revision.stage]||'图片';
 export const categories = {character: '角色', scene: '场景', prop: '道具', effect: '异象', shot: '分镜'};
 export const states = {pending: '待人工审核', approved: '已保留', changes_requested: '待返修', superseded: '历史版本', stale: '依据已变更',
   draft: '待确认提交', preparing: '准备中', submitting: '正在提交', submitted: '已提交，等待生成', queued: '排队中', running: '生成中', downloading: '收取中',

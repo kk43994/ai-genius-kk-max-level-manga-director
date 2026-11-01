@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from .errors import WorkflowError, conflict, invalid, missing, public_input, tenant, value
 from .intake import ANALYSIS, decode_script
 
-STAGES = {'mj_style': 'style', 'image2_asset': 'asset', 'nano_refine': 'refine', 'storyboard_image': 'storyboard'}
+STAGES = {'mj_style': 'style', 'image25_style': 'style', 'image2_asset': 'asset', 'image25_asset': 'asset', 'nano_refine': 'refine', 'storyboard_image': 'storyboard', 'image25_storyboard': 'storyboard'}
 CATEGORIES = {'character': '角色', 'scene': '场景', 'prop': '道具', 'effect': '异象', 'shot': '分镜'}
 OWNER_FIELDS = ('provider', 'providerAccountId', 'providerIssuer', 'providerSubject', 'spaceId', 'spaceKind',
                 'boundAt', 'accountLabelAtCreation', 'spaceNameAtCreation')
@@ -343,7 +343,7 @@ class WorkflowService:
             invalid('候选数量须为 1 至 4。')
         prompt = text_field(payload, 'prompt', 20000, required=recipe != 'nano_refine')
         refs = payload.get('sourceRevisionIds', [])
-        if not isinstance(refs, list) or len(refs) > (20 if recipe == 'storyboard_image' else 1) or len(set(refs)) != len(refs) or any(not isinstance(i, str) for i in refs):
+        if not isinstance(refs, list) or len(refs) > (20 if recipe in ('storyboard_image','image25_storyboard') else 1) or len(set(refs)) != len(refs) or any(not isinstance(i, str) for i in refs):
             invalid('每个阶段请选择一张已审核的参考图。')
         with self.repository.transaction(ctx) as tx:
             project = self._project(tx, payload.get('projectId'))
@@ -353,9 +353,9 @@ class WorkflowService:
             from .art_direction import apply
             prompt, direction_version = apply(self, tx, project, prompt, ownership, recipe)
             from .production_lineage import members
-            if recipe != 'mj_style' and entity['id'] in members(tx, project) and not direction_version:
+            if recipe not in ('mj_style','image25_style') and entity['id'] in members(tx, project) and not direction_version:
                 raise WorkflowError('STYLE_REVIEW_REQUIRED', '请先确认本剧风格，再制作主多视图和剧情状态。', 409)
-            if recipe == 'storyboard_image':
+            if recipe in ('storyboard_image','image25_storyboard'):
                 if entity['category'] != 'shot' or not refs:
                     invalid('分镜图片需要镜头档案和已审核的物料参考图。')
                 for rid in refs:
@@ -398,10 +398,10 @@ class WorkflowService:
                 from .production_lineage import image2_source_allowed
                 shared_style = stage == 'asset' and image2_source_allowed(tx, project, entity['id'], candidate)
                 if stage == 'asset' and not shared_style:
-                    invalid('请先生成并确认同一角色的人物主多视图，再派生剧情状态；主多视图使用已选 MJ 形象。')
+                    invalid('请先生成并确认同一角色的人物主多视图，再派生剧情状态；主多视图使用已选人物风格形象。')
                 source = self._source(tx, project['id'], entity['id'], candidate['id'], ownership, cross_entity=shared_style)
                 if stage == 'asset' and not shared_style or stage == 'refine' and source['stage'] != 'asset':
-                    invalid('人物剧情状态需要已确认的人物主多视图；主多视图需要已选 MJ 形象；Nano 需要原始 Image2 图。')
+                    invalid('人物剧情状态需要已确认的人物主多视图；主多视图需要已选人物风格形象；Nano 需要原始 Image2 图。')
                 refs = [source['id']]
             if stage == 'refine':
                 prompt = REFINE_PROMPT + ('\n补充要求：' + prompt if prompt else '')
@@ -456,16 +456,16 @@ class WorkflowService:
             if not isinstance(snapshot, dict) or not {'entityVersion', 'styleVersion', 'sourceHashes'} <= snapshot.keys():
                 invalid('任务缺少准备时的工作流版本快照。')
             refs = task.get('sourceRevisionIds', [])
-            if not isinstance(refs, list) or (not 1 <= len(refs) <= 20 if recipe == 'storyboard_image' else len(refs) != (0 if recipe == 'mj_style' else 1)):
+            if not isinstance(refs, list) or (not 1 <= len(refs) <= 20 if recipe in ('storyboard_image','image25_storyboard') else len(refs) != (0 if recipe in ('mj_style','image25_style') else 1)):
                 invalid('任务参考链不完整。')
             for source_id in refs:
                 source = self._revision(tx, source_id)
                 from .production_lineage import same_state_family
-                shared_style = recipe == 'image2_asset' and same_state_family(tx, project, entity['id'], source['entityId'])
-                if (source['projectId'] != project['id'] or (recipe != 'storyboard_image' and not shared_style and source['entityId'] != entity['id'])
+                shared_style = recipe in ('image2_asset','image25_asset') and same_state_family(tx, project, entity['id'], source['entityId'])
+                if (source['projectId'] != project['id'] or (recipe not in ('storyboard_image','image25_storyboard') and not shared_style and source['entityId'] != entity['id'])
                         or owner_key(source['ownership']) != owner_key(ownership)
                         or snapshot['sourceHashes'].get(source_id) != source['sha256']
-                        or source['stage'] not in (('asset','refine') if recipe == 'storyboard_image' else ('style','asset') if recipe == 'image2_asset' else ('asset',))):
+                        or source['stage'] not in (('asset','refine') if recipe in ('storyboard_image','image25_storyboard') else ('style','asset') if recipe in ('image2_asset','image25_asset') else ('asset',))):
                     conflict('任务参考链与准备记录不一致。')
             asset = next(a for a in tx.state['assets'].values()
                          if a['projectId'] == project['id'] and a['entityId'] == entity['id'])
@@ -477,7 +477,7 @@ class WorkflowService:
                             prompt=task.get('prompt', ''), settings=copy.deepcopy(task.get('settings', {})),
                             modelLabel=task.get('modelLabel'), review='pending', reviewNote='', reviewHistory=[],
                             status='ready', createdAt=now(), blobId=tx.put_blob(raw), **metadata)
-            if recipe != 'mj_style' and snapshot.get('artDirectionVersion'):
+            if recipe not in ('mj_style','image25_style') and snapshot.get('artDirectionVersion'):
                 revision['artDirectionVersion'] = snapshot['artDirectionVersion']
             tx.state['revisions'][revision['id']] = revision
             asset['revisionIds'].append(revision['id'])
@@ -621,8 +621,8 @@ class WorkflowService:
                 from .production_lineage import image2_source_allowed
                 project = self._project(tx, spec['projectId'])
                 candidate = self._revision(tx, identity)
-                shared_style = spec['recipe'] == 'image2_asset' and image2_source_allowed(tx, project, spec['entityId'], candidate)
-                source = self._source(tx, spec['projectId'], spec['entityId'], identity, ownership, cross_entity=spec['recipe']=='storyboard_image' or shared_style)
+                shared_style = spec['recipe'] in ('image2_asset','image25_asset') and image2_source_allowed(tx, project, spec['entityId'], candidate)
+                source = self._source(tx, spec['projectId'], spec['entityId'], identity, ownership, cross_entity=spec['recipe'] in ('storyboard_image','image25_storyboard') or shared_style)
                 if hashlib.sha256(tx.get_blob(source['blobId'])).hexdigest() != source['sha256']:
                     conflict('参考文件校验未通过。')
                 sources.append(dict(revisionId=identity, ownership=copy.deepcopy(source['ownership']),

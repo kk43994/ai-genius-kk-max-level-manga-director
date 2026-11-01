@@ -60,7 +60,7 @@ class LiveReferenceRoute:
             node = nodes.get(match.group(1))
             if not node: raise GenerationError('SOURCE_CHANGED')
             return '{{Node '+node+'}}'
-        if record['spec']['recipe'] == 'storyboard_image':
+        if record['spec']['recipe'] in {'storyboard_image','image25_storyboard'}:
             record['spec']['prompt'] = re.sub(r'\{\{reference:([A-Za-z0-9_-]+)\}\}', mention, record['spec']['prompt'])
         args = {'name':record['spec']['recipe']+' · '+local_task[-8:], 'nodeType':'image',
                 'idempotencyKey':key+':node', 'projectId':project, 'model':record['prepared']['modelKey'],
