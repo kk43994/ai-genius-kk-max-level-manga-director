@@ -33,11 +33,12 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   let operation = null, operationSerial = 0, progressTimer, pollingTimer, lastChecked = null, polling = false;
   const transport = api;
   api = {...transport, request: async (url, options = {}) => {
+    const {background = false, ...requestOptions} = options;
     const writing = (options.method || 'GET') !== 'GET';
-    const tracked = writing || (!operation && (loading || busy));
+    const tracked = !background && (writing || (!operation && (loading || busy)));
     const serial = tracked ? ++operationSerial : null;
     if (tracked) {operation = {serial, label:options.responseType==='blob'?'正在下载交付包':operationLabel(url,options.method), startedAt:Date.now()}; renderProgress();}
-    try {return await transport.request(url, options);}
+    try {return await transport.request(url, requestOptions);}
     finally {if (operation?.serial === serial) {operation = null; renderProgress();}}
   }};
   let alive = true, busy = false, loading = false, requestSerial = 0, timer, flowTimer, error = '', notice = '';
@@ -193,7 +194,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function tasksView(entityId) {
     const rows = tasks.filter(t=>!entityId || t.entityId===entityId);
-    return `<section class="wf-panel" data-wf-task-feedback><h3>当前档案的任务</h3>${taskError?`<p class="wf-note">${esc(taskError)}</p>`:''}<p class="wf-muted">${lastChecked?'本地状态更新 '+esc(lastChecked.toLocaleTimeString()):'正在检查任务状态'} · 处理中的任务每 5 秒刷新</p>${rows.length?`<ul class="wf-task-list">${rows.map(t=>`<li>${tag(t.status,taskLabel(t))} <b>${esc(stageLabels[Object.keys(recipes).find(s=>recipes[s]===t.recipe)] || t.recipe)}</b><p class="wf-muted">${esc(t.ownership?.accountLabelAtCreation||t.ownership?.providerAccountId)} / ${esc(t.ownership?.spaceNameAtCreation||t.ownership?.spaceId)} · ${esc(t.id.slice(-8))}</p><p class="wf-muted">${esc(taskProgress(t))} · 更新于 ${esc(new Date(t.updatedAt).toLocaleTimeString())}</p>${['preparing','submitting','queued','submitted','running','downloading'].includes(t.status)?'<progress aria-label="任务处理中，等待实际结果"></progress>':''}${t.error?`<p class="wf-note">${esc(t.error.message)}</p>`:''}${!t.submissionAttempted&&!['completed','cancelled'].includes(t.status)?`<button data-wf-cancel="${esc(t.id)}">取消未提交记录</button>`:''}${t.canRecover?`<button data-wf-recover="${esc(t.id)}">查询原任务并收取</button>`:''}</li>`).join('')}</ul>`:'<p class="wf-muted">还没有任务。准备后的任务归属会固定保存，切换账号不改变旧任务。</p>'}</section>`;
+    return `<section class="wf-panel" data-wf-task-feedback><h3>当前档案的任务</h3>${taskError?`<p class="wf-note">${esc(taskError)}</p>`:''}<p class="wf-muted">${lastChecked?'本地状态更新 '+esc(lastChecked.toLocaleTimeString()):'正在检查任务状态'} · 处理中的任务每 5 秒刷新</p>${rows.length?`<ul class="wf-task-list">${rows.map(t=>`<li>${tag(t.status,taskLabel(t))} <b>${esc(stageLabels[Object.keys(recipes).find(s=>recipes[s]===t.recipe)] || t.recipe)}</b><p class="wf-muted">${esc(t.ownership?.accountLabelAtCreation||t.ownership?.providerAccountId)} / ${esc(t.ownership?.spaceNameAtCreation||t.ownership?.spaceId)} · ${esc(t.id.slice(-8))}</p><p class="wf-muted">${esc(taskProgress(t))} · 更新于 ${esc(new Date(t.updatedAt).toLocaleTimeString())}</p>${['preparing','submitting','queued','submitted','running','downloading'].includes(t.status)?'<progress aria-label="任务处理中，等待实际结果"></progress>':''}${t.error?`<p class="wf-note">${esc(t.error.message)}</p>`:''}${t.canConfirm?`<button data-wf-confirm-task="${esc(t.id)}">继续确认已准备的生成任务</button>`:''}${!t.submissionAttempted&&!['completed','cancelled'].includes(t.status)?`<button data-wf-cancel="${esc(t.id)}">取消未提交记录</button>`:''}${t.canRecover?`<button data-wf-recover="${esc(t.id)}">查询原任务并收取</button>`:''}</li>`).join('')}</ul>`:'<p class="wf-muted">还没有任务。准备后的任务归属会固定保存，切换账号不改变旧任务。</p>'}</section>`;
   }
   function allRevisions() { return assets.filter(a=>!selectedEntity || a.entityId===selectedEntity).flatMap(a=>a.revisions.map(r=>({...r,asset:a}))); }
   function reviewView() {
@@ -334,7 +335,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(collecting||!task||!canAutoCollect(task))return;
     collecting=true;
     try {
-      const result=await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version}});
+      const result=await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version},background:true});
       collectionAttempts.set(task.id,{due:Date.now()+collectionDelay(result.task)});
     } catch(e) {
       collectionAttempts.set(task.id,{due:Date.now()+30000});
