@@ -829,7 +829,7 @@ def serialize_response(response, request_id):
     if response.status in {204, 304} or response.body is None:
         return b"", headers
     body, meta = response.body, {"requestId": request_id, "apiVersion": 1}
-    if isinstance(body, dict) and isinstance(body.get("error"), dict):
+    if response.status >= 400 and isinstance(body, dict) and isinstance(body.get("error"), dict):
         result = {"error": body["error"], "meta": meta}
     elif isinstance(body, dict) and "data" in body and set(body).issubset({"data", "meta"}):
         result = {"data": body["data"], "meta": meta}

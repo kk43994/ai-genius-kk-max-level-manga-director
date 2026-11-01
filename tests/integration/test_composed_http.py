@@ -8,11 +8,22 @@ import threading
 import unittest
 from pathlib import Path
 
-from backend.app import Config, ConfigurationError, CustomerHTTPServer, ROOT, create_app
+from backend.app import Config, ConfigurationError, CustomerHTTPServer, ROOT, Response, create_app
 from backend.storage import SCHEMA_VERSION
 
 
 class ComposedHTTPTests(unittest.TestCase):
+    def test_failed_job_is_successfully_read_as_data_not_transport_error(self):
+        cookie,_=self.session()
+        job={'id':'prd_synthetic','status':'failed','completedCalls':1,'canRepairProduction':True,
+             'error':{'code':'ANALYSIS_RESULT_INVALID','message':'原文引用不一致'}}
+        self.app.router.add('GET','/api/v1/fixture-failed-job',lambda c,p:Response(200,job))
+        self.app.router.add('GET','/api/v1/fixture-request-error',lambda c,p:Response(422,{'error':job['error']}))
+        status,_,body=self.request('/fixture-failed-job',cookie=cookie)
+        self.assertEqual(status,200);self.assertEqual(body['data'],job);self.assertNotIn('error',body)
+        status,_,body=self.request('/fixture-request-error',cookie=cookie)
+        self.assertEqual(status,422);self.assertEqual(body['error'],job['error']);self.assertNotIn('data',body)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(dir=ROOT.parent / "work")
         self.addCleanup(self.temp.cleanup)
