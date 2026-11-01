@@ -3,6 +3,18 @@ import copy
 
 
 def members(tx, project):
+    # One immutable repository read snapshot can share its expensive plan check.
+    # Writers may change entities in place, so never reuse results in a write tx.
+    if getattr(tx, 'write', True):
+        return _members(tx, project)
+    if not hasattr(tx, '_lineage_members'):
+        tx._lineage_members = {}
+    if project['id'] not in tx._lineage_members:
+        tx._lineage_members[project['id']] = _members(tx, project)
+    return tx._lineage_members[project['id']]
+
+
+def _members(tx, project):
     from backend.analysis.production import ACTIVE, candidates, entity_id, production_states, MASTER_STATE_ID
     from backend.analysis.production_bindings import fingerprint
     from backend.analysis.production_review import decode, inspect
