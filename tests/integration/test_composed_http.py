@@ -67,6 +67,23 @@ class ComposedHTTPTests(unittest.TestCase):
         self.assertEqual(self.app.services.storage.readiness()['dataSchemaVersion'],SCHEMA_VERSION)
         self.assertFalse(self.request('/ready')[2]['data']['customerReady'])
 
+    def test_production_routes_require_csrf_scope_and_enabled_provider(self):
+        cookie,session=self.session()
+        status,_,response=self.request('/workflow/start','POST',cookie=cookie,csrf=session['csrfToken'],
+            body={'text':'合成剧本，角色在书店说话。','idempotencyKey':'production-route-test'})
+        self.assertEqual(status,200)
+        project,script=response['data']['project'],response['data']['script']
+        path=f"/projects/{project['id']}/scripts/{script['id']}/production"
+        self.assertIsNone(self.request(path,cookie=cookie)[2]['data']['analysis'])
+        self.assertEqual(self.request(path,'POST',cookie=cookie,body={})[0],403)
+        self.assertEqual(self.request(path,'POST',cookie=cookie,csrf=session['csrfToken'],body={})[0],503)
+        other,_=self.session()
+        self.assertEqual(self.request(path,cookie=other)[0],404)
+        self.assertEqual(self.request('/production-jobs/prd_unknown/edits','PUT',cookie=cookie,body={})[0],403)
+        for operation in ('revalidate', 'repair'):
+            self.assertEqual(self.request('/production-jobs/prd_unknown/'+operation,'POST',cookie=cookie,body={})[0],403)
+        self.assertEqual(self.request('/production-jobs/prd_unknown',cookie=other)[0],404)
+
     def test_quickstart_http_csrf_restart_and_tenant_boundary(self):
         cookie, session = self.session()
         payload = {'text': '《HTTP 流程验证》\n角色：旅人\n场景：庭院\n道具：灯笼', 'idempotencyKey':'http-start-synthetic'}

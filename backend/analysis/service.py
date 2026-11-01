@@ -32,6 +32,7 @@ class AnalysisService:
     collection = 'analysis.jobs'
     index_collection = 'analysis.current'
     id_prefix = 'ana_'
+    prompt_version = PROMPT_VERSION
 
     def __init__(self, services, provider, *, enabled=False, background=True, clock=time.time, analysis_policy='single'):
         self.services, self.store, self.provider = services, services.storage, provider
@@ -142,7 +143,7 @@ class AnalysisService:
                         raise WorkflowError('SELECTION_CHANGED', '账号或空间已变化，尚未提交分析。', 409)
                     data = {'id': identity, 'requestHash': digest, 'projectId': project_id, 'scriptId': script_id,
                         'sourceRevision': script['sourceRevision'], 'ownership': owner, 'model': model['name'], 'modelId': model['id'],
-                        'promptVersion': PROMPT_VERSION, 'status': 'preparing', 'phase': 'extract',
+                        'promptVersion': self.prompt_version, 'status': 'preparing', 'phase': 'extract',
                         'createdAt': now(), 'updatedAt': now(), 'completedCalls': 0, 'result': None,
                         'error': None, 'steps': {}, 'lease': None, 'context': copy.deepcopy(context), 'analysisPolicy':self.analysis_policy}
                     row = tx.create(self.collection, data, record_id=identity,

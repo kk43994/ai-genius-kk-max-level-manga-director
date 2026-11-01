@@ -59,13 +59,18 @@ class LibTVAnalysisClient:
 
     def submit(self, job, script, save):
         asset_prompt = job.get('context', {}).get('kind') == 'asset_prompt' if job.get('context') else False
-        if asset_prompt:
+        production = (job.get('context') or {}).get('kind') == 'production_plan'
+        if production:
+            from .production import instruction
+            prompt_text = instruction(script, job['context'], job.get('productionDraft') if job.get('productionRepair') else None)
+        elif asset_prompt:
             from .asset_prompts import instruction
             prompt_text = instruction(script, job['context'])
         else:
             prompt_text = prompt(script, job.get('repairDraft') if job['phase'].startswith('repair') else job.get('draft') if job['phase'] == 'review' else None)
         number=job['displayNumber']
-        name=(job['context']['entity']['name'][:30]+'提示词') if asset_prompt else {'extract':'剧本分析','review':'剧本复核','repair':'剧本修复','repair2':'剧本再复核'}[job['phase']]
+        name='漫剧制作方案' if production else (job['context']['entity']['name'][:30]+'提示词') if asset_prompt else {'extract':'剧本分析','review':'剧本复核','repair':'剧本修复','repair2':'剧本再复核'}[job['phase']]
+        if production and job.get('productionRepair'): name='漫剧方案修正'
         attempt=len(job.get('rejectedSteps',{}).get(job['phase'],[]))
         args = {'name': f'{name} {number:03d}',
                 'nodeType': 'text', 'projectId': job['remoteProjectId'], 'model': job.get('modelId', MODEL),

@@ -554,6 +554,9 @@ class Application:
                 self.services.prompt_jobs = PromptService(self.services, LibTVAnalysisProvider(self.services), enabled=self.services.analysis.enabled)
                 self.services.workflow.prompt_jobs = self.services.prompt_jobs
                 self.services.workflow.analysis = self.services.analysis
+                from .analysis.production import ProductionService
+                self.services.production = ProductionService(self.services, LibTVAnalysisProvider(self.services), enabled=self.services.analysis.enabled)
+                self.services.workflow.production = self.services.production
                 self.services.sessions.features['scriptAnalysis'] = self.services.analysis.enabled
                 if hasattr(self.services.providers, "on_account_removed"):
                     self.services.providers.on_account_removed = self.services.tasks.block_account

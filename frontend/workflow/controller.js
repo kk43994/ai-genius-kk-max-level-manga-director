@@ -1,5 +1,6 @@
 import {canAutoCollect, nextCollection, collectionDelay, needsAssetRefresh} from './collection.js';
 import {promptPanel, promptProcessing, usablePrompt, promptIssue} from './prompts.js';
+import {productionPanel, productionRunning, createPreview} from './production.js';
 import {analysisPanel, sourceView} from './analysis.js';
 import {operationLabel, elapsedLabel, taskProgress, reviewProgress} from './progress.js';
 import {buildCustomerArchives} from '../asset-lab-archives.js';
@@ -36,6 +37,8 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   let projects = [], project = null, plan = {version:0,entities:[],stylePrompt:''}, assets = [], bundles = [], tasks = [], scripts = [];
   let analysis = null, analysisError = '', promptJobs = [], promptError = '';
   const entityPrompt = () => {const entityId=currentEntity()?.id,viewId=drafts.get(`prompt-view:${selected}:${entityId}`);return promptJobs.find(job=>job.entityId===entityId&&job.id===viewId)||promptJobs.find(job=>job.entityId===entityId);};
+  let production = null, productionError = '';
+  const preview = createPreview({root,getContext:()=>({job:production,assets,selection:session.selection,apiBase}),onStatus:message=>announce(message)});
   let collecting = false;
   const collectionAttempts = new Map();
   let coverage = {total:0, ready:0, complete:false}, capabilities = {scriptAnalysis:false}, taskError = '';
@@ -51,7 +54,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const composeKey = () => `compose:${selected}:${selectedEntity}:${page}`;
   const image = (assetId, revisionId, thumb = true) => esc(assetURL(apiBase,assetId,revisionId,thumb));
   const path = relative => apiBase + relative;
-  const dirty = () => Object.keys(drafts.data).some(k => k.startsWith('plan:') || k.startsWith('compose:') || k.startsWith('review:') || (k==='quick-start'&&drafts.get(k)?.text));
+  const dirty = () => Object.keys(drafts.data).some(k => k.startsWith('plan:') || k.startsWith('compose:') || k.startsWith('review:') || k.startsWith('production:edits:') || (k==='quick-start'&&drafts.get(k)?.text));
   const guide = () => scripts.length && !plan.entities.length && !drafts.get(planKey()) ? {kind:'analysis',title:analysis?.status==='ready'?'核对 AI 分析，建立资产清单':'先完成 AI 剧本分析',detail:analysis?.message||'用 AI 理解角色、场景、时间、地点、事件与台词。'} : nextAction({project, plan:{...plan,needsReview:plan.needsReview||Boolean(drafts.get(planKey()))}, assets, tasks, bundles, selection:session.selection, taskError, styleCount:session.features?.imageGeneration ? 4 : 1});
 
 
@@ -73,16 +76,17 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function renderStatus() { return `<div data-wf-status class="wf-status ${error || saveError ? 'wf-note wf-error' : 'wf-muted'}" role="status" aria-live="polite">${esc(error || saveError || notice)}${error?'<div class="wf-actions"><button data-wf-action="refresh">刷新状态</button><button data-wf-action="connect">检查账号与空间</button></div>':''}</div>`; }
   function options(values, selectedValue) { return values.map(([value,text]) => `<option value="${esc(value)}" ${value === selectedValue ? 'selected' : ''}>${esc(text)}</option>`).join(''); }
   function nav() {
-    const entries = [['plan','01 清单'],['style','02 MJ 风格'],['asset','03 Image2'],['refine','04 Nano'],['review','05 审核'],['delivery','06 下载']];
+    const entries = [['plan','01 剧本'],['production','02 制作方案'],['style','03 MJ 风格'],['asset','04 Image2'],['refine','05 Nano'],['review','06 审核'],['delivery','07 下载']];
     return `<nav class="wf-tabs" aria-label="资产制作步骤">${entries.map(([id,title]) => `<button type="button" data-wf-nav="${id}" ${page === id ? 'aria-current="step"' : ''}>${title}</button>`).join('')}</nav>`;
   }
   function stepNavigation() { return nav(); }
   function empty(title, detail) { return `<div class="wf-empty"><h3>${esc(title)}</h3><p class="wf-muted">${esc(detail)}</p></div>`; }
   function render() {
     if (!alive) return;
+    preview.reset();
     const title = project ? project.name : projects.length ? '开始一个新项目' : '开始你的第一个项目';
     const chooser = projects.length ? `<label><span class="sr-only">当前项目</span><select data-wf-project>${!selected?'<option value="">选择已有项目</option>':''}${options(projects.map(p=>[p.id,p.name]),selected)}</select></label>` : '';
-    root.innerHTML = `<section class="wf" aria-label="资产工作流"><div class="wf-toolbar"><div><span class="wf-muted">从一份剧本，到一套可用资产</span><h2>${esc(title)}</h2></div><div class="wf-actions">${chooser}<button type="button" data-wf-action="new-project" ${busy?'disabled':''}>＋ 新项目</button><button type="button" data-wf-action="refresh" ${busy ? 'disabled' : ''}>刷新状态</button></div></div>${renderStatus()}<div data-wf-operation></div>${project ? guideView()+stepNavigation() : ''}${loading ? '<p class="wf-muted" role="status">正在读取已保存项目…</p>' : !project ? createView() : page === 'plan' ? planView() : stages.includes(page) ? composeView() : page === 'review' ? reviewView()+tasksView(selectedEntity) : deliveryView()}${reviewId ? reviewDetail() : ''}${prepared ? confirmationView() : ''}</section>`;
+    root.innerHTML = `<section class="wf" aria-label="资产工作流"><div class="wf-toolbar"><div><span class="wf-muted">从一份剧本，到一套可用资产</span><h2>${esc(title)}</h2></div><div class="wf-actions">${chooser}<button type="button" data-wf-action="new-project" ${busy?'disabled':''}>＋ 新项目</button><button type="button" data-wf-action="refresh" ${busy ? 'disabled' : ''}>刷新状态</button></div></div>${renderStatus()}<div data-wf-operation></div>${project ? (page==='production'?'':guideView())+stepNavigation() : ''}${loading ? '<p class="wf-muted" role="status">正在读取已保存项目…</p>' : !project ? createView() : page === 'plan' ? planView() : page === 'production' ? productionView() : stages.includes(page) ? composeView() : page === 'review' ? reviewView()+tasksView(selectedEntity) : deliveryView()}${reviewId ? reviewDetail() : ''}${prepared ? confirmationView() : ''}</section>`;
     renderProgress(); renderLibrary();
     const saveStatus = doc.getElementById('saveStatus'); if (saveStatus) saveStatus.textContent = saveError ? '草稿保存失败' : busy ? '处理中' : dirty() ? '编辑草稿已在本机保存' : '项目已同步';
     const titleNode = doc.getElementById('workspace-title'); if (titleNode) titleNode.textContent = project?.name || '开始创作';
@@ -103,7 +107,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(active){const node=root.querySelector('[data-wf-elapsed]');if(node)node.textContent=elapsedLabel(active.startedAt);const slow=root.querySelector('[data-wf-slow]');if(slow)slow.hidden=Date.now()-active.startedAt<30000;}
   },1000);
   pollingTimer = setInterval(() => {
-    if(alive&&!loading&&!polling&&project&&doc.visibilityState!=='hidden'&&(['preparing','submitting','running','reviewing'].includes(analysis?.status)||promptJobs.some(promptProcessing)||collecting||busy||needsAssetRefresh(tasks,assets)||tasks.some(t=>canAutoCollect(t)||['preparing','submitting','queued','submitted','running','downloading'].includes(t.status))))void pollTasks();
+    if(alive&&!loading&&!polling&&project&&doc.visibilityState!=='hidden'&&(['preparing','submitting','running','reviewing'].includes(analysis?.status)||promptJobs.some(promptProcessing)||productionRunning(production)||collecting||busy||needsAssetRefresh(tasks,assets)||tasks.some(t=>canAutoCollect(t)||['preparing','submitting','queued','submitted','running','downloading'].includes(t.status))))void pollTasks();
   },5000);
   function createView() {
     const draft = drafts.get('new-project') || {name:'',description:''};
@@ -127,6 +131,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const archives = buildCustomerArchives(assets,plan);
     return (archives.length ? `<div class="wf-section-title"><h3>本项目档案</h3><span class="wf-muted">${archives.length} 项 · 未生成的条目也保留在这里</span></div><div class="wf-grid">${archives.map(a=>archiveCard(a)).join('')}</div>` : empty('等待 AI 分析结果','分析完成后核对六类信息，再建立角色与地点资产清单。'));
   }
+  function productionView() { return productionPanel({script:scripts.at(-1),analysis,job:production,enabled:capabilities.scriptAnalysis,connected:Boolean(session.selection?.providerAccountId&&session.selection?.spaceId),busy,error:productionError,models:capabilities.analysis?.models||[],modelId:drafts.get('text-model')||capabilities.analysis?.defaultModelId,assets,selection:session.selection,apiBase,draft:drafts.get(`production:edits:${production?.id}`)}); }
   function analysisView() { return analysisPanel({script:scripts.at(-1),analysis,enabled:capabilities.scriptAnalysis,connected:Boolean(session.selection?.providerAccountId&&session.selection?.spaceId),busy,error:analysisError,models:capabilities.analysis?.models||[],modelId:drafts.get('text-model')||capabilities.analysis?.defaultModelId}); }
   function archiveCard(a) {
     return `<article class="wf-entity">${a.cover ? `<div class="wf-cover"><button class="wf-image-button" data-wf-review="${esc(a.cover.id)}" aria-label="查看 ${esc(a.name)} 原图与审核"><img src="${image(a.assetId,a.cover.id)}" alt="${esc(a.name)} ${esc(stageLabels[a.cover.stage])}" loading="lazy"></button></div>` : '<div class="wf-cover"><span class="wf-muted">待制作</span></div>'}<p>${tag('',categories[a.category])}</p><h3>${esc(a.name)}</h3><p class="wf-muted">${esc(a.description || '设定待补充')}</p><div class="wf-stage-line">${stages.map(s=>`<span class="${a.stages[s] ? 'done' : ''}">${esc(stageLabels[s])} ${a.stages[s]?'✓':a.revisions.some(r=>r.stage===s&&r.status==='ready'&&r.review==='pending')?'待审核':a.revisions.some(r=>r.stage===s&&r.review==='changes_requested')?'待返修':'待制作'}</span>`).join('')}</div><div class="wf-actions"><button data-wf-entity="${esc(a.id)}" data-wf-stage="${a.stages.asset?'refine':a.stages.style?'asset':'style'}">继续制作</button><button data-wf-archive="${esc(a.id)}">版本与审核 (${a.revisions.length})</button></div></article>`;
@@ -206,7 +211,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       projects=projectResult.items || [];
       if(!creating&&!projects.some(p=>p.id===selected))selected=projects[0]?.id || '';
       project=projects.find(p=>p.id===selected)||null;
-      if(!project){analysis=null;analysisError='';promptJobs=[];promptError='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};return;}
+      if(!project){production=null;productionError='';analysis=null;analysisError='';promptJobs=[];promptError='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};return;}
       const projectId=selected;
       const replies=await Promise.all([
         api.request(`/projects/${encodeURIComponent(projectId)}/plan`),
@@ -222,6 +227,8 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       const loadedScripts=await Promise.all(project.scriptIds.map(id=>api.request(`/projects/${encodeURIComponent(projectId)}/scripts/${encodeURIComponent(id)}`)));
       if(!alive||serial!==requestSerial||projectId!==selected)return;scripts=loadedScripts;analysis=null;analysisError='';
       if(scripts.length){try{const response=await api.request(`/projects/${encodeURIComponent(projectId)}/scripts/${encodeURIComponent(scripts.at(-1).id)}/analysis`);if(!alive||serial!==requestSerial||projectId!==selected)return;analysis=response.analysis;}catch(e){analysisError=e.message||'AI 分析状态暂不可用。';}}
+      production=null;productionError='';
+      if(scripts.length){try{const response=await api.request(`/projects/${encodeURIComponent(projectId)}/scripts/${encodeURIComponent(scripts.at(-1).id)}/production`);if(!alive||serial!==requestSerial||projectId!==selected)return;production=response.analysis;}catch(e){productionError=e.message||'制作方案暂时无法读取。';}}
       if(selectedEntity && !plan.entities.some(e=>e.id===selectedEntity))selectedEntity='';
       persist('selectedProject',selected);emitProject();
     } catch(e) {if(alive&&serial===requestSerial)error=e.message||'读取项目失败，编辑草稿已保留。';}
@@ -241,6 +248,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     try {
       if(analysis?.canRefresh){const updated=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/refresh`,{method:'POST',body:{}});if(!alive||serial!==requestSerial||projectId!==selected)return;analysis=updated;analysisError='';const panel=root.querySelector('[data-wf-analysis]');if(panel)panel.outerHTML=analysisView();}
       // Prompt polling updates only its own panel, preserving an edited composer.
+      if(production?.canRefresh){const updated=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/refresh`,{method:'POST',body:{}});if(!alive||serial!==requestSerial||projectId!==selected)return;production=updated;productionError='';const panel=root.querySelector('[data-wf-production]');if(panel&&!busy)panel.outerHTML=productionView();}
       let promptsChanged=false;
       for(const job of promptJobs.filter(promptProcessing)){
         const updated=await api.request(`/prompt-jobs/${encodeURIComponent(job.id)}/refresh`,{method:'POST',body:{}});
@@ -348,7 +356,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     return current;
   }
   function navigate(next) {
-    page=normalizePage(next);if(!['plan',...stages,'review','delivery'].includes(page))page='plan';
+    page=normalizePage(next);if(!['plan','production',...stages,'review','delivery'].includes(page))page='plan';
     reviewId=null;persist('page',page);render();root.scrollIntoView({behavior:'smooth',block:'start'});
   }
   async function switchProject(id) {
@@ -410,7 +418,9 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     root.querySelector('.wf-guide')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
   function onInput(event) {
-    const target=event.target;if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId}`,{note:target.value});return;}
+    const target=event.target;
+    if(target.dataset.wfProductionEdit&&production?.status==='ready'){const name=`production:edits:${production.id}`,draft=drafts.get(name)||{expectedVersion:production.editVersion,shots:Object.fromEntries(production.result.shots.map(s=>[s.id,Object.fromEntries(['durationSeconds','performance','imagePrompt','videoPrompt'].map(k=>[k,s[k]]))]))};draft.shots[target.dataset.shotId][target.dataset.wfProductionEdit]=target.dataset.wfProductionEdit==='durationSeconds'?Number(target.value):target.value;persist(name,draft);announce('分镜调整已保存在本机；点击保存后用于预演。');return;}
+if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId}`,{note:target.value});return;}
     const form=target.closest('[data-wf-form]');if(!form)return;
     if(form.dataset.wfForm==='plan')persist(planKey(),capturePlan(form));
     if(form.dataset.wfForm==='compose'){if(target.name!=='promptReviewed'&&form.elements.promptReviewed)form.elements.promptReviewed.checked=false;persist(composeKey(),captureCompose(form));}
@@ -455,8 +465,33 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(button.dataset.wfRecover){const task=tasks.find(t=>t.id===button.dataset.wfRecover);if(!task)return;return perform(async()=>{await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version}});announce('已查询原任务；没有重新发起生成。');await load();});}
     if(button.dataset.wfPromptView){const job=promptJobs.find(j=>j.id===button.dataset.wfPromptView);if(job?.entityId===currentEntity()?.id){persist(`prompt-view:${selected}:${job.entityId}`,job.id);render();}return;}
     if(button.dataset.wfAnalysisGroup){const group=root.querySelector('#analysis-'+button.dataset.wfAnalysisGroup);if(group){group.open=true;group.scrollIntoView({behavior:'smooth',block:'start'});}return;}
-    if(button.dataset.wfSource){const source=root.querySelector(`[data-wf-script="${scripts.at(-1)?.id}"]`);if(source){source.open=true;source.querySelectorAll('[data-wf-line]').forEach(line=>line.classList.toggle('wf-source-active',Number(line.dataset.wfLine)>=Number(button.dataset.wfSource)&&Number(line.dataset.wfLine)<=Number(button.dataset.wfSourceEnd)));source.querySelector('.wf-source-active')?.scrollIntoView({behavior:'smooth',block:'center'});}return;}
+    if(button.dataset.wfSource){if(page==='production')navigate('plan');const source=root.querySelector(`[data-wf-script="${scripts.at(-1)?.id}"]`);if(source){source.open=true;source.querySelectorAll('[data-wf-line]').forEach(line=>line.classList.toggle('wf-source-active',Number(line.dataset.wfLine)>=Number(button.dataset.wfSource)&&Number(line.dataset.wfLine)<=Number(button.dataset.wfSourceEnd)));source.querySelector('.wf-source-active')?.scrollIntoView({behavior:'smooth',block:'center'});}return;}
     const action=button.dataset.wfAction;
+    if(action==='production-preview-open'||action==='production-shots-open'){const panel=root.querySelector(action==='production-preview-open'?'[data-wf-production-preview]':'[data-wf-production-shots]');if(panel){panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'start'});}return;}
+    if(action==='production-play')return preview.play();
+    if(action==='production-pause')return preview.stop();
+    if(action==='production-prev')return preview.jump(-1);
+    if(action==='production-next')return preview.jump(1);
+    if(action==='production-rewind')return preview.rewind();
+    if(action==='production-start'){
+      if(!root.querySelector('[data-wf-production-spend]')?.checked){announce('请先确认本次 AI 制作设计使用账号积分。');return;}
+      const script=scripts.at(-1);if(!script||analysis?.status!=='ready')return;
+      const ratio=root.querySelector('[data-wf-production-ratio]')?.value||'9:16',modelId=drafts.get('text-model')||capabilities.analysis?.defaultModelId;
+      const requestName=`production:request:${script.id}:${analysis.id}:${session.selection.revision}:${modelId}:${ratio}:${production?.id||'first'}`;
+      const idempotencyKey=drafts.get(requestName)||key();persist(requestName,idempotencyKey);
+      return perform(async()=>{production=await api.request(`/projects/${encodeURIComponent(selected)}/scripts/${encodeURIComponent(script.id)}/production`,{method:'POST',body:{idempotencyKey,expectedSelectionRevision:session.selection.revision,confirmSpend:true,reanalyze:Boolean(production),modelId,analysisId:analysis.id,aspectRatio:ratio}});productionError='';announce('制作设计任务已保存，方案会自动返回。');});
+    }
+    if(action==='production-refresh'&&production)return perform(async()=>{production=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/refresh`,{method:'POST',body:{}});productionError='';});
+    if(action==='production-revalidate'&&production)return perform(async()=>{production=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/revalidate`,{method:'POST',body:{}});announce('正在重新读取原结果进行核验，不会发起新的生成。');});
+    if(action==='production-repair'&&production){if(!root.querySelector('[data-wf-production-repair-spend]')?.checked){announce('请确认本次修正增加 1 次 AI 调用。');return;}return perform(async()=>{production=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/repair`,{method:'POST',body:{confirmSpend:true}});announce('已保留原结果，让 AI 修正核验问题；本轮最多增加一次调用。');});}
+    if(action==='production-retry'&&production)return perform(async()=>{production=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/retry-rejected`,{method:'POST',body:{}});});
+    if(action==='production-discard'&&production){removeDraft(`production:edits:${production.id}`);announce('已恢复上次保存的分镜。');render();return;}
+    if(action==='production-save'&&production){const name=`production:edits:${production.id}`,draft=drafts.get(name);if(!draft){announce('没有未保存的分镜调整。');return;}return perform(async()=>{production=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/edits`,{method:'PUT',body:draft});removeDraft(name);announce('分镜调整已保存，预演将使用这个版本。');});}
+    if(action==='production-plan'&&production?.status==='ready'){
+      if(!root.querySelector('[data-wf-production-reviewed]')?.checked){announce('请先核对物料、状态和创作建议。');return;}
+      if(drafts.get(planKey())){announce('已有未保存的清单草稿，请先确认保存，再加入新物料。');return navigate('plan');}
+      return perform(async()=>{const candidate=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/plan`);persist(planKey(),{expectedVersion:candidate.expectedVersion,entities:candidate.entities.map(cleanEntity),stylePrompt:candidate.stylePrompt});editing=true;page='plan';persist('page',page);announce(`新增 ${candidate.addedCount} 个状态物料已加入清单草稿；原有条目保留，请核对并保存。`);});
+    }
     if(action==='continue')return continueFlow();
     if(action==='prompt-use'){
       const job=entityPrompt();if(!usablePrompt(job))return;
@@ -493,7 +528,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     }
     if(action==='connect'){events.dispatchEvent(new CustomEvent('workflow:connect'));return;}
     if(action==='refresh')return perform(()=>load());
-    if(action==='new-project'){analysis=null;analysisError='';promptJobs=[];promptError='';creating=true;project=null;selected='';selectedEntity='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};reviewId=null;prepared=null;render();root.querySelector('input[name=name]')?.focus();return;}
+    if(action==='new-project'){production=null;productionError='';analysis=null;analysisError='';promptJobs=[];promptError='';creating=true;project=null;selected='';selectedEntity='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};reviewId=null;prepared=null;render();root.querySelector('input[name=name]')?.focus();return;}
     if(action==='edit-plan'){editing=true;if(!drafts.get(planKey()))persist(planKey(),{expectedVersion:plan.version,entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});render();return;}
     if(action==='add-entity'){const draft=drafts.get(planKey())||{expectedVersion:plan.version,entities:[],stylePrompt:plan.stylePrompt};if(draft.entities.length>=300){announce('一个项目最多 300 项资产。');return;}draft.entities.push({id:'ent_'+key().replaceAll('-',''),category:'character',name:'',description:'',variant:'',origin:'manual',quote:'',scriptId:''});persist(planKey(),draft);render();root.querySelector('[data-wf-row]:last-of-type input[data-field=name]')?.focus();return;}
     if(action==='close-review'){reviewId=null;render();focusedBeforeReview?.isConnected&&focusedBeforeReview.focus();return;}
@@ -550,7 +585,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   listen(events,'tasks:changed',()=>{clearTimeout(timer);timer=setTimeout(()=>{if(alive&&!busy)load();},150);});
   listen(events,'workflow:flush-drafts',e=>{const pending=flushDrafts();if(typeof e.detail?.waitUntil==='function')e.detail.waitUntil(pending);else pending.catch(err=>{error=err.message;render();});});
   listen(doc.defaultView,'beforeunload',e=>{try{drafts.flush();}catch{e.preventDefault();e.returnValue='';}if(busy){e.preventDefault();e.returnValue='';}});
-  function unmount(){alive=false;requestSerial++;clearTimeout(timer);clearTimeout(flowTimer);clearInterval(progressTimer);clearInterval(pollingTimer);delete doc.body.dataset.workflowMounted;listeners.forEach(remove=>remove());stylesheet.remove();root.replaceChildren();for(const id of ['warehouseList','review-summary-root'])doc.getElementById(id)?.replaceChildren();const chooser=doc.getElementById('scriptSelect');if(chooser)chooser.replaceChildren();}
+  function unmount(){preview.reset();alive=false;requestSerial++;clearTimeout(timer);clearTimeout(flowTimer);clearInterval(progressTimer);clearInterval(pollingTimer);delete doc.body.dataset.workflowMounted;listeners.forEach(remove=>remove());stylesheet.remove();root.replaceChildren();for(const id of ['warehouseList','review-summary-root'])doc.getElementById(id)?.replaceChildren();const chooser=doc.getElementById('scriptSelect');if(chooser)chooser.replaceChildren();}
   const ready=load({initial:true});
   return {unmount,ready,refresh:load,flushDrafts,hasUnsavedChanges:dirty,getState:()=>({projectId:selected,page,dirty:dirty(),busy,saveError})};
 }

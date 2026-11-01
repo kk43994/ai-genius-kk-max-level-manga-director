@@ -52,6 +52,17 @@ def register_routes(router, services):
         add('GET', '/prompt-jobs/{promptId}', lambda c,p,b,q: prompts.get(c,p['promptId']))
         add('POST', '/prompt-jobs/{promptId}/refresh', lambda c,p,b,q: prompts.refresh(c,p['promptId']))
         add('POST', '/prompt-jobs/{promptId}/retry-rejected', lambda c,p,b,q: prompts.retry_submission(c,p['promptId']))
+    if getattr(workflow, 'production', None):
+        production = workflow.production
+        add('GET', '/projects/{projectId}/scripts/{scriptId}/production', lambda c,p,b,q: production.latest(c,p['projectId'],p['scriptId']))
+        add('POST', '/projects/{projectId}/scripts/{scriptId}/production', lambda c,p,b,q: production.start_plan(c,p['projectId'],p['scriptId'],b))
+        add('GET', '/production-jobs/{productionId}', lambda c,p,b,q: production.get(c,p['productionId']))
+        add('PUT', '/production-jobs/{productionId}/edits', lambda c,p,b,q: production.save_edits(c,p['productionId'],b))
+        add('POST', '/production-jobs/{productionId}/refresh', lambda c,p,b,q: production.refresh(c,p['productionId']))
+        add('POST', '/production-jobs/{productionId}/revalidate', lambda c,p,b,q: production.revalidate(c,p['productionId']))
+        add('POST', '/production-jobs/{productionId}/repair', lambda c,p,b,q: production.repair_plan(c,p['productionId'],b))
+        add('POST', '/production-jobs/{productionId}/retry-rejected', lambda c,p,b,q: production.retry_submission(c,p['productionId']))
+        add('GET', '/production-jobs/{productionId}/plan', lambda c,p,b,q: production.candidate(c,p['productionId']))
     add('GET', '/projects', lambda c, p, b, q: workflow.list_projects(c))
     add('POST', '/projects', lambda c, p, b, q: workflow.create_project(c, b))
     add('GET', '/projects/{projectId}', lambda c, p, b, q: workflow.get_project(c, p['projectId']))

@@ -39,3 +39,28 @@
 @media(max-width:640px){.wf .wf-analysis-counts{grid-template-columns:repeat(3,1fr)}.wf .wf-analysis-record header{align-items:flex-start;flex-direction:column}.wf .wf-analysis-record dl>div{grid-template-columns:65px 1fr}}
 
 .wf .wf-prompt-text{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.8;background:var(--panel,#151515);padding:16px;border:1px solid var(--border,#333);border-radius:10px;max-height:400px;overflow:auto}
+
+/* Production design and timed board review */
+.wf-production > details {margin:20px 0;padding:18px;border:1px solid var(--border,#343434);border-radius:16px}
+.wf-production summary {cursor:pointer;font-weight:600;line-height:1.6}
+.wf-production .wf-analysis-counts {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:24px 0}
+.wf-production .wf-analysis-counts > span {padding:16px;background:#202020;border-radius:12px}
+.wf-production .wf-analysis-counts b {display:block;font-size:24px}
+.wf-production-asset,.wf-production-shot {padding:20px;margin:14px 0;border:1px solid #383838;border-radius:14px;overflow-wrap:anywhere}
+.wf-production-asset details {margin:12px 0}
+.wf-production label {display:grid;gap:8px;margin:14px 0}
+.wf-production label.wf-analysis-check {display:flex}
+.wf-production textarea {width:100%;box-sizing:border-box}
+.wf-production-references {display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}
+.wf-production-references figure {width:145px;margin:0;display:grid;gap:8px;font-size:12px}
+.wf-production-references img,.wf-production-placeholder {width:145px;height:110px;object-fit:contain;border:1px solid #3d3d3d;border-radius:10px;background:#181818}
+.wf-production-placeholder {display:grid;place-items:center;color:#aaa;font-size:12px}
+.wf-production-screen {padding:24px;background:linear-gradient(145deg,#252525,#101010);border:1px solid #454545;border-radius:16px;min-height:280px;max-width:900px;margin:auto}
+.wf-production-screen[data-ratio="9:16"] {max-width:440px;min-height:480px}
+.wf-production-screen h4 {font-size:22px;line-height:1.5;margin:12px 0}
+.wf-production-action {font-size:18px;line-height:1.8}
+.wf-production-dialogue {padding:14px;background:#303030;border-radius:10px;font-size:18px}
+.wf-production-dialogue small {font-size:12px;color:#aaa}
+.wf-production progress {width:100%;margin-top:14px;accent-color:#ddd}
+.wf-production blockquote {border-left:3px solid #777;padding:8px 14px;margin:16px 0}
+@media(max-width:700px){.wf-production .wf-analysis-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.wf-production > details{padding:12px}.wf-production-screen{padding:16px}.wf-production-references figure{width:110px}.wf-production-references img,.wf-production-placeholder{width:110px;height:90px}}
