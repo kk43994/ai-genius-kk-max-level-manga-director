@@ -258,3 +258,5 @@
 .wf-analysis-record>details textarea{min-height:64px}
 [data-wf-analysis-json]{width:100%;min-height:300px}
 @media(max-width:760px){.analysis-compare{grid-template-columns:1fr}}
+
+.creator-identity-steps{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 20px}.creator-identity-steps button[aria-pressed="true"]{border-color:var(--wf-accent,#aed8c6);background:rgba(174,216,198,.12);font-weight:700}

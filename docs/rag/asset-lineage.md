@@ -27,7 +27,7 @@
 对应代码：`backend/workflow/art_direction.py`、`backend/tasks/model.py`。测试：`tests/workflow/test_art_direction.py`。
 # 同一物料不同状态沿用形象（0.3.0-preview.2）
 
-规范资产的参考选择器提供当前制作方案中同一 assetId 的已审核 MJ 候选，并显示来源档案名称。状态仍对应独立 entityId，生成和审核各自保存；没有复制一张图片冒充新生成，也不合并状态档案。Nano 仍只接受当前状态原始 Image2。
+此节记录 preview.2 的旧实现；人物链路已由 preview.3 的主多视图规则替代。旧版规范资产参考选择器提供当前制作方案中同一 assetId 的已审核 MJ 候选，并显示来源档案名称。状态仍对应独立 entityId，生成和审核各自保存；没有复制一张图片冒充新生成，也不合并状态档案。Nano 仍只接受当前状态原始 Image2。
 
 后端 `production_lineage.py` 使用当前剧本、分析、人工方案、资产设计指纹和显式绑定验证关系，不以名称判断。准备、提交前校验、收图和图片有效性检查都执行关系检查；移除关系或更改设定后停止继承，旧结果标为失效。交付统计承认同一物料的有效已选风格，但仍要求每个状态的 Image2 审核通过。
 
@@ -37,3 +37,13 @@ TaskService 的 `inputs.sources` 有意保存 revisionId、ownership、sha256，
 
 前端取消仅适用于 `submissionAttempted=false` 的记录，保留历史并更新当前生成草稿的准备编号。已提交或结果不明的任务仍只能恢复原任务。受控错误给出参考图、参数等具体类别；开发日志只记录固定错误码、异常类型、源码位置，不输出上游报文和签名链接。
 
+
+## 人物主多视图是必要中间层（0.3.0-preview.3）
+
+正式链路为本剧风格与人物形象 → 人物主多视图 → 人物剧情状态多视图 → 分镜。`production_states()` 为每个 character 生成独立 `__character_master__` 档案，保留原 AI 方案及全部状态编号。主档案不是数组中的首个状态；它参与 bindings 和交付统计，但不冒充某一场的状态引用。
+
+`production_lineage.members()` 以当前方案、设计指纹、显式绑定和版本判定身份与 master/state 角色。`image2_source_allowed()` 规定：人物主图引用同一角色的已选 MJ；人物状态只引用同一角色已审核 Image2 主图，不允许 MJ、其他状态图或其他角色。准备、提交前再次核验、最终输出有效性均应用。审核变化会使依赖图失效；账号空间和原始字节校验不变。接入层允许 Image2 使用经工作流验证的 asset 原图，而非仅接受 style。
+
+兼容：旧 MJ 图仍可供同一角色主图使用；旧任务可按不可变回执收回，但旧版 MJ 直接生成的人物状态图不满足新链路，只保留历史，不自动审核、不冒充主图。无需数据库批量改写。风格页聚合该角色历史 MJ 候选，创建的新候选进入独立主档案。前端生成草稿使用 identity-v2 命名，避免把旧状态提示词带入主图。
+
+前端：`production-generation.js`、`creator-desk.js`。后端：`production.py`、`production_bindings.py`、`production_lineage.py`、`production_coverage.py`、`workflow/service.py`、`generation/service.py`。回归覆盖主图派生、跳步拒绝、主图退回、旧 MJ 复用及交付缺项。

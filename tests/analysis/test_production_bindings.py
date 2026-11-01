@@ -26,15 +26,15 @@ class BindingTests(unittest.TestCase):
     def test_matching_name_requires_explicit_selection_and_preserves_original(self):
         self.legacy(); job = self.finish()
         before = self.workflow.get_plan(self.ctx, self.project['id'])
-        binding = job['bindings'][0]
+        binding = job['bindings'][1]
         self.assertFalse(binding['saved']); self.assertFalse(binding['linked'])
         self.assertEqual(binding['legacyCandidates'][0]['entityId'], 'legacy_lin')
         linked = self.production.save_binding(self.ctx, job['id'], self.link_body(job))
-        self.assertEqual(linked['bindings'][0]['entityId'], 'legacy_lin')
-        self.assertTrue(linked['bindings'][0]['saved']); self.assertFalse(linked['bindings'][0]['changed'])
+        self.assertEqual(linked['bindings'][1]['entityId'], 'legacy_lin')
+        self.assertTrue(linked['bindings'][1]['saved']); self.assertFalse(linked['bindings'][1]['changed'])
         self.assertEqual(self.workflow.get_plan(self.ctx, self.project['id']), before)
         candidate = self.production.candidate(self.ctx, job['id'])
-        self.assertEqual(candidate['addedCount'], 3)
+        self.assertEqual(candidate['addedCount'], 5)
         self.assertEqual(len(self.provider.submissions), 1)
 
     def test_link_rejects_missing_confirmation_wrong_category_and_foreign_workspace(self):
@@ -52,10 +52,10 @@ class BindingTests(unittest.TestCase):
         result = copy.deepcopy(job['result']); result['assets'][0]['design'] = '改变后的服装设计'
         changed = self.production.save_review(self.ctx, job['id'], {
             'expectedVersion':0, 'expectedEditVersion':0, 'result':result})
-        self.assertTrue(changed['bindings'][0]['changed'])
+        self.assertTrue(changed['bindings'][1]['changed'])
         with self.assertRaises(WorkflowError):self.production.candidate(self.ctx, job['id'])
         confirmed = self.production.save_binding(self.ctx, job['id'], self.link_body(changed))
-        self.assertFalse(confirmed['bindings'][0]['changed'])
+        self.assertFalse(confirmed['bindings'][1]['changed'])
         history = self.workflow.get_project(self.ctx, self.project['id'])['productionLinkHistory']
         self.assertEqual(len(history), 2)
 
@@ -69,8 +69,15 @@ class BindingTests(unittest.TestCase):
         revision=self.workflow.record_output(self.ctx,{**spec,'id':'legacy-test-task','ownership':self.owner,'status':'downloading'},raw.getvalue())
         before=self.workflow.list_assets(self.ctx,self.project['id'])
         job=self.production.get(self.ctx,job['id'])
-        self.assertEqual(job['bindings'][0]['legacyCandidates'][0]['pendingCount'],1)
+        self.assertEqual(job['bindings'][1]['legacyCandidates'][0]['pendingCount'],1)
         self.production.save_binding(self.ctx,job['id'],self.link_body(job))
         self.assertEqual(self.workflow.list_assets(self.ctx,self.project['id'])['items'],before['items'])
         content,_=self.workflow.content(self.ctx,revision['assetId'],revision['id'])
         self.assertEqual(content,raw.getvalue())
+
+    def test_one_archive_cannot_be_both_master_and_state(self):
+        self.legacy(); job = self.finish()
+        updated = self.production.save_binding(self.ctx, job['id'], self.link_body(job))
+        with self.assertRaises(WorkflowError):
+            self.production.save_binding(self.ctx, job['id'],
+                {**self.link_body(updated), 'stateId':'__character_master__'})

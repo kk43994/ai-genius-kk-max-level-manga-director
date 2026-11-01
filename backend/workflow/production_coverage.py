@@ -17,7 +17,7 @@ def shot_candidate(script_id, shot, refs, position):
 
 def coverage(workflow, tx, project):
     """None preserves legacy-only projects; any current production fails closed."""
-    from backend.analysis.production import ACTIVE, candidates, entity_id
+    from backend.analysis.production import ACTIVE, candidates, entity_id, production_states
     from backend.analysis.production_bindings import fingerprint
     from backend.analysis.production_review import decode, inspect
     from .art_direction import describe
@@ -87,7 +87,7 @@ def coverage(workflow, tx, project):
 
     templates = {e['id']: e for e in candidates(result, script)}
     for asset in result['assets']:
-        for state in asset['states']:
+        for state in production_states(asset):
             key = entity_id(script['id'], asset['id'], state['id'])
             add(templates[key], link=links.get(key), assetId=asset['id'], stateId=state['id'])
     material_rows = {(r['assetId'], r['stateId']): r for r in rows}

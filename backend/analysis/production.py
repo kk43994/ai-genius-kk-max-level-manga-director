@@ -65,7 +65,7 @@ def instruction(script, context, repair=None):
 已有visualStyle则严格沿用，否则提出一套适合故事的统一美术方案，styleBible标明待确认；全片比例使用aspectRatio。
 角色资产sourceIds使用analysis.characters中的ID，场景资产sourceIds使用analysis.locations中的ID，道具sourceIds为空数组。只为实际在场的角色建立资产，仅被提及者不新增出镜。OS不是独立角色。
 每项资产至少一个基础state，按剧情需要添加被绑/浇湿/受伤/解绳/换装和起火前后等不同state；每个state.sceneIds列出可使用场次。状态不应混合。场景的门窗布局、轴线与光源必须能支持剧情，不擅自把闪回火场等同于当前仓库。
-states.imagePrompt是完整的单一状态资产图提示词，固定人物身份/服装/材质/光线，场景用空镜，道具突出结构。角色使用单人独立参考图，不拼三视图。避免8K、大师级等空词。资产图不演绎整段剧情。
+states.imagePrompt是完整的单一状态资产图提示词，固定人物身份/服装/材质/光线，场景用空镜，道具突出结构。角色状态以已确认的人物主多视图为身份依据，生成同一人物的正面全身、侧面全身、背面全身、头部特写；不重新设计人物长相。避免8K、大师级等空词。资产图不演绎整段剧情。
 scenePlans覆盖每个分析场次，给出可执行的空间布局、光线、情绪变化和跨镜连续性。
 shots按影片播放顺序全局连续编号。每镜有明确叙事目的、主动作、景别、机位、运镜、人物表演、首尾状态、画面与声音。动作复杂时拆镜，听者应有反应，不把一场戏压成一句概括。镜头时长是预演建议，要容纳完整对白、停顿与动作；不要所有镜头同一时长。
 每镜references必须准确引用本方案的assetId/stateId，包含该镜使用的场景、在场人物和关键道具。beat、imagePrompt、videoPrompt 中需要引用具体物料时，用 {{asset:物料ID}} 代替该物料名称，让描述关联真实档案；每个标签都必须出现在本镜 references 中。不要输出 revisionId，它由用户审核图片后选择。即使跨镜仍需重复列出引用，不能只在首镜列。状态应符合时序，跨镜的脸、服装、湿度、伤情、手中道具、视线方向、绳索、火势须连贯。
@@ -115,6 +115,7 @@ def validate(result, script, context):
         if asset['category'] != 'prop' and len(asset['sourceIds']) != 1:
             fail('一个人物或地点资产不能合并多个不同的原文对象。')
         if asset['category'] == 'character': covered_characters.update(asset['sourceIds'])
+        if any(s['id'] == MASTER_STATE_ID for s in asset['states']): fail('剧情状态编号不能占用人物主档案编号。')
         if len({s['id'] for s in asset['states']}) != len(asset['states']): fail('同一物料的状态编号重复。')
         for state in asset['states']:
             if not set(state['sceneIds']) <= set(scenes): fail('状态引用了不存在的场次。')
@@ -188,11 +189,23 @@ def shot_entity_id(script_id, shot_id):
     return 'ent_shot_' + hashlib.sha256((script_id+'\0'+shot_id).encode()).hexdigest()[:24]
 
 
+MASTER_STATE_ID = '__character_master__'
+
+
+def production_states(asset):
+    """The identity master is independent of all screenplay states, including state zero."""
+    if asset['category'] != 'character':
+        return asset['states']
+    return [{'id': MASTER_STATE_ID, 'name': '人物主多视图',
+             'description': '角色身份基准；中性站姿，完整展示五官、发型、体型与基础服装，不带剧情动作、伤情或束缚。',
+             'imagePrompt': '同一人物的正面全身、侧面全身、背面全身、头部特写，身份一致，简洁中性背景。'}] + asset['states']
+
+
 def candidates(result, script):
     rows = []
     names = set()
     for asset in result['assets']:
-        for state in asset['states']:
+        for state in production_states(asset):
             name = (asset['name'] + ' · ' + state['name'])[:110]
             base, n = name, 2
             while name in names:

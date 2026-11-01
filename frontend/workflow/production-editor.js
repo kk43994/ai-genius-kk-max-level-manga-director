@@ -16,8 +16,9 @@ export function setReviewValue(result,path,value) {
   if(!parent||!Object.hasOwn(parent,key))return false;
   parent[key]=value;return true;
 }
-export function field(label,path,value,{max=2000,rows=3,number=false,ariaLabel=''}={}) {
-  return `<label>${esc(label)}${number?`<input type="number" min="1" max="${max}" step="${path.endsWith('durationSeconds')?'0.5':'1'}" ${ariaLabel?`aria-label="${esc(ariaLabel)}"`:""} data-wf-production-field="${esc(path)}" value="${esc(value)}">`:`<textarea rows="${rows}" maxlength="${max}" ${ariaLabel?`aria-label="${esc(ariaLabel)}"`:""} data-wf-production-field="${esc(path)}">${esc(value)}</textarea>`}</label>`;
+export const textLines = value => String(value).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+export function field(label,path,value,{max=2000,rows=3,number=false,ariaLabel='',lines=false}={}) {
+  return `<label>${esc(label)}${number?`<input type="number" min="1" max="${max}" step="${path.endsWith('durationSeconds')?'0.5':'1'}" ${ariaLabel?`aria-label="${esc(ariaLabel)}"`:""} data-wf-production-field="${esc(path)}" value="${esc(value)}">`:`<textarea rows="${rows}" maxlength="${max}" ${lines?'data-production-lines':''} ${ariaLabel?`aria-label="${esc(ariaLabel)}"`:""} data-wf-production-field="${esc(path)}">${esc(lines?value.join('\n'):value)}</textarea>`}</label>`;
 }
 export function quoteEditor(items,path) {
   return items.map((item,index)=>`<div class="wf-production-quote">${field(`引用 ${index+1}`,`${path}.${index}.quote`,item.quote,{max:4000})}<div class="wf-form-grid">${field('起始行',`${path}.${index}.startLine`,item.startLine,{number:true,max:100000})}${field('结束行',`${path}.${index}.endLine`,item.endLine,{number:true,max:100000})}</div><button data-wf-source="${item.startLine}" data-wf-source-end="${item.endLine}">查看剧本原文 L${item.startLine}–${item.endLine}</button></div>`).join('');

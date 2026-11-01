@@ -1,7 +1,7 @@
 import {canAutoCollect, nextCollection, collectionDelay, needsAssetRefresh} from './collection.js';
 import {promptPanel, promptProcessing, usablePrompt, promptIssue} from './prompts.js';
 import {productionPanel, productionRunning, createPreview} from './production.js';
-import {returnedResult, reviewDraft, setReviewValue, valueAt} from './production-editor.js';
+import {returnedResult, reviewDraft, setReviewValue, valueAt, textLines} from './production-editor.js';
 import {assetToken,referenceLabel,readableText,storedText,linkedText,referencePicker,bindReference,removeReference,appendManualProp} from './production-references.js';
 import {generationContext,generationGallery} from './production-generation.js';
 import {creatorDesk} from './creator-desk.js';
@@ -48,7 +48,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const boardViews=new Map(),canvas=mountCanvas(root);
   let referenceCursor=null, directorDrag=null, suppressDirectorClickUntil=0;
   const currentProduction=()=>drafts.get(`production:review:${production?.id}`)?.result||returnedResult(production);
-  const boardGenerationKey=()=>`boardgen:${production?.id}:${boardView().kind}:${boardView().index}:${boardView().state||0}:${boardView().stage}`;
+  const boardGenerationKey=()=>`boardgen:identity-v2:${boardView().characterLayer||'master'}:${production?.id}:${boardView().kind}:${boardView().index}:${boardView().state||0}:${boardView().stage}`;
   const boardView=()=>{const v=boardViews.get(production?.id)||{};return stages.includes(page)?{...v,kind:'assets',index:v.kind==='shots'?0:(v.index||0),state:v.state||0,stage:page==='style'?'style':page==='refine'?'refine':v.stage==='refine'?'refine':'asset'}:v;};
   function updateBoard(patch){if(!production)return;boardViews.set(production.id,{...boardView(),...patch});render();}
   const preview = createPreview({root,getContext:()=>({job:production,assets,selection:session.selection,apiBase}),onStatus:message=>announce(message)});
@@ -296,7 +296,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
         // Keep form nodes and their caret intact while refreshing background status.
         if(['production',...stages].includes(page)&&production&&returnedResult(production)){
           const c=(stages.includes(page)||boardView().inspector==='generate')?generationContext({result:currentProduction(),job:production,view:boardView(),assets,selection:session.selection}):null;
-          const gallery=root.querySelector('[data-board-generation-gallery]');if(gallery&&c&&mediaChanged)gallery.innerHTML=generationGallery(c.versions,apiBase,{stage:c.shot?'storyboard':boardView().stage,category:c.asset?.category,direction:page==='style'});
+          const gallery=root.querySelector('[data-board-generation-gallery]');if(gallery&&c&&mediaChanged)gallery.innerHTML=generationGallery(c.versions,apiBase,{stage:c.shot?'storyboard':boardView().stage,category:c.asset?.category,master:c.master,direction:page==='style'});
           const feedback=root.querySelector('[data-board-generation-feedback]');if(feedback&&c)feedback.innerHTML=tasksView(c.binding?.entityId);
           if(mediaChanged){const temp=doc.createElement('div');temp.innerHTML=productionView();const old=root.querySelector('[data-board-stage]'),fresh=temp.querySelector('[data-board-stage]');if(old&&fresh){old.replaceChildren(...fresh.childNodes);canvas.refresh();}}
         }
@@ -461,7 +461,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     // Update duplicate quote editors without replacing the focused textarea.
     root.querySelectorAll('[data-wf-production-field]').forEach(input=>{
       if(input!==target&&input.dataset.wfProductionField===path){
-        if(input.type==='checkbox')input.checked=value.includes(input.value);else input.value=input.hasAttribute('data-reference-text')?readableText(value,draft.result,draft.result.shots[Number(path.split('.')[1])]):value;
+        if(input.type==='checkbox')input.checked=value.includes(input.value);else input.value=input.hasAttribute('data-reference-text')?readableText(value,draft.result,draft.result.shots[Number(path.split('.')[1])]):input.hasAttribute('data-production-lines')?value.join('\n'):value;
       }
     });
     root.querySelectorAll('[data-wf-production-draft-status]').forEach(el=>el.textContent='修改已保存在本机，点击保存后检查');
@@ -507,6 +507,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(target.dataset.wfProductionField&&returnedResult(production)){
       const path=target.dataset.wfProductionField;
       let value=target.type==='number'?Number(target.value):target.value;
+      if(target.hasAttribute('data-production-lines'))value=textLines(value);
       if(target.type==='checkbox'){
         const current=drafts.get(`production:review:${production.id}`)?.result||returnedResult(production);
         const values=new Set(valueAt(current,path)||[]);
@@ -584,7 +585,8 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     const button=event.target.closest('button,a');if(!button||button.disabled)return;
     if(button.hasAttribute('data-wf-download')){event.preventDefault();const url=new URL(button.href);const relative=url.pathname.slice(apiBase.length);if(relative.endsWith('/storyboard-export')&&drafts.get(`production:review:${production?.id}`)){announce('请先保存镜头编排，再下载图文分镜脚本。');return;}return perform(async()=>{const blob=await api.request(relative,{responseType:'blob'});const link=doc.createElement('a');const objectUrl=URL.createObjectURL(blob);link.href=objectUrl;link.download=relative.endsWith('/storyboard-export')?'分镜脚本与图片.zip':'asset-lab-approved-assets.zip';link.hidden=true;doc.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);announce('交付包已交给浏览器下载。');});}
     if(button.hasAttribute('data-director-reference')){if(Date.now()<suppressDirectorClickUntil)return;insertDirectorAsset(button.dataset.directorReference,button.dataset.directorState,button.dataset.directorRevision,boardView().index||0);return;}
-    if(button.hasAttribute('data-creator-select')){updateBoard({index:Number(button.dataset.creatorSelect),kind:'assets',state:0});return;}
+    if(button.hasAttribute('data-character-layer')){updateBoard({characterLayer:button.dataset.characterLayer,stage:'asset'});return;}
+    if(button.hasAttribute('data-creator-select')){updateBoard({index:Number(button.dataset.creatorSelect),kind:'assets',state:0,characterLayer:'master'});return;}
     if(button.hasAttribute('data-creator-go-stage')){const next=button.dataset.creatorGoStage;if(next==='asset')boardViews.set(production.id,{...boardView(),stage:'asset'});return navigate(next);}
     if(button.hasAttribute('data-creator-direction')){persist(`art-direction:${selected}`,{revisionId:button.dataset.creatorDirection});render();root.querySelector('.creator-direction')?.scrollIntoView({block:'center'});return;}
     if(button.hasAttribute('data-creator-direction-cancel')){removeDraft(`art-direction:${selected}`);render();return;}
@@ -600,7 +602,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
         expectedEditVersion:production.editVersion,expectedBindingVersion:production.bindingVersion,confirmApplicable:true};
       return perform(async()=>{production=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/bindings`,{method:'PUT',body});await load();announce('已有档案已关联，原图与审核状态保留。');});
     }
-    if(button.hasAttribute('data-board-generate')){if(button.dataset.boardGenerate==='assets'&&page==='production'){boardViews.set(production.id,{...boardView(),returnShot:boardView().returnShot??boardView().index??0});page='asset';persist('page',page);}updateBoard({inspector:'generate',kind:button.dataset.boardGenerate,index:Number(button.dataset.boardIndex),state:Number(button.dataset.boardStateIndex)||0,stage:button.dataset.boardGenerate==='shots'?'storyboard':'style'});return;}
+    if(button.hasAttribute('data-board-generate')){if(button.dataset.boardGenerate==='assets'&&page==='production'){boardViews.set(production.id,{...boardView(),returnShot:boardView().returnShot??boardView().index??0});page='asset';persist('page',page);}updateBoard({inspector:'generate',kind:button.dataset.boardGenerate,index:Number(button.dataset.boardIndex),state:Number(button.dataset.boardStateIndex)||0,characterLayer:'state',stage:button.dataset.boardGenerate==='shots'?'storyboard':'style'});return;}
     if(button.hasAttribute('data-board-generation-stage')){updateBoard({stage:button.dataset.boardGenerationStage});return;}
     if(button.hasAttribute('data-board-reference-open')){
       const result=currentProduction(),index=Number(button.dataset.boardReferenceOpen);if(!result?.assets[index])return;

@@ -154,9 +154,9 @@ class WorkflowService:
             source = tx.state['revisions'].get(source_id)
             if not source or not self._valid(tx, source, True, seen):
                 return False
-            if revision['stage'] == 'asset' and source['entityId'] != revision['entityId']:
-                from .production_lineage import same_state_family
-                if not same_state_family(tx, project, revision['entityId'], source['entityId']):
+            if revision['stage'] == 'asset':
+                from .production_lineage import image2_source_allowed
+                if not image2_source_allowed(tx, project, revision['entityId'], source):
                     return False
         return True
 
@@ -352,6 +352,9 @@ class WorkflowService:
             entity = self._entity(project, payload.get('entityId'))
             from .art_direction import apply
             prompt, direction_version = apply(self, tx, project, prompt, ownership, recipe)
+            from .production_lineage import members
+            if recipe != 'mj_style' and entity['id'] in members(tx, project) and not direction_version:
+                raise WorkflowError('STYLE_REVIEW_REQUIRED', '请先确认本剧风格，再制作主多视图和剧情状态。', 409)
             if recipe == 'storyboard_image':
                 if entity['category'] != 'shot' or not refs:
                     invalid('分镜图片需要镜头档案和已审核的物料参考图。')
@@ -375,6 +378,9 @@ class WorkflowService:
                 prompt = (prompt or repair['prompt']) + '\n返修意见：' + repair['reviewNote']
             stage = STAGES[recipe]
             source = None
+            from .production_lineage import character_state
+            if stage == 'style' and character_state(tx, project, entity['id']):
+                invalid('请在人物基础形象中探索风格；剧情状态须参考已确认的人物主多视图。')
             if stage == 'style' and refs:
                 invalid('风格探索从当前资产说明开始，不隐式复用其他阶段。')
             if stage != 'style':
@@ -389,11 +395,13 @@ class WorkflowService:
                         raise WorkflowError('OWNERSHIP_MISMATCH', '精修来源属于其他账号或空间。', 409)
                     original_id = candidate.get('refineSourceRevisionId')
                     candidate = self._revision(tx, original_id)
-                from .production_lineage import same_state_family
-                shared_style = stage == 'asset' and same_state_family(tx, project, entity['id'], candidate['entityId'])
+                from .production_lineage import image2_source_allowed
+                shared_style = stage == 'asset' and image2_source_allowed(tx, project, entity['id'], candidate)
+                if stage == 'asset' and not shared_style:
+                    invalid('请先生成并确认同一角色的人物主多视图，再派生剧情状态；主多视图使用已选 MJ 形象。')
                 source = self._source(tx, project['id'], entity['id'], candidate['id'], ownership, cross_entity=shared_style)
-                if source['stage'] != ('style' if stage == 'asset' else 'asset'):
-                    invalid('Image2 需要 MJ 风格图；Nano 需要原始 Image2 资产图。')
+                if stage == 'asset' and not shared_style or stage == 'refine' and source['stage'] != 'asset':
+                    invalid('人物剧情状态需要已确认的人物主多视图；主多视图需要已选 MJ 形象；Nano 需要原始 Image2 图。')
                 refs = [source['id']]
             if stage == 'refine':
                 prompt = REFINE_PROMPT + ('\n补充要求：' + prompt if prompt else '')
@@ -457,7 +465,7 @@ class WorkflowService:
                 if (source['projectId'] != project['id'] or (recipe != 'storyboard_image' and not shared_style and source['entityId'] != entity['id'])
                         or owner_key(source['ownership']) != owner_key(ownership)
                         or snapshot['sourceHashes'].get(source_id) != source['sha256']
-                        or source['stage'] not in (('asset','refine') if recipe == 'storyboard_image' else ('style',) if recipe == 'image2_asset' else ('asset',))):
+                        or source['stage'] not in (('asset','refine') if recipe == 'storyboard_image' else ('style','asset') if recipe == 'image2_asset' else ('asset',))):
                     conflict('任务参考链与准备记录不一致。')
             asset = next(a for a in tx.state['assets'].values()
                          if a['projectId'] == project['id'] and a['entityId'] == entity['id'])
@@ -610,10 +618,10 @@ class WorkflowService:
         with self.repository.transaction(ctx) as tx:
             sources = []
             for identity in prepared['sourceRevisionIds']:
-                from .production_lineage import same_state_family
+                from .production_lineage import image2_source_allowed
                 project = self._project(tx, spec['projectId'])
                 candidate = self._revision(tx, identity)
-                shared_style = spec['recipe'] == 'image2_asset' and same_state_family(tx, project, spec['entityId'], candidate['entityId'])
+                shared_style = spec['recipe'] == 'image2_asset' and image2_source_allowed(tx, project, spec['entityId'], candidate)
                 source = self._source(tx, spec['projectId'], spec['entityId'], identity, ownership, cross_entity=spec['recipe']=='storyboard_image' or shared_style)
                 if hashlib.sha256(tx.get_blob(source['blobId'])).hexdigest() != source['sha256']:
                     conflict('参考文件校验未通过。')

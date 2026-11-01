@@ -124,7 +124,7 @@ class BoundImageClient:
             if (not isinstance(ref, VerifiedReference) or not same_owner(ref.ownership, self._owner)
                     or ref.revision_id != snap['revisionId'] or ref.sha256 != snap['sha256']
                     or not ref.approved or ref.stale
-                    or ref.stage not in (('asset','refine') if recipe=='storyboard_image' else ({'image2_asset': 'style', 'nano_refine': 'asset'}.get(recipe),))):
+                    or ref.stage not in (('asset','refine') if recipe=='storyboard_image' else ('style','asset') if recipe=='image2_asset' else ('asset',))):
                 raise GenerationError('SOURCE_CHANGED')
             inspect_image(ref.content, ref.mime, max_bytes=self.a.policy.max_image_bytes,
                           max_pixels=self.a.policy.max_pixels, sha256=ref.sha256)

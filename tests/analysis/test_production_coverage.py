@@ -42,14 +42,22 @@ class CoverageTests(unittest.TestCase):
         plan = self.production.candidate(self.ctx, job['id'])
         self.workflow.save_plan(self.ctx, self.project['id'], {k: plan[k] for k in ('expectedVersion', 'stylePrompt', 'entities')})
         self.workflow.tasks = self.services.tasks
-        selected = {}
+        selected, masters = {}, {}
         for index, binding in enumerate(job['bindings']):
-            style = self.image(binding['entityId'])
-            if index == 0:
-                self.workflow.confirm_art_direction(self.ctx, self.project['id'], {
-                    'revisionId': style['id'], 'sha256': style['sha256'], 'notes': '统一二维手绘',
-                    'expectedVersion': 0, 'confirmStyle': True})
-            selected[binding['assetId']] = self.image(binding['entityId'], 'image2_asset', [style['id']])['id']
+            if binding['assetId'] in masters:
+                source_id = masters[binding['assetId']]
+            else:
+                style = self.image(binding['entityId'])
+                if index == 0:
+                    self.workflow.confirm_art_direction(self.ctx, self.project['id'], {
+                        'revisionId': style['id'], 'sha256': style['sha256'], 'notes': '统一二维手绘',
+                        'expectedVersion': 0, 'confirmStyle': True})
+                source_id = style['id']
+            output = self.image(binding['entityId'], 'image2_asset', [source_id])['id']
+            if binding['stateId'] == '__character_master__':
+                masters[binding['assetId']] = output
+            else:
+                selected[binding['assetId']] = output
         result = copy.deepcopy(job['result'])
         for shot in result['shots']:
             for ref in shot['references']:
@@ -67,7 +75,7 @@ class CoverageTests(unittest.TestCase):
         self.finish()
         before = self.workflow.get_plan(self.ctx, self.project['id'])
         coverage = self.coverage()
-        self.assertEqual((coverage['ready'], coverage['total']), (0, 6))
+        self.assertEqual((coverage['ready'], coverage['total']), (0, 8))
         self.assertFalse(coverage['complete'])
         self.assertEqual(len([r for r in coverage['missing'] if r['category'] == 'shot']), 2)
         self.assertEqual(self.workflow.get_plan(self.ctx, self.project['id']), before)
@@ -79,7 +87,7 @@ class CoverageTests(unittest.TestCase):
         self.save_entities([{'id': 'unused', 'category': 'prop', 'name': '历史闲置道具', 'origin': 'manual'}])
         unused = self.image('unused')
         coverage = self.coverage()
-        self.assertEqual((coverage['ready'], coverage['total']), (6, 6))
+        self.assertEqual((coverage['ready'], coverage['total']), (8, 8))
         self.assertFalse(any(r.get('stages', {}).get('refine') for r in coverage['entities']))
         _, manifest = self.workflow.export(self.ctx, self.project['id'])
         self.assertNotIn(unused['id'], [r['revisionId'] for r in manifest['assets']])
@@ -88,7 +96,7 @@ class CoverageTests(unittest.TestCase):
         old_raw = self.workflow.bundle_content(self.ctx, self.project['id'], bundle['id'])
         result = copy.deepcopy(job['result']); result['shots'][0]['camera'] = '修改机位'
         self.production.save_review(self.ctx, job['id'], {'expectedVersion': job['reviewVersion'], 'expectedEditVersion': 0, 'result': result})
-        self.assertEqual(self.coverage()['ready'], 5)
+        self.assertEqual(self.coverage()['ready'], 7)
         self.assertEqual(self.workflow.bundle_content(self.ctx, self.project['id'], bundle['id']), old_raw)
         self.assertTrue(self.workflow.content(self.ctx, unused['assetId'], unused['id'])[0])
 
@@ -109,7 +117,7 @@ class CoverageTests(unittest.TestCase):
         result = copy.deepcopy(job['result']); result['assets'][0]['design'] = '换成新版人物服装'
         self.production.save_review(self.ctx, job['id'], {'expectedVersion': job['reviewVersion'], 'expectedEditVersion': 0, 'result': result})
         coverage = self.coverage()
-        self.assertEqual(coverage['ready'], 3)
+        self.assertEqual(coverage['ready'], 4)
         self.assertTrue(any(r.get('assetId') == 'a_lin' for r in coverage['missing']))
 
     def test_archive_rejects_production_change_between_export_and_confirmation(self):

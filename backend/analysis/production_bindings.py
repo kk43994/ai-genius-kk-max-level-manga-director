@@ -12,14 +12,14 @@ def fingerprint(candidate):
 
 
 def describe(job, project, plan, script, library, owner):
-    from .production import candidates, entity_id
+    from .production import candidates, entity_id, production_states
     links = project.get('productionLinks', {}).get(job['id'], {})
     rows = {e['id']: e for e in plan['entities']}
     records = {a['entityId']: a for a in library if a.get('active')}
     templates = {e['id']: e for e in candidates(job['result'], script)}
     bindings = []
     for asset in job['result']['assets']:
-        for state in asset['states']:
+        for state in production_states(asset):
             default_id = entity_id(job['scriptId'], asset['id'], state['id'])
             candidate = templates[default_id]
             link = links.get(default_id)
@@ -30,7 +30,8 @@ def describe(job, project, plan, script, library, owner):
                 if link else any(entity.get(k) != candidate[k] for k in ('description', 'variant', 'quote'))))
             suggestions = []
             for existing in plan['entities']:
-                if existing['id'] == identity or existing['category'] != asset['category']:
+                if (existing['id'] == identity or existing['category'] != asset['category']
+                        or any(link['entityId'] == existing['id'] and key != default_id for key, link in links.items())):
                     continue
                 # Generated state IDs are explicit destinations, not name-based matches.
                 if existing['id'].startswith(('ent_pd_', 'ent_shot_')):
@@ -71,7 +72,7 @@ def save(service, ctx, identity, body):
     selection = service.services.tasks._selection(ctx)
     if owner_key(service.services.tasks._owner(ctx, selection)) != owner_key(original_owner):
         raise WorkflowError('OWNERSHIP_MISMATCH', '请切回本方案原账号与空间后关联。', 409)
-    from .production import candidates, entity_id
+    from .production import candidates, entity_id, production_states
     workflow = service.services.workflow
     script = workflow.get_script(ctx, job['projectId'], job['scriptId'])
     default_id = entity_id(job['scriptId'], body['assetId'], body['stateId'])
@@ -84,6 +85,8 @@ def save(service, ctx, identity, body):
         version = project.get('productionBindingVersions', {}).get(identity, 0)
         if version != body.get('expectedBindingVersion'):
             conflict('关联已在另一处更新，请刷新后核对。')
+        if any(link['entityId'] == body.get('entityId') and key != default_id for key, link in links.items()):
+            raise WorkflowError('BINDING_STATE_MISMATCH', '此档案已关联其他主图或剧情状态，请使用独立档案。', 422)
         entity = workflow._entity(project, body.get('entityId'))
         if entity['category'] != candidate['category']:
             raise WorkflowError('BINDING_CATEGORY_MISMATCH', '请选择相同类型的物料档案。', 422)

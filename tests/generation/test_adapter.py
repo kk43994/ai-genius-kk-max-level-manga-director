@@ -35,6 +35,16 @@ class AdapterTests(unittest.TestCase):
         self.f.prepare(**kwargs)
         self.f.confirm()
 
+    def test_image2_can_read_approved_master_asset_bytes_for_state_generation(self):
+        payload = self.f.payload(recipe='image2_asset', with_reference=True)
+        self.f.refs['revision_one'] = replace(self.f.refs['revision_one'], stage='asset')
+        prepared = self.f.client.prepare(payload)
+        self.assertEqual(prepared['count'], 1)
+        self.assertEqual(self.f.count('generation_submit'), 0)
+        self.assertEqual(self.f.media.puts, [])
+        self.f.refs['revision_one'] = replace(self.f.refs['revision_one'], approved=False)
+        self.error('SOURCE_CHANGED', lambda: self.f.client.prepare({**payload, 'localTaskId':'new-task'}))
+
     def test_prepare_has_only_read_tools_and_unknown_cost(self):
         result = self.f.prepare()
         self.assertEqual(result['cost']['state'], 'unknown')

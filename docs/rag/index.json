@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "0.3.0-preview.2",
+  "version": "0.3.0-preview.3",
   "updatedAt": "2026-11-01",
   "scope": "project-knowledge-source",
   "entries": [
@@ -101,6 +101,20 @@
         "图文",
         "导出",
         "验收",
+        "版本"
+      ],
+      "status": "previous-candidate"
+    },
+    {
+      "id": "release-0.3.0-preview.3",
+      "file": "docs/versions/0.3.0-preview.3.md",
+      "keywords": [
+        "主多视图",
+        "人物身份",
+        "派生",
+        "剧情状态",
+        "风格",
+        "来源",
         "版本"
       ],
       "status": "candidate"
