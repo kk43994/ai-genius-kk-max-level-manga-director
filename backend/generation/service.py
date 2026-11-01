@@ -107,6 +107,21 @@ class BoundImageClient:
             raise GenerationError('INPUT_INVALID')
         return self._call('get_model', {'model': model})
 
+    def _library_project(self, local_project):
+        if self._owner['spaceKind'] != 'personal':
+            raise GenerationError('PROJECT_BINDING_REQUIRED')
+        existing=getattr(self.a.projects,'existing',None)
+        if not callable(existing):raise GenerationError('PROJECT_BINDING_REQUIRED')
+        binding=existing(self,local_project)
+        if not binding.verified or not same_owner(binding.ownership,self._owner):raise GenerationError('OWNERSHIP_MISMATCH')
+        return opaque(binding.project_id)
+
+    def search_assets(self, local_project, name='', page=1):
+        return self._call('search_assets', {'scope':'personal','projectId':self._library_project(local_project),'name':name,'page':page,'pageSize':40})
+
+    def get_asset(self, asset_id, local_project):
+        return self._call('get_asset', {'scope':'personal','projectId':self._library_project(local_project),'assetId':opaque(asset_id)})
+
     def _project(self, local_project):
         resolver = getattr(self.a.projects, 'resolve', None)
         binding = resolver(self, local_project) if resolver else self.a.projects(self._owner, local_project)
@@ -122,12 +137,11 @@ class BoundImageClient:
                 or any(not isinstance(x, dict) for x in snapshots)
                 or len(ids) != len(set(ids)) or [x.get('revisionId') for x in snapshots] != ids):
             raise GenerationError('SOURCE_CHANGED')
-        if (recipe in {'nano_refine', 'image2_asset', 'image25_asset'} and len(ids) != 1
-                or recipe in {'mj_style','image25_style'} and ids
+        if (len(ids)>20 or recipe in {'nano_refine', 'image2_asset', 'image25_asset'} and not ids
                 or recipe in {'storyboard_image','image25_storyboard'} and not 1 <= len(ids) <= 20):
             raise GenerationError('SOURCE_REVIEW_REQUIRED')
         results = []
-        for snap in snapshots:
+        for index, snap in enumerate(snapshots):
             # TaskService persists owner + revision + byte hash only. Review is
             # re-read authoritatively below, not inferred from optional hints.
             if (not same_owner(snap.get('ownership'), self._owner)
@@ -137,7 +151,7 @@ class BoundImageClient:
             if (not isinstance(ref, VerifiedReference) or not same_owner(ref.ownership, self._owner)
                     or ref.revision_id != snap['revisionId'] or ref.sha256 != snap['sha256']
                     or not ref.approved or ref.stale
-                    or ref.stage not in (('asset','refine') if recipe in {'storyboard_image','image25_storyboard'} else ('style','asset') if recipe in {'image2_asset','image25_asset'} else ('asset',))):
+                    or ref.stage not in (('style','asset','refine','reference') if recipe in {'mj_style','image25_style'} or index>0 else ('asset','refine','reference') if recipe in {'storyboard_image','image25_storyboard'} else ('style','asset') if recipe in {'image2_asset','image25_asset'} else ('asset',))):
                 raise GenerationError('SOURCE_CHANGED')
             inspect_image(ref.content, ref.mime, max_bytes=self.a.policy.max_image_bytes,
                           max_pixels=self.a.policy.max_pixels, sha256=ref.sha256)
@@ -199,6 +213,7 @@ class BoundImageClient:
         if not same_owner(payload.get('ownership'), self._owner):
             raise GenerationError('OWNERSHIP_MISMATCH')
         spec = {k: copy.deepcopy(payload[k]) for k in ('projectId', 'entityId', 'recipe', 'prompt', 'sourceRevisionIds', 'settings')}
+        if 'modelId' in payload: spec['modelId'] = payload['modelId']
         task_id, request_hash = opaque(payload.get('localTaskId')), payload.get('requestHash')
         if not isinstance(request_hash, str) or not re.fullmatch('[a-f0-9]{64}', request_hash):
             raise GenerationError('INPUT_INVALID')

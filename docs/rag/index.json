@@ -1,9 +1,24 @@
 {
   "schemaVersion": 1,
   "version": "0.3.0-preview.4",
-  "updatedAt": "2026-11-01",
+  "updatedAt": "2026-11-02",
   "scope": "project-knowledge-source",
   "entries": [
+    {
+      "id": "image-creation",
+      "file": "docs/rag/image-creation.md",
+      "keywords": [
+        "模型",
+        "LibTV",
+        "2.5 Pro",
+        "并发",
+        "批量",
+        "素材库",
+        "参考图",
+        "上传"
+      ],
+      "status": "under-live-validation"
+    },
     {
       "id": "image-prompt-standards",
       "file": "docs/rag/image-prompt-standards.md",
@@ -135,6 +150,19 @@
         "版本"
       ],
       "status": "candidate"
+    },
+    {
+      "id": "release-0.3.0-preview.4",
+      "file": "docs/versions/0.3.0-preview.4.md",
+      "keywords": [
+        "图片模型",
+        "并发",
+        "素材库",
+        "参考图",
+        "版本",
+        "自动更新"
+      ],
+      "status": "in-development"
     }
   ]
 }

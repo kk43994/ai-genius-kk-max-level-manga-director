@@ -31,7 +31,10 @@ class PersonalProjects:
     def __init__(self, services, context):
         self.services, self.context = services, context
 
-    def resolve(self, client, local_project_id):
+    def existing(self, client, local_project_id):
+        return self.resolve(client,local_project_id,create=False)
+
+    def resolve(self, client, local_project_id, *, create=True):
         ctx = self.context(client._owner)
         project = self.services.workflow.get_project(ctx, local_project_id)
         user = personal_account(client._call('account_user', {}), client._owner)
@@ -42,6 +45,7 @@ class PersonalProjects:
                 row = tx.get('generation.project_bindings', key)
             except Exception as exc:
                 if getattr(exc, 'code', None) != 'NOT_FOUND': raise
+                if not create: raise GenerationError('PROJECT_BINDING_REQUIRED') from None
                 row = tx.create('generation.project_bindings', {
                     'ownership': copy.deepcopy(client._owner), 'localProjectId': local_project_id,
                     'createArguments': {'name': project['name'], 'teamId': 0, 'openInBrowser': False,
@@ -53,6 +57,7 @@ class PersonalProjects:
             raise GenerationError('OWNERSHIP_MISMATCH')
         remote = record.get('remoteProjectId')
         if not remote:
+            if not create: raise GenerationError('PROJECT_BINDING_REQUIRED')
             if not client.a.policy.allow_external_writes: raise GenerationError('PROJECT_BINDING_REQUIRED')
             # Exact persisted key recovers an interrupted idempotent creation.
             result = client._call('create_project', record['createArguments'])
@@ -89,10 +94,16 @@ class LiveImageClient(BoundImageClient):
     def _model(self, spec):
         binding = self.a.recipes.get(spec.get('recipe'))
         if not binding: raise GenerationError('MODEL_BINDING_REQUIRED')
-        contract = self.get_model(binding.model).get('inputContract', {})
+        requested = spec.get('modelId', binding.model)
+        contract = self.get_model(requested).get('inputContract', {})
         schema = contract.get('parameterSchemas', {}).get('generate')
-        if contract.get('model') != binding.model or contract.get('modality') != 'image' or not isinstance(schema, dict):
+        # get_model resolves an exact official display name or key. Historical
+        # ID bindings retain their equality check; selected display names resolve
+        # to the returned key and the full contract is pinned before submission.
+        if (('modelId' not in spec and ' ' not in binding.model and contract.get('model') != binding.model)
+                or contract.get('modality') != 'image' or not isinstance(schema, dict)):
             raise GenerationError('MODEL_CONTRACT_UNVERIFIED')
+        model_key = opaque(contract.get('model'))
         settings = spec.get('settings', {})
         if not isinstance(settings, dict) or any(k in RESERVED for k in settings):
             raise GenerationError('INPUT_INVALID')
@@ -105,7 +116,7 @@ class LiveImageClient(BoundImageClient):
         prompt = spec.get('prompt')
         if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 50000:
             raise GenerationError('INPUT_INVALID')
-        return binding.model, params, count, digest({'inputContract': contract, 'controls': dict(binding.controls),
+        return model_key, params, count, digest({'inputContract': contract, 'controls': dict(binding.controls),
                                                     'tool': self.a.catalog.fingerprint('generation_submit')})
 
     def _upload_contracts(self):

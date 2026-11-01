@@ -372,7 +372,7 @@ class ProductionService(AnalysisService):
     def prepare_image(self, ctx, identity, body):
         """Human-operated canvas generation. Preparation still requires submit confirmation."""
         from backend.workflow.service import owner_key
-        public_input(body, {'assetId','stateId','shotId','recipe','prompt','sourceRevisionIds','settings',
+        public_input(body, {'assetId','stateId','shotId','recipe','prompt','sourceRevisionIds','settings','modelId','extraReferenceIds',
                             'expectedReviewVersion','expectedEditVersion','expectedPlanVersion',
                             'expectedSelectionRevision','idempotencyKey','expectedArtDirectionVersion'})
         job = self.get(ctx, identity)
@@ -419,6 +419,10 @@ class ProductionService(AnalysisService):
             refs = body.get('sourceRevisionIds', [])
         else:
             raise WorkflowError('GENERATION_DISABLED', '请选择已接入的图片制作方式。', 422)
+        extras=body.get('extraReferenceIds',[])
+        if not isinstance(extras,list) or any(not isinstance(r,str) for r in extras) or len(extras)>19:
+            raise WorkflowError('INPUT_INVALID','补充参考列表无效。',422)
+        refs=list(dict.fromkeys([*refs,*extras]))
         if not isinstance(prompt,str) or not 1<=len(prompt.strip())<=20000:
             raise WorkflowError('INPUT_INVALID', '请填写有效的生图提示词。', 422)
         plan = self.services.workflow.get_plan(ctx,job['projectId'])
@@ -439,7 +443,8 @@ class ProductionService(AnalysisService):
                 raise WorkflowError('VERSION_CONFLICT', '本剧风格已变化，请刷新并核对新的制作要求。', 409)
             prompt, _ = apply(workflow, tx, project, prompt, owner, recipe)
         return self.services.tasks.prepare(ctx,{'projectId':job['projectId'],'entityId':candidate['id'],
-            'recipe':recipe,'prompt':prompt,'sourceRevisionIds':refs,'settings':body.get('settings',{})},
+            'recipe':recipe,'prompt':prompt,'sourceRevisionIds':refs,'settings':body.get('settings',{}),
+            **({'modelId':body['modelId']} if 'modelId' in body else {})},
             body.get('expectedSelectionRevision'),body.get('idempotencyKey'))
 
     @staticmethod

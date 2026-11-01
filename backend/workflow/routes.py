@@ -82,6 +82,9 @@ def register_routes(router, services):
     add('GET', '/projects/{projectId}/plan', lambda c, p, b, q: workflow.get_plan(c, p['projectId']))
     add('PUT', '/projects/{projectId}/plan', lambda c, p, b, q: workflow.save_plan(c, p['projectId'], b))
     add('GET', '/projects/{projectId}/assets', lambda c, p, b, q: workflow.list_assets(c, p['projectId']))
+    from .reference_library import import_reference,import_library_reference
+    add('POST', '/projects/{projectId}/references', lambda c,p,b,q: import_reference(workflow,c,p['projectId'],b))
+    add('POST', '/projects/{projectId}/library-references', lambda c,p,b,q: import_library_reference(services,c,p['projectId'],b))
     add('POST', '/assets/{assetId}/reviews', lambda c, p, b, q: workflow.review(c, p['assetId'], b))
 
     def content(c, p, b, q, thumbnail=False):

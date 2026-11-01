@@ -19,17 +19,17 @@ test('standard prompts distinguish people, scenes and props from the film aspect
   assert.match(c.prompt,new RegExp(required));assert.equal(c.mode.recipe,'image25_asset');
  }
 });
-test('exploration selects a model without changing the formal asset route',()=>{
+test('all creation stages select models independently from workflow lineage',()=>{
  const options={result:{assets:[{id:'a',category:'character',name:'角色',states:[]}]},job:{status:'ready',bindings:[]},view:{kind:'assets',index:0,stage:'style'}};
- assert.equal(generationContext(options).mode.recipe,'mj_style');
- options.generationDraft={explorationModel:'image25_style'};
  assert.equal(generationContext(options).mode.recipe,'image25_style');
- const html=generationInspector(options);
- assert.match(html,/name="explorationModel"/);assert.match(html,/value="image25_style" selected/);
- assert.match(html,/value="1" selected/);
+ assert.equal(generationContext(options).mode.modelId,'Lib Image 2.5 Pro');
+ options.generationDraft={modelId:'mj-official'};
+ assert.equal(generationContext(options).mode.recipe,'image25_style');
+ assert.equal(generationContext(options).mode.modelId,'mj-official');
+ assert.match(generationInspector(options),/name="modelId"/);
  options.view.stage='asset';
  assert.equal(generationContext(options).mode.recipe,'image25_asset');
- assert.doesNotMatch(generationInspector(options),/name="explorationModel"/);
+ assert.match(generationInspector(options),/name="modelId"/);
 });
 test('existing images require explicit linking and unsafe names are escaped',()=>{
  const job={bindings:[{assetId:'a',stateId:'s',saved:false,legacyCandidates:[{entityId:'old',name:'<script>'}]}],ownership:owner};

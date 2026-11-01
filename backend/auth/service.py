@@ -589,6 +589,7 @@ class BoundProviderClient:
         if factory is None and registered_adapter is None:
             raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
         scope = {'quota': 'libtv:account:read', 'list_models': 'libtv:project:read', 'get_model': 'libtv:project:read',
+                 'search_assets':'libtv:project:read','get_asset':'libtv:project:read',
                  'prepare': 'libtv:project:read', 'submit': 'libtv:task:write',
                  'lookup': 'libtv:project:read', 'download': 'libtv:project:read'}[operation]
         if scope not in bundle['tokens'].get('scope', '').split():
@@ -612,6 +613,8 @@ class BoundProviderClient:
     def quota(self, *args, **kwargs): return self._invoke('quota', *args, **kwargs)
     def list_models(self, *args, **kwargs): return self._invoke('list_models', *args, **kwargs)
     def get_model(self, *args, **kwargs): return self._invoke('get_model', *args, **kwargs)
+    def search_assets(self, *args, **kwargs): return self._invoke('search_assets', *args, **kwargs)
+    def get_asset(self, *args, **kwargs): return self._invoke('get_asset', *args, **kwargs)
     def prepare(self, *args, **kwargs): return self._invoke('prepare', *args, **kwargs)
     def submit(self, *args, **kwargs): return self._invoke('submit', *args, **kwargs)
     def lookup(self, *args, **kwargs): return self._invoke('lookup', *args, **kwargs)
