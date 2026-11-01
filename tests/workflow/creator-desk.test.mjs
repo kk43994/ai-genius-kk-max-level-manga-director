@@ -89,3 +89,21 @@ test('storyboard generation carries source start state and continuity without ju
  const html=generationInspector({result:{shots:[shot],assets:[]},job:{status:'ready'},view:{kind:'shots',index:0,stage:'storyboard'},generationDraft:{prompt:'保留手工草稿'},apiBase:'/api/v1'});
  assert.match(html,/data-generation-use-saved/);assert.match(html,/>保留手工草稿<\/textarea>/);
 });
+
+
+test('verified partial delivery permits downstream creation without hiding unresolved submissions',()=>{
+ const options={result:{assets:[{id:'prop',category:'prop',name:'道具',states:[{id:'base'}]}]},
+  job:{status:'ready',ownership:owner,bindings:[{assetId:'prop',stateId:'base',entityId:'e',saved:true}]},
+  view:{kind:'assets',index:0,stage:'asset'},project:{artDirection:{valid:true}},
+  generationDraft:{modelId:'pro'},imageContracts:{pro:{verified:true}},
+  assets:[{entityId:'e',active:true,revisions:[{...revision('source','style'),review:'approved'}]}],
+  tasks:[{id:'partial',entityId:'e',status:'needs_attention',providerReceipt:{id:'original'},outputs:[{revisionId:'source'}],error:{code:'PARTIAL_DELIVERY',message:'已收取 3/4 张'},canRecover:true}]};
+ const submit=html=>html.match(/<button class="primary" type="submit"[^>]*>/)[0];
+ assert.doesNotMatch(submit(generationInspector(options)),/disabled/);
+ assert.match(generationInspector(options),/已收取 3\/4 张/);
+ assert.match(generationInspector(options),/data-wf-recover="partial"/);
+ options.tasks.push({entityId:'e',status:'unknown_submission'});
+ assert.match(submit(generationInspector(options)),/disabled/);
+ options.tasks.pop();options.tasks[0].providerReceipt=null;
+ assert.match(submit(generationInspector(options)),/disabled/);
+});
