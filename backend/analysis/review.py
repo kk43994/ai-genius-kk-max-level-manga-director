@@ -64,7 +64,9 @@ def present(service, ctx, row, public):
     public.update(reviewVersion=review['version'] if review else 0, resultHash=result_hash(data),
                   validationIssues=[], draftResult=None, returnedText=raw, manuallyEdited=bool(review),
                   structuredDraft=False, canReadOriginal=False)
-    if review: preview = copy.deepcopy(review['data']['result'])
+    if review:
+        preview = copy.deepcopy(review['data']['result'])
+        public.update(canResumeReview=False, canRepairResult=False)
     if preview is not None:
         issues = inspect(preview, script)
         public.update(validationIssues=issues, structuredDraft=Draft202012Validator(SCHEMA).is_valid(preview),
@@ -91,6 +93,8 @@ def save(service, ctx, identity, body):
     script = service.services.workflow.get_script(ctx, data['projectId'], data['scriptId'])
     if data['status'] in ACTIVE:
         raise WorkflowError('ANALYSIS_RUNNING', '原任务仍在返回结果，修改草稿已保留，返回后再保存。', 409)
+    if not any(data.get(key) for key in ('result', 'analysisDraft', 'draft')):
+        raise WorkflowError('ANALYSIS_NOT_RETURNED', '尚未取得 AI 返回内容，请先读取原任务。', 409)
     edited = body.get('result')
     if not isinstance(edited, dict) or len(json.dumps(edited, ensure_ascii=False)) > 2_000_000:
         raise WorkflowError('ANALYSIS_EDIT_INVALID', '修改内容需为完整分析对象且不超过容量。', 422)

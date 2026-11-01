@@ -33,6 +33,8 @@ class AnalysisReviewTests(unittest.TestCase):
         updated = self.ai.save_review(self.ctx, job['id'], self.payload(job, result))
         self.assertEqual(updated['status'], 'ready')
         self.assertEqual(updated['validationIssues'], [])
+        self.assertFalse(updated['canResumeReview'])
+        self.assertFalse(updated['canRepairResult'])
         self.assertEqual(len(self.provider.submissions), 1)
         self.assertEqual(self.ai._get(self.ctx, job['id'])['data']['status'], 'failed')
         self.assertTrue(self.ai.candidate(self.ctx, job['id'])['entities'])
