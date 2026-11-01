@@ -62,7 +62,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const collectionAttempts = new Map();
   let coverage = {total:0, ready:0, complete:false}, capabilities = {scriptAnalysis:false}, taskError = '';
   let selected = drafts.get('quick-start')?.text ? '' : drafts.get('selectedProject') || '', page = normalizePage(drafts.get('page') || 'plan');
-  let selectedEntity = drafts.get('selectedEntity') || '', editing = false, reviewId = null, prepared = null, submittingBatch = false, reviewing = false;
+  let selectedEntity = drafts.get('selectedEntity') || '', editing = false, reviewId = null, prepared = null, submittingBatch = false, reviewing = false, recoveringTask = false;
   let filter = 'all', search = '', saveError = '', creating = Boolean(drafts.get('quick-start')?.text), focusedBeforeReview;
   const status = () => root.querySelector('[data-wf-status]');
   const listen = (target, event, handler) => { if (!target) return; target.addEventListener(event,handler); listeners.push(() => target.removeEventListener(event,handler)); };
@@ -130,7 +130,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const titleNode = doc.getElementById('workspace-title'); if (titleNode) titleNode.textContent = project?.name || '开始创作';
     const countNode = doc.getElementById('reviewCount'); if (countNode) countNode.textContent = assets.flatMap(a=>a.revisions).filter(r=>r.review==='pending' && r.status==='ready').length;
     if (busy) root.querySelectorAll('form button').forEach(b=>b.disabled=true);
-    if (reviewing || (busy && !submittingBatch)) root.querySelectorAll('[data-wf-action="approve"], [data-wf-action="reject"]').forEach(b=>b.disabled=true);
+    if (reviewing || (busy && !submittingBatch && !recoveringTask)) root.querySelectorAll('[data-wf-action="approve"], [data-wf-action="reject"]').forEach(b=>b.disabled=true);
   }
   function renderProgress() {
     const target = root.querySelector('[data-wf-operation]'); if (!target) return;
@@ -449,18 +449,18 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   async function decide(decision) {
     if(reviewing)return;
-    if(busy&&!submittingBatch){announce('当前操作完成后即可保存审核；审核意见已保留。');return;}
+    if(busy&&!submittingBatch&&!recoveringTask){announce('当前操作完成后即可保存审核；审核意见已保留。');return;}
     const asset=assets.find(a=>a.revisions.some(r=>r.id===reviewId)),r=asset?.revisions.find(r=>r.id===reviewId);if(!r)return;
     const note=drafts.get(`review:${r.id}`)?.note||'';
     if(decision==='changes_requested'&&note.trim().length<4){error='请填写至少 4 个字的具体返修意见。';render();return;}
     const projectId=selected;reviewing=true;error='';render();
     try{
-      await api.request(`/assets/${encodeURIComponent(asset.id)}/reviews`,{method:'POST',body:{revisionId:r.id,sha256:r.sha256,decision,note,expectedVersion:asset.version},background:submittingBatch});
+      await api.request(`/assets/${encodeURIComponent(asset.id)}/reviews`,{method:'POST',body:{revisionId:r.id,sha256:r.sha256,decision,note,expectedVersion:asset.version},background:submittingBatch||recoveringTask});
       removeDraft(`review:${r.id}`);
       if(reviewId===r.id)reviewId=null;
       // Reviews only change media selection and validity. Refresh that snapshot,
       // leaving the active plan/view and paid submission promises intact.
-      const received=await api.request(`/projects/${encodeURIComponent(projectId)}/assets`,{background:submittingBatch});
+      const received=await api.request(`/projects/${encodeURIComponent(projectId)}/assets`,{background:submittingBatch||recoveringTask});
       if(alive&&selected===projectId){assets=received.items||[];coverage=received.coverage||coverage;
         announce(decision==='approved'?'这一版已保留。你可以选用、继续调整或制作其他画面。':'返修意见已保存；尚未发起新的生成。');
         events.dispatchEvent(new CustomEvent('workflow:reviewed',{detail:{projectId,assetId:asset.id,revisionId:r.id,decision}}));}
@@ -777,7 +777,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(button.dataset.wfRemove!==undefined){const draft=drafts.get(planKey());if(draft){draft.entities.splice(Number(button.dataset.wfRemove),1);persist(planKey(),draft);render();}return;}
     if(button.dataset.wfCancel){const task=tasks.find(t=>t.id===button.dataset.wfCancel);if(!task||task.submissionAttempted)return;return perform(async()=>{await api.request(`/tasks/${encodeURIComponent(task.id)}/cancel`,{method:'POST',body:{expectedVersion:task.version}});prepared=null;const draft=drafts.get(composeKey());if(draft)persist(composeKey(),{...draft,prepareKey:key()});const boardDraft=drafts.get(boardGenerationKey());if(boardDraft)persist(boardGenerationKey(),{...boardDraft,prepareKey:key()});announce('未提交的准备记录已取消；原记录仍保留。');await load();});}
     if(button.dataset.wfConfirmTask){const task=tasks.find(t=>t.id===button.dataset.wfConfirmTask);if(!task)return;return perform(async()=>{prepared=await api.request(`/tasks/${encodeURIComponent(task.id)}/confirm`,{method:'POST',body:{expectedVersion:task.version}});announce('请核对原任务的账号、参考和费用。');});}
-    if(button.dataset.wfRecover){const task=tasks.find(t=>t.id===button.dataset.wfRecover);if(!task)return;return perform(async()=>{await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version}});announce('已查询原任务；没有重新发起生成。');await load();});}
+    if(button.dataset.wfRecover){const task=tasks.find(t=>t.id===button.dataset.wfRecover);if(!task||busy)return;recoveringTask=true;try{return await perform(async()=>{await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version}});announce('已查询原任务；没有重新发起生成。');await load();});}finally{recoveringTask=false;render();}}
     if(button.dataset.wfPromptView){const job=promptJobs.find(j=>j.id===button.dataset.wfPromptView);if(job?.entityId===currentEntity()?.id){persist(`prompt-view:${selected}:${job.entityId}`,job.id);render();}return;}
     if(button.dataset.wfAnalysisGroup){const group=root.querySelector('#analysis-'+button.dataset.wfAnalysisGroup);if(group){group.open=true;group.scrollIntoView({behavior:'smooth',block:'start'});}return;}
     if(button.dataset.wfSource){if(page==='production')navigate('plan');const source=root.querySelector(`[data-wf-script="${scripts.at(-1)?.id}"]`);if(source){source.open=true;source.querySelectorAll('[data-wf-line]').forEach(line=>line.classList.toggle('wf-source-active',Number(line.dataset.wfLine)>=Number(button.dataset.wfSource)&&Number(line.dataset.wfLine)<=Number(button.dataset.wfSourceEnd)));source.querySelector('.wf-source-active')?.scrollIntoView({behavior:'smooth',block:'center'});}return;}

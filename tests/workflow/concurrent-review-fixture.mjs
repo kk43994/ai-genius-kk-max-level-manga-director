@@ -6,10 +6,10 @@ const project={id:'project',name:'合成审核项目',scriptIds:[],version:1};
 const entity={id:'entity',name:'合成道具',category:'prop',version:1};
 const revision={id:'revision',assetId:'asset',entityId:entity.id,stage:'style',status:'ready',review:'pending',sha256:'synthetic',ownership:owner,reviewHistory:[],sourceRevisionIds:[]};
 const asset={id:'asset',entityId:entity.id,name:entity.name,active:true,version:1,revisions:[revision]};
-const task={id:'task',projectId:project.id,entityId:entity.id,recipe:'mj_style',status:'draft',canConfirm:true,version:1,ownership:owner,sourceRevisionIds:[],createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+const task={id:'task',projectId:project.id,entityId:entity.id,recipe:'mj_style',status:'draft',canConfirm:true,canRecover:true,version:1,ownership:owner,sourceRevisionIds:[],createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
 const values=new Map(),storage={getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)};
 const drafts=new DraftStore(storage,'tenant','/api/v1');drafts.set('page','review');drafts.set('selectedProject',project.id);drafts.set('selectedEntity',entity.id);
-let submitResolve,reviewResolve,submits=0,reviews=0,projectReads=0;
+let submitResolve,reviewResolve,recoverResolve,submits=0,reviews=0,recoveries=0,projectReads=0;
 const api={request:async(path,options={})=>{
  if(path==='/projects'){projectReads++;return {items:[project]};}
  if(path==='/projects/project')return project;
@@ -20,6 +20,7 @@ const api={request:async(path,options={})=>{
  if(path.startsWith('/tasks?'))return {items:[structuredClone(task)]};
  if(path==='/tasks/task/confirm')return {task:structuredClone(task),confirmation:{token:'synthetic',summary:{count:1,modelKey:'fixture',prompt:'合成提示词'}}};
  if(path==='/tasks/task/submit'){submits++;await new Promise(r=>submitResolve=r);task.status='queued';task.canConfirm=false;return {task:structuredClone(task)};}
+ if(path==='/tasks/task/recover'){recoveries++;await new Promise(r=>recoverResolve=r);return {task:structuredClone(task)};}
  if(path==='/assets/asset/reviews'){reviews++;await new Promise(r=>reviewResolve=r);revision.review=options.body.decision;revision.reviewHistory.push({decision:revision.review,note:options.body.note,at:new Date().toISOString()});asset.version++;return {assetVersion:asset.version,revision:structuredClone(revision)};}
  throw new Error('Unexpected synthetic request '+path);
 }};
@@ -42,4 +43,12 @@ check(projectReads===readsBefore,'审核仅刷新资产，不重载全项目');
 check(submits===1&&root.textContent.includes('正在提交这批图片'),'审核完成保留原提交，未重复生成');
 submitResolve();await tick();await tick();await tick();
 check(submits===1&&root.textContent.includes('已处理 1 组提交'),'原提交正常结束并保留结果');
+root.querySelector('[data-wf-recover]').click();await tick();
+root.querySelector('[data-wf-review]').click();await tick();
+check(recoveries===1&&!root.querySelector('[data-wf-action="reject"]').disabled,'查询原任务期间仍可审核其他已返回图片');
+const repairNote=root.querySelector('[data-wf-review-note]');repairNote.value='合成局部返修意见';repairNote.dispatchEvent(new Event('input',{bubbles:true}));
+root.querySelector('[data-wf-action="reject"]').click();await tick();reviewResolve();await tick();await tick();
+check(revision.review==='changes_requested'&&reviews===2,'原任务收取未结束时可保存返修决定');
+recoverResolve();await tick();await tick();await tick();
+check(submits===1&&recoveries===1&&root.textContent.includes('已查询原任务'),'审核不复制原任务查询或收费提交');
 app.unmount();document.documentElement.dataset.testStatus=results.every(r=>r.ok)?'passed':'failed';
