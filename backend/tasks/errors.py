@@ -20,6 +20,8 @@ AUTH_CODES = frozenset({
 })
 
 PREPARATION_CODES = {
+    "PROVIDER_RECEIPT_MISMATCH":"官方回执、节点或图片归属尚未核对一致，已暂停收取；不会重新生成。",
+    "PROVIDER_UNAVAILABLE":"暂未收到官方任务状态，请稍后继续收取原任务。",
     "UNSAFE_MEDIA_URL":"素材下载地址未通过网络校验，原生成和导出记录已保留。",
     "MEDIA_TRANSFER_FAILED":"图片已经生成，下载暂未完成；请查询原任务继续收取。",
     "DELIVERY_UNCONFIRMED":"原任务仍在生成或准备导出，请稍后查询原任务。",

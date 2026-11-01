@@ -50,7 +50,7 @@ class DurableResponseTests(unittest.TestCase):
         c._record=lambda task:{'spec':{'projectId':'local-project'},'prepared':{'count':4}}
         c._project=lambda local:'project'
         c._observe=lambda *a:None
-        c._call=lambda name,args:response if name=='task_status' else {'projectId':'project','nodeId':'image-node','node':{'type':'image'}}
+        c._call=lambda name,args:response if name=='task_status' else {'projectId':'project','nodeId':'image-node','node':{'id':'image-node','type':'image','data':{'taskInfo':{'taskId':'task'},'resourceIds':['res'+str(i) for i in range(4)]}}}
         return c
     def response(self):
         return {'schema_version':1,'task_id':'task','result_kind':'media','owner':{'user_uuid':'user'},
@@ -65,6 +65,31 @@ class DurableResponseTests(unittest.TestCase):
                        lambda b:b.update(outcome='unknown')):
             body=self.response();mutate(body)
             with self.assertRaises(GenerationError):self.make_client(body).lookup(receipt)
+
+    def test_current_task_sot_without_owner_requires_exact_node_task_and_resources(self):
+        body=self.response();body.pop('owner')
+        client=self.make_client(body);receipt={'projectId':'project','taskId':'task'}
+        self.assertEqual(client.lookup(receipt)['status'],'completed')
+        for mutate in (lambda n:n['node']['data']['taskInfo'].update(taskId='another-task'),
+                       lambda n:n['node']['data']['resourceIds'].reverse(),
+                       lambda n:n['node']['data'].update(resourceIds=[]),
+                       lambda n:n.update(projectId='foreign-project'),
+                       lambda n:n['node'].update(id='foreign-node')):
+            c=self.make_client(body);node=c._call('read_node',{});mutate(node)
+            c._call=lambda name,args:body if name=='task_status' else node
+            with self.assertRaises(GenerationError) as error:c.lookup(receipt)
+            self.assertEqual(error.exception.code,'PROVIDER_RECEIPT_MISMATCH')
+
+    def test_nonterminal_waits_without_requiring_final_artifacts_and_failure_stops(self):
+        body=self.response();body.pop('owner');body.update(outcome='PENDING',readiness='NOT_READY',result_kind=None,artifacts=[])
+        receipt={'projectId':'project','taskId':'task'}
+        with self.assertRaises(GenerationError) as error:self.make_client(body).lookup(receipt)
+        self.assertEqual(error.exception.code,'DELIVERY_UNCONFIRMED')
+        for outcome,status in (('FAILED','failed'),('CANCELLED','cancelled')):
+            body.update(outcome=outcome,readiness='TERMINAL_READY')
+            self.assertEqual(self.make_client(body).lookup(receipt)['status'],status)
+        body.update(task_id='different')
+        with self.assertRaises(GenerationError):self.make_client(body).lookup(receipt)
 
 class ReferenceGraphTests(unittest.TestCase):
     def test_reference_read_uses_project_revision_and_exact_original_input(self):

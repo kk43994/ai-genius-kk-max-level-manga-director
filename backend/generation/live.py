@@ -181,14 +181,20 @@ class LiveImageClient(BoundImageClient):
             receipt = self.a.reference_route.recover_task(self, local_task, record, receipt)
         body = self._call('task_status', {'project_id': receipt['projectId'], 'task_id': receipt['taskId']})
         self._observe(local_task, 'task_status', body)
-        # Task SOT v1 was observed from the first real four-image run. It
-        # identifies the owner and task, while project ownership is checked above.
+        # Current Task SOT omits owner. Live personal-account/project ownership
+        # was checked above; the exact task -> node -> resources binding is
+        # checked below. Never accept a conflicting owner when one is supplied.
         if (body.get('schema_version') != 1 or body.get('task_id') != receipt['taskId']
-                or body.get('result_kind') != 'media'
-                or body.get('owner', {}).get('user_uuid') != self._owner['providerSubject']):
+                or ('owner' in body and (not isinstance(body['owner'], dict)
+                    or body['owner'].get('user_uuid') != self._owner['providerSubject']))):
             raise GenerationError('PROVIDER_RECEIPT_MISMATCH', receipt=receipt)
+        if body.get('outcome') in ('FAILED', 'CANCELLED', 'CANCELED'):
+            return {'status': 'failed' if body['outcome'] == 'FAILED' else 'cancelled',
+                    'providerReceipt': receipt}
         if body.get('readiness') != 'TERMINAL_READY' or body.get('outcome') != 'SUCCEEDED':
             raise GenerationError('DELIVERY_UNCONFIRMED', receipt=receipt)
+        if body.get('result_kind') != 'media':
+            raise GenerationError('PROVIDER_RECEIPT_MISMATCH', receipt=receipt)
         artifacts = body.get('artifacts', [])
         if (not isinstance(artifacts, list) or len(artifacts) != record['prepared']['count']
                 or any(not isinstance(a, dict) or a.get('kind') != 'image' for a in artifacts)
@@ -201,8 +207,13 @@ class LiveImageClient(BoundImageClient):
             raise GenerationError('PROVIDER_RECEIPT_MISMATCH', receipt=receipt)
         node = self._call('read_node', {'projectId':receipt['projectId'], 'node':node_id})
         self._observe(local_task, 'completed_read_node', node)
+        data = node.get('node', {}).get('data', {})
+        resources = [a['resource_id'] for a in artifacts]
         if (node.get('projectId') != receipt['projectId'] or node.get('nodeId') != node_id
-                or node.get('node', {}).get('type') != 'image'):
+                or node.get('node', {}).get('id') != node_id
+                or node.get('node', {}).get('type') != 'image'
+                or data.get('taskInfo', {}).get('taskId') != receipt['taskId']
+                or data.get('resourceIds') != resources):
             raise GenerationError('PROVIDER_RECEIPT_MISMATCH', receipt=receipt)
         receipt = self._checkpoint(local_task, {**receipt, 'nodeId':node_id})
         return {'status':'completed', 'providerReceipt':receipt}
