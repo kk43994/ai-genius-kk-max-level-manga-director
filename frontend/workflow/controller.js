@@ -6,6 +6,7 @@ import {assetToken,referenceLabel,readableText,storedText,linkedText,referencePi
 import {generationContext,generationGallery} from './production-generation.js';
 import {creatorDesk} from './creator-desk.js';
 import {mountCanvas} from './production-canvas.js';
+import {splitShot,addShot} from './shot-structure.js';
 import {analysisDraft} from './analysis-edit.js';
 import {analysisPanel, sourceView} from './analysis.js';
 import {operationLabel, elapsedLabel, taskProgress, reviewProgress} from './progress.js';
@@ -138,7 +139,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const warnings = [...new Set(scripts.flatMap(s=>s.analysis?.warnings||[]))];
     const header = `<section class="wf-panel"><h3>剧本与资产清单</h3><div class="wf-actions"><label class="wf-link">导入剧本<input data-wf-upload type="file" accept=".txt,.md,.docx" hidden></label><button type="button" data-wf-action="edit-plan">${plan.entities.length ? '编辑资产清单' : '手工填写清单'}</button></div><p class="wf-muted">TXT / Markdown / DOCX · 单文件 ≤ 8 MiB。每项原文依据可以在清单中核对。</p>${warnings.length?`<div class="wf-note">${warnings.map(w=>esc(w)).join('<br>')}</div>`:''}${scripts.map(sourceView).join('')}</section>${analysisView()}`;
     if (editing || draft) return header + planEditor(draft || {expectedVersion:plan.version, entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});
-    return header + (analysis?.status==='ready' ? (production&&returnedResult(production)?`<section class="wf-panel"><h3>制作清单已返回</h3><p>${returnedResult(production).assets.length} 项物料 · 可核对人物、场景与道具</p><button class="primary" data-wf-nav="style">核对物料并探索风格 →</button><details><summary>制作方案与原文核对</summary>${productionView()}</details></section>`:productionView()) : '') + (plan.entities.length?`<details><summary>已有清单与历史档案</summary><div data-wf-archives>${archivesView()}</div></details>`:'');
+    return header + (analysis?.status==='ready' ? (production&&returnedResult(production)?`<section class="wf-panel"><h3>制作清单已返回</h3><p>${currentProduction().assets.length} 项物料 · ${currentProduction().shots.length} 个镜头</p><button class="primary" data-wf-action="production-open-review">${production.validationIssues?.length?`核对并修改 ${production.validationIssues.length} 处问题`:'修改制作清单与镜头'}</button><button data-wf-nav="style" ${production.validationIssues?.length?'disabled':''}>探索风格 →</button><details data-production-review-panel ${boardView().inspector?'open':''}><summary>制作方案与原文核对</summary>${productionView()}</details></section>`:productionView()) : '') + (plan.entities.length?`<details><summary>已有清单与历史档案</summary><div data-wf-archives>${archivesView()}</div></details>`:'');
   }
   function archivesView() {
     const archives = buildCustomerArchives(assets,plan);
@@ -670,6 +671,8 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
       if(body.raw!==undefined){try{body.result=JSON.parse(body.raw);}catch{announce('内容尚不是完整 JSON，修改仍保留，请补齐后保存。');return;}delete body.raw;}
       return perform(async()=>{analysis=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/review`,{method:'PUT',body});removeDraft(name);analysisError='';announce(analysis.validationIssues.length?`修改已保存，仍有 ${analysis.validationIssues.length} 处标红待核对。`:'修改已保存，原文核对通过，可以继续制作。');});
     }
+    if(action==='production-open-review'){page='plan';persist('page',page);updateBoard({inspector:production.validationIssues?.length?'issues':'handoff'});root.querySelector('[data-production-review-panel]')?.scrollIntoView({block:'start'});return;}
+    if(button.hasAttribute('data-shot-split')||button.hasAttribute('data-shot-add')){const index=Number(button.dataset.shotSplit??button.dataset.shotAdd),result=currentProduction();const edited=button.hasAttribute('data-shot-split')?splitShot(result,index,production.dialogues,()=>`shot_${crypto.randomUUID()}`):addShot(result,index,()=>`shot_${crypto.randomUUID()}`);changeProductionField('shots',edited.shots);updateBoard({inspector:'shots',index:button.hasAttribute('data-shot-add')?index+1:index});announce('镜头草稿已更新，请逐镜调整构图和动作后保存；原文台词未改写。');return;}
     if(action==='production-play')return preview.play();
     if(action==='production-pause')return preview.stop();
     if(action==='production-prev')return preview.jump(-1);

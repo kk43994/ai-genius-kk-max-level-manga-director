@@ -21,3 +21,11 @@ boardgen 与 art-direction 草稿已加入服务端白名单，和 production �
 规范资产经人工审核即可下载；Nano 精修可选。当前方案的全部物料与分镜通过审核后才能确认完成并归档，详见 [交付范围](delivery-scope.md)。最终视频仍暂停，图板预演只展示参考和台词。
 
 代码：`frontend/workflow/creator-desk.js`、`production-generation.js`、`production-board.js`、`controller.js`、`scripts/browser/bootstrap.mjs`、`backend/integration_drafts.py`。
+
+## 前端实测后的编辑补齐（2026-11-01）
+
+制作方案核对是直接可见的按钮；点击画布卡片后，外层详情保持展开。风格页发现原文问题时可直接返回对应核对界面。手工补充后，清单摘要使用当前草稿数量。
+
+`shot-structure.js` 提供用户主动触发的拆镜和加镜：按原台词 ID 一句一镜，首镜保留 ID，新镜使用新 ID，原文、事件和引用不丢失，顺序重新连续编号。新增空动作镜不重复对白。对白时长按每秒约四字加停顿给出编辑建议，不是配音或自动验收。拆出的镜头继承原设计作为草稿，必须逐镜调整动作、构图和连续性，保存仍使用原版本冲突与原文检查。
+
+真实 Chrome 前端已完成引用修正、补充道具、拆镜、逐镜修改与保存，未新增文本模型调用。真实出图及图文导出仍在继续；源内容只在外部验收实例保存。
