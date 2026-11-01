@@ -272,11 +272,19 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   async function loadSpaces() {
     const seq = ++spaceSequence, localEpoch = epoch, account = currentAccount();
     quotaSequence++; spaces = []; quota = null; spacesError = ''; quotaError = ''; quotaLoading = false;
-    if (!account || accountState(account) !== 'connected' || account.capabilities?.spaces === false) { spacesLoading = false; render(); return; }
+    if (!account || !['connected','expired'].includes(accountState(account)) || account.capabilities?.spaces === false) { spacesLoading = false; render(); return; }
     spacesLoading = true; render();
     try {
       const result = await readList(`/provider-accounts/${idPath(account.id)}/spaces`);
+      // Space verification may refresh an expired access token on the server.
+      // Read that confirmed account state instead of trapping the UI in expiry.
+      const renewed = accountState(account) === 'expired' ? await request(`/provider-accounts/${idPath(account.id)}`) : null;
       if (disposed || localEpoch !== epoch || seq !== spaceSequence || draft.providerAccountId !== account.id) return;
+      if (renewed) {
+        if (renewed.id !== account.id || renewed.provider !== 'libtv') throw fail('OWNERSHIP_MISMATCH');
+        accounts = accounts.map(a => a.id === account.id ? renewed : a);
+        emit('provider-accounts:changed', {items:accounts});
+      }
       spaces = result; spacesLoading = false;
       const saved = spaces.find(s => s.id === selection().spaceId);
       if (account.id === selection().providerAccountId && saved) selectedSpaceLabel = { id: saved.id, name: saved.name, providerAccountId: account.id };
@@ -522,7 +530,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   const ready = refresh({ rereadSession: !session });
   return {
     ready, refresh, authorize: () => beginAuthorization(),
-    queryQuota: () => !blocked() && !spacesLoading && !quotaLoading ? loadQuota() : Promise.resolve(),
+    queryQuota: () => !blocked() && !spacesLoading && !quotaLoading ? (accountState(currentAccount()) === 'expired' ? loadSpaces() : loadQuota()) : Promise.resolve(),
     hasConnectedAccount: () => accounts.some(a => accountState(a) === 'connected'),
     // The integration persists this live value even when optional localStorage fails.
     getDraftSelection: () => dirty ? {providerAccountId:draft.providerAccountId, spaceId:draft.spaceId} : null,

@@ -50,6 +50,22 @@ export async function runSuite({ mount, makeFake, makeAccount, delay }) {
     assert(model.calls.filter(c=>c.path.endsWith('/quota')).length===count+1,'manual query did not run');
   });
 
+  await test('旧访问凭证过期时先由服务端核对刷新，再查询原空间余额', async () => {
+    const {model}=await setup('connected',{},({model})=>{
+      model.accounts[0].authorization.expiresAt=new Date(Date.now()-60000).toISOString();
+      model.intercept=path=>{
+        if(path==='/provider-accounts/pa_a/spaces'){
+          model.accounts[0].authorization.expiresAt=new Date(Date.now()+3600000).toISOString();
+          return Promise.resolve({items:structuredClone(model.spaces.pa_a),nextCursor:null});
+        }
+        if(path==='/provider-accounts/pa_a')return Promise.resolve(structuredClone(model.accounts[0]));
+      };
+    });
+    assert(model.calls.some(c=>c.path==='/provider-accounts/pa_a'),'renewed account was not reread');
+    assert(model.calls.some(c=>c.path.endsWith('/a_personal/quota')),'renewed selection could not query quota');
+    assert(!button('quota').disabled,'quota remained incorrectly blocked');
+  });
+
   await test('账号与空间分开选择；真实 0 保留；双击仅提交一次；外围输入不变', async () => {
     const { model, eventLog } = await setup();
     document.querySelector('#outside-draft').value = '剧本中尚未保存的原始输入';
