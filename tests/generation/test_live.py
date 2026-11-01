@@ -188,3 +188,37 @@ class UploadRecoveryTests(unittest.TestCase):
                       {'upload_'+'a'*64:{'attempted':True, 'done':True}}, {'unknown':{'attempted':True}}):
             with self.subTest(steps=steps), self.assertRaises(GenerationError):
                 self.client({'steps':steps}).lookup({'projectId':'project'})
+
+class PartialDeliveryTests(unittest.TestCase):
+    def test_unknown_fourth_export_keeps_three_verified_files_without_resending(self):
+        from helpers import png
+        from backend.tasks.ports import PartialDownload
+        from backend.generation.types import digest
+        raw=png();calls=[]
+        adapter=SimpleNamespace(bridge=SimpleNamespace(task_for_receipt=lambda *args:'local'),
+            policy=GenerationPolicy(allow_external_writes=True),media=SimpleNamespace(get=lambda *args,**kwargs:raw))
+        client=LiveImageClient(adapter,OWNER,None)
+        receipt={'projectId':'project','taskId':'task','nodeId':'node'}
+        client.lookup=lambda ref:{'status':'completed','providerReceipt':receipt}
+        client._record=lambda task:{'prepared':{'count':4}}
+        def claim(task, step, args):
+            index=args['items'][0]['outputIndex']
+            if index==3:raise GenerationError('OPERATION_UNKNOWN')
+            return {'operationId':'op'+str(index),'sourceHash':digest('source'+str(index)),
+                    'nodeId':'node','outputIndex':index,'mime':'image/png'}
+        client._claim=claim
+        def call(name,args):
+            calls.append((name,args))
+            self.assertEqual(name,'get_web_operation_status')
+            index=int(args['operationId'][-1])
+            return {'projectId':'project','operationId':args['operationId'],'status':'completed',
+                    'operation':'prepare_delivery_item','result':{'sourceIdentity':'source'+str(index),
+                    'mime':'image/png','url':'https://media.example/verified.png'}}
+        client._call=call
+        result=client.download(receipt)
+        self.assertIsInstance(result,PartialDownload)
+        self.assertEqual(len(result.artifacts),3)
+        self.assertTrue(all(item.content==raw for item in result.artifacts))
+        self.assertEqual(len(calls),3)
+        client._claim=lambda *args: (_ for _ in ()).throw(GenerationError('PROVIDER_RECEIPT_MISMATCH'))
+        with self.assertRaises(GenerationError):client.download(receipt)

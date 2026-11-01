@@ -29,6 +29,12 @@ class DownloadArtifact:
     sha256: str | None = None
 
 
+@dataclass(frozen=True)
+class PartialDownload:
+    """Verified consecutive outputs starting at zero; remaining delivery is unresolved."""
+    artifacts: tuple[DownloadArtifact, ...]
+
+
 class TaskTransaction(Protocol):
     def assert_selection(self, expected_revision: int, ownership: dict | None = None) -> None: ...
     def get_task(self, task_id: str) -> dict | None: ...

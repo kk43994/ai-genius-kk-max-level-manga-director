@@ -396,6 +396,32 @@ class TaskSafetyTests(unittest.TestCase):
         self.assertEqual(result["error"]["code"], "OUTPUT_INVALID")
         self.assertEqual(result["providerReceipt"], task["providerReceipt"])
 
+    def test_partial_delivery_is_reviewable_but_never_completed_or_resubmitted(self):
+        from unittest.mock import patch
+        from backend.tasks.ports import PartialDownload
+        from support import FakeClient
+        original=FakeClient.prepare
+        def prepare(client, spec):
+            return {**original(client,spec), 'count':4}
+        with patch.object(FakeClient,'prepare',prepare):
+            task=self.f.submit(self.f.prepare())["task"]
+        self.f.providers.lookup_result={"status":"completed"}
+        self.f.providers.artifacts=PartialDownload(tuple(DownloadArtifact(bytes([i+1]),'image/png') for i in range(3)))
+        result=self.f.service.recover(self.f.ctx,task['id'],task['version'])['task']
+        self.assertEqual(result['status'],'needs_attention')
+        self.assertEqual(result['error']['code'],'PARTIAL_DELIVERY')
+        self.assertEqual(len(result['outputs']),3)
+        self.assertTrue(all(row['review']=='pending' for row in result['outputs']))
+        self.assertNotIn('completedAt',result)
+        again=self.f.service.recover(self.f.ctx,result['id'],result['version'])['task']
+        self.assertEqual(again['outputs'],result['outputs'])
+        self.assertEqual(len(self.f.outputs.blobs),3)
+        self.assertEqual(self.f.providers.submit_count,1)
+        self.f.providers.artifacts=PartialDownload(())
+        failed=self.f.service.recover(self.f.ctx,again['id'],again['version'])['task']
+        self.assertEqual(failed['error']['code'],'OUTPUT_INVALID')
+        self.assertEqual(failed['outputs'],result['outputs'])
+
     def test_late_response_after_local_cancellation_preserves_receipt(self):
         prepared = self.f.prepare()
         def cancel_during_submit(client):

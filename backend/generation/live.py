@@ -7,7 +7,7 @@ import copy
 import hashlib
 import re
 
-from backend.tasks.ports import DownloadArtifact
+from backend.tasks.ports import DownloadArtifact, PartialDownload
 from .contracts import validate
 from .errors import GenerationError
 from .media import inspect_image
@@ -260,7 +260,14 @@ class LiveImageClient(BoundImageClient):
                     'idempotencyKey':'delivery_'+local_task+'_'+str(index),
                     'projectId':receipt['projectId'], 'watermark':'keep'}
             step = 'delivery_'+str(index)
-            cached = self._claim(local_task, step, args)
+            try:
+                cached = self._claim(local_task, step, args)
+            except GenerationError as exc:
+                # Preserve verified earlier outputs even if a later export lost
+                # its receipt. Do not resend that export or the paid generation.
+                if exc.code == 'OPERATION_UNKNOWN' and artifacts:
+                    return PartialDownload(tuple(artifacts))
+                raise
             if cached is None:
                 body = self._call('prepare_project_delivery', args)
                 self._observe(local_task, 'prepare_project_delivery', body)

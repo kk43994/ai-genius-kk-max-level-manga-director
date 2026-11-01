@@ -16,7 +16,7 @@ from .model import (HASH_RE, OWNER_KEYS, TERMINAL, cost, decode_cursor,
                     digest, encode_cursor, merge_receipt, opaque, owner_match,
                     parse_time, public_task, receipt, safe_prepared, selection_revision,
                     tenant, timestamp, utcnow, validate_spec, version, workflow_snapshot)
-from .ports import DownloadArtifact, TaskPolicy
+from .ports import DownloadArtifact, PartialDownload, TaskPolicy
 
 
 class TaskService:
@@ -488,8 +488,10 @@ class TaskService:
             # Recheck the same identity immediately before receiving its media.
             self._identity(client, task["ownership"], ctx)
             downloaded = client.download(deepcopy(task["providerReceipt"]))
+            partial = isinstance(downloaded, PartialDownload)
             self._revalidate_inputs(ctx, task)
-            output_records = self._persist_outputs(ctx, task, downloaded)
+            output_records = self._persist_outputs(ctx, task, downloaded.artifacts if partial else downloaded,
+                                                   partial=partial)
             # Workflow also marks a racing old revision stale in its own atomic
             # commit. Recheck after that commit so the task explains the change.
             self._revalidate_inputs(ctx, task)
@@ -498,13 +500,19 @@ class TaskService:
         with self.repository.transaction(ctx) as tx:
             current = self._get(tx, ctx, task_id)
             if self._owns(current, lease):
-                current.update(status="completed", lease=None, error=None, outputs=output_records,
-                               review="pending", completedAt=self._now())
+                if partial:
+                    current.update(status="needs_attention", lease=None, outputs=output_records, review="pending",
+                        error={"code":"PARTIAL_DELIVERY", "message":f"已收取 {len(output_records)}/{task['prepared']['count']} 张，可先审核；其余图片交付待核对，不会重复生成。",
+                               "retryable":False, "details":{"received":len(output_records), "expected":task['prepared']['count']}})
+                else:
+                    current.update(status="completed", lease=None, error=None, outputs=output_records,
+                                   review="pending", completedAt=self._now())
                 self._save(tx, current)
             return {"task": public_task(current)}
 
-    def _persist_outputs(self, ctx, task, downloaded):
-        if not isinstance(downloaded, (list, tuple)) or len(downloaded) != task["prepared"]["count"]:
+    def _persist_outputs(self, ctx, task, downloaded, *, partial=False):
+        expected=task["prepared"]["count"]
+        if not isinstance(downloaded, (list, tuple)) or not (0<len(downloaded)<expected if partial else len(downloaded)==expected):
             raise TaskError("OUTPUT_INVALID", "返回文件数量与已确认任务不符，未标记完成。", 409)
         artifacts = []
         allowed_mimes = ({"application/json", "text/plain"} if task["recipe"] == "script_analysis"

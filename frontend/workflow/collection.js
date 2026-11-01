@@ -17,5 +17,5 @@ export function collectionDelay(task) {
 
 export function needsAssetRefresh(tasks, assets) {
   const stored = new Set(assets.flatMap(asset=>asset.revisions.map(revision=>revision.id)));
-  return tasks.some(task=>task.status==='completed' && (task.outputs||[]).some(output=>output.revisionId&&!stored.has(output.revisionId)));
+  return tasks.some(task=>(task.status==='completed'||task.error?.code==='PARTIAL_DELIVERY') && (task.outputs||[]).some(output=>output.revisionId&&!stored.has(output.revisionId)));
 }

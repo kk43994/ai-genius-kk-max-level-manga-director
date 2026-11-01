@@ -71,7 +71,7 @@ bound.download(receipt)                     # list[backend.tasks.ports.DownloadA
 - 无参考路线使用公开 `generation_submit` 精确输入，保存公开说明明确的 `task_id`；`cop_` 画布操作号不视作 Task SOT。返回 `queued` 仅表示已取得任务引用，不把它说成图片已完成。
 - 参考路线：`upload_ticket` → DNS 固定的 HTTPS 分片 PUT → `upload_complete` → `upload_media` 完成审核 → `create_node(run=false,left=[...])` → `read_node` 核对原节点、保存状态、参数、连线及 revision → 本地保存 nodeId → `update_node(run=true,expectedRevision=...)`。不把 URL/imageList 放入 params。
 - 上传、建节点、收费、交付都有先落盘的尝试标记。遇到超时、服务错误、协议不明或进程中断，同一步不会自动重发。已保存节点的收费超时可只读 `read_node` 查回与原幂等键对应的 taskId，再查询 `task_status`。没有原节点或任务 ID 时明确停止，不能按新键重提。
-- 下载先确认原任务 completed 和 nodeId；按每个输出调用一次 `prepare_project_delivery`，保留水印，不改变账号偏好。保存每项操作 ID；后续只用 `get_web_operation_status` 查询原操作。未知结果不重发交付。回执必须仍指向原项目、节点及输出索引；不绕过官方交付直接取未知原图 URL。
+- 下载先确认原任务 completed 和 nodeId；按每个输出调用一次 `prepare_project_delivery`，保留水印，不改变账号偏好。保存每项操作 ID；后续只用 `get_web_operation_status` 查询原操作。未知结果不重发交付。若后续项的旧操作回执不明，已通过原操作查询与文件核验的连续前置图片可作为 `PartialDownload` 返回；任务保持待核对并显示数量，不标成整组完成。回执必须仍指向原项目、节点及输出索引；不绕过官方交付直接取未知原图 URL。
 - `SafeMediaTransfer` 只允许有证据的精确 HTTPS 主机及 443 端口。拒绝凭据 URL、私有/回环/链路本地或混合 DNS、重定向；连接固定到已核验 IP，TLS 仍核验原主机。不传 cookie/auth。限制声明长度与实际流量，核验 MIME、PNG/JPEG/WebP 单帧解码、像素与摘要。签名 URL 不进任务、journal 或异常文本。
 - 下载返回 bytes，由现有 WorkflowOutputStore 保存到租户私有库并建立 `review=pending` 版本。此模块不替用户做保留/重绘决定。
 

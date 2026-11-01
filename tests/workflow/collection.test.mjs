@@ -36,4 +36,8 @@ test('a completed task with a not-yet-visible asset keeps refreshing until image
  assert.ok(needsAssetRefresh([completed],[{revisions:[{id:'r1'}]}]));
  assert.equal(needsAssetRefresh([completed],[{revisions:[{id:'r1'},{id:'r2'}]}]),false);
  assert.equal(needsAssetRefresh([task()],[]),false);
+ const partial=task({status:'needs_attention',error:{code:'PARTIAL_DELIVERY'},outputs:[{revisionId:'r1'}]});
+ assert.equal(canAutoCollect(partial),false);
+ assert.ok(needsAssetRefresh([partial],[]));
+ assert.equal(needsAssetRefresh([partial],[{revisions:[{id:'r1'}]}]),false);
 });
