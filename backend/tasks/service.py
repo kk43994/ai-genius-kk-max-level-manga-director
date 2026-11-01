@@ -366,6 +366,17 @@ class TaskService:
             return {"task": public_task(current)}
 
     def _operation_failure(self, ctx, task_id, lease, exc, *, attempted=False):
+        # Developer diagnostics without upstream messages, payloads or signed URLs.
+        import logging
+        import traceback
+        from pathlib import Path
+        from .errors import PREPARATION_CODES, AUTH_CODES
+        code = getattr(exc, 'code', None)
+        safe_code = code if code in PREPARATION_CODES or code in AUTH_CODES else 'UNCLASSIFIED'
+        locations = ['%s:%s:%s' % (Path(f.filename).name, f.lineno, f.name)
+                     for f in traceback.extract_tb(exc.__traceback__)[-6:]]
+        logging.getLogger(__name__).error('Task operation failed: code=%s type=%s locations=%s',
+            safe_code, type(exc).__name__, ' > '.join(locations))
         with self.repository.transaction(ctx) as tx:
             task = self._get(tx, ctx, task_id)
             # Explicitly typed error receipts only; never parse text or URLs.

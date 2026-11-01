@@ -20,6 +20,12 @@ AUTH_CODES = frozenset({
 })
 
 PREPARATION_CODES = {
+    "INPUT_INVALID":"模型不接受当前制作参数。请检查画幅、数量或必填选项；尚未提交的记录可以取消后重新准备。",
+    "SOURCE_CHANGED":"参考图版本或审核状态已变化，请重新选择已审核的有效图片。",
+    "SOURCE_REVIEW_REQUIRED":"请先选用并审核参考图，再准备这次生成。",
+    "UPLOAD_UNCONFIRMED":"参考图上传或官方内容检查尚未完成，请核对原任务。",
+    "IDEMPOTENCY_CONFLICT":"这份准备记录的内容已改变。尚未提交的记录可取消后重新准备；已提交任务只能查询原结果。",
+    "ORIGINAL_RECEIPT_REQUIRED":"原任务缺少可恢复的官方回执，已保留记录；请检查接入状态。",
     "PROVIDER_RECEIPT_MISMATCH":"官方回执、节点或图片归属尚未核对一致，已暂停收取；不会重新生成。",
     "PROVIDER_UNAVAILABLE":"暂未收到官方任务状态，请稍后继续收取原任务。",
     "UNSAFE_MEDIA_URL":"素材下载地址未通过网络校验，原生成和导出记录已保留。",

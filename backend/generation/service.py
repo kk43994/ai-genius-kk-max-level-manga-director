@@ -115,7 +115,10 @@ class BoundImageClient:
             raise GenerationError('SOURCE_REVIEW_REQUIRED')
         results = []
         for snap in snapshots:
-            if not same_owner(snap.get('ownership'), self._owner) or snap.get('review') != 'approved' or snap.get('stale'):
+            # TaskService persists owner + revision + byte hash only. Review is
+            # re-read authoritatively below, not inferred from optional hints.
+            if (not same_owner(snap.get('ownership'), self._owner)
+                    or 'review' in snap and snap['review'] != 'approved' or snap.get('stale')):
                 raise GenerationError('SOURCE_REVIEW_REQUIRED')
             ref = self.a.references.read(self._owner, snap)
             if (not isinstance(ref, VerifiedReference) or not same_owner(ref.ownership, self._owner)

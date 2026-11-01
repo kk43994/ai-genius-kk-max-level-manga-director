@@ -76,6 +76,18 @@ class RouteTests(unittest.TestCase):
         self.assertNotIn('private-test',str(result.body))
         self.assertEqual(self.f.providers.submit_count,0)
 
+    def test_reference_and_parameter_failures_keep_specific_safe_reason(self):
+        from backend.tasks.errors import provider_failure
+        for code, expected in [('INPUT_INVALID', '制作参数'), ('SOURCE_CHANGED', '参考图'),
+                               ('SOURCE_REVIEW_REQUIRED', '审核参考图')]:
+            error = RuntimeError('private-token https://signed.invalid/private')
+            error.code = code
+            status, public = provider_failure(error)
+            self.assertEqual(status, 'needs_attention')
+            self.assertEqual(public['code'], code)
+            self.assertIn(expected, public['message'])
+            self.assertNotIn('private', str(public))
+
 
 if __name__ == "__main__":
     unittest.main()

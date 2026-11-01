@@ -3,7 +3,7 @@ import {generationInspector} from './production-generation.js';
 
 export function styleSummary(project,apiBase){
  const d=project?.artDirection;
- return d?`<section class="creator-style-summary"><img src="${esc(assetURL(apiBase,d.assetId,d.revisionId,true))}" alt="本剧已选风格"><div><b>${d.valid===false?'风格依据待重新确认':'本剧风格已确认'} · 第 ${d.version} 版</b><p>${esc(d.notes)}</p></div><button data-wf-nav="style">查看 / 更换风格</button></section>`:'<div class="wf-note">先选定本剧风格，再制作统一的资产。<button data-wf-nav="style">去选风格</button></div>';
+ return d?`<section class="creator-style-summary"><img src="${esc(assetURL(apiBase,d.assetId,d.revisionId,true))}" alt="本剧已选风格"><div><b>${d.valid===false?'风格依据待重新确认':'本剧风格已确认'} · 第 ${d.version} 版</b><details><summary>查看美术规范</summary><p>${esc(d.notes)}</p></details></div><button data-wf-nav="style">查看 / 更换风格</button></section>`:'<div class="wf-note">先选定本剧风格，再制作统一的资产。<button data-wf-nav="style">去选风格</button></div>';
 }
 export function directionForm({project,result,assets,apiBase,directionDraft,busy}){
  const id=directionDraft?.revisionId;if(!id)return '';

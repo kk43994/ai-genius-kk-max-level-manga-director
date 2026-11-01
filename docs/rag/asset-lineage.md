@@ -31,3 +31,9 @@
 
 后端 `production_lineage.py` 使用当前剧本、分析、人工方案、资产设计指纹和显式绑定验证关系，不以名称判断。准备、提交前校验、收图和图片有效性检查都执行关系检查；移除关系或更改设定后停止继承，旧结果标为失效。交付统计承认同一物料的有效已选风格，但仍要求每个状态的 Image2 审核通过。
 
+## 带参考图准备的真实接入修复
+
+TaskService 的 `inputs.sources` 有意保存 revisionId、ownership、sha256，不保存审核状态副本。GenerationAdapter 原先要求快照含 `review=approved`，导致真实带图准备全部被误拒。现在只拒绝明确的未审核／失效提示，最终以 WorkflowReferenceReader 的当前已审核图、原始字节和摘要为准，未审核图片仍在工作流和接入层两次拒绝。回归增加实际 TaskService → Workflow → GenerationAdapter 的 Image2 准备，而不是只单独测试图片读取。
+
+前端取消仅适用于 `submissionAttempted=false` 的记录，保留历史并更新当前生成草稿的准备编号。已提交或结果不明的任务仍只能恢复原任务。受控错误给出参考图、参数等具体类别；开发日志只记录固定错误码、异常类型、源码位置，不输出上游报文和签名链接。
+
