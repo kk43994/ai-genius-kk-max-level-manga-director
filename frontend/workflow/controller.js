@@ -209,9 +209,11 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function confirmationView() {
     const task=prepared.task, cost=prepared.cost || task.cost || {}, enabled=session.features?.imageGeneration===true;
-    const targetName=plan.entities.find(e=>e.id===task.entityId)?.name||assets.find(a=>a.entityId===task.entityId)?.name||'当前任务档案';
+    const archiveName=plan.entities.find(e=>e.id===task.entityId)?.name||assets.find(a=>a.entityId===task.entityId)?.name||'当前任务档案';
+    const targetName=task.recipe==='mj_style'?archiveName.replace(/ · 人物主多视图$/,''):archiveName;
+    const purpose={mj_style:'基础形象与风格候选',image2_asset:'规范资产图',nano_refine:'资产精修图',storyboard_image:'分镜图'}[task.recipe]||'候选图';
     const references=(task.sourceRevisionIds||[]).map(id=>{const a=assets.find(a=>a.revisions.some(r=>r.id===id));return a?`${a.name} · ${id.slice(-6)}`:`图片版本 ${id.slice(-6)}`;});
-    return `<section class="wf-panel" data-confirmation tabindex="-1"><h3>核对这次任务</h3><p><strong>制作对象：${esc(targetName)}</strong></p>${references.length?`<p>已固定参考：${references.map(esc).join('；')}</p>`:''}<details open><summary>本次实际发送的完整提示词</summary><pre class="wf-prompt-text">${esc((prepared.confirmation?.summary?.prompt||'提示词暂不可读，请保留任务后刷新核对。').replace(/\{\{reference:[^}]+\}\}/g,'（已绑定参考图片）'))}</pre></details><p>生成 ${esc(prepared.confirmation?.summary?.count || task.spec?.settings?.count || 1)} 张候选图</p><p class="wf-note">任务账号：${esc(task.ownership?.accountLabelAtCreation||task.ownership?.providerAccountId)}<br>工作空间：${esc(task.ownership?.spaceNameAtCreation||task.ownership?.spaceId)}<br>费用：${cost.state==='known'?esc(`${cost.amount} ${cost.unit}`):'未知 · 不能视为免费'}</p><p class="wf-muted">切换页面上的账号不会改变这个任务的归属。${!enabled?'当前版本未启用图片提交；准备记录已保存。':''}</p><div class="wf-actions"><button data-wf-action="close-confirmation">保留准备记录</button><button data-wf-action="submit-task" class="primary" ${!enabled||busy?'disabled':''}>确认并提交生成</button></div></section>`;
+    return `<section class="wf-panel" data-confirmation tabindex="-1"><h3>核对这次任务</h3><p><strong>制作对象：${esc(targetName)}</strong> · ${esc(purpose)}</p>${references.length?`<p>已固定参考：${references.map(esc).join('；')}</p>`:''}<details open><summary>本次实际发送的完整提示词</summary><pre class="wf-prompt-text">${esc((prepared.confirmation?.summary?.prompt||'提示词暂不可读，请保留任务后刷新核对。').replace(/\{\{reference:[^}]+\}\}/g,'（已绑定参考图片）'))}</pre></details><p>生成 ${esc(prepared.confirmation?.summary?.count || task.spec?.settings?.count || 1)} 张候选图</p><p class="wf-note">任务账号：${esc(task.ownership?.accountLabelAtCreation||task.ownership?.providerAccountId)}<br>工作空间：${esc(task.ownership?.spaceNameAtCreation||task.ownership?.spaceId)}<br>费用：${cost.state==='known'?esc(`${cost.amount} ${cost.unit}`):'未知 · 不能视为免费'}</p><p class="wf-muted">切换页面上的账号不会改变这个任务的归属。${!enabled?'当前版本未启用图片提交；准备记录已保存。':''}</p><div class="wf-actions"><button data-wf-action="close-confirmation">保留准备记录</button><button data-wf-action="submit-task" class="primary" ${!enabled||busy?'disabled':''}>确认并提交生成</button></div></section>`;
   }
   function deliveryView() {
     const allowed=coverage.scope==='production'?new Set(coverage.exportRevisionIds||[]):null;
@@ -578,7 +580,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
       persist(composeKey(),draft);
       const problem=promptIssue({draft,job:entityPrompt(),entity:currentEntity(),styleVersion:plan.styleVersion});
       if(problem||!form.elements.promptReviewed?.checked){announce(problem||'请先核对完整提示词并勾选确认。');return;}
-      const direction=project.artDirection,prompt=direction?`[本剧美术规范 v${direction.version}]\n${direction.notes}\n[/本剧美术规范]\n${draft.prompt}`:draft.prompt;
+      const prompt=draft.prompt;
       const body={projectId:selected,entityId:selectedEntity,recipe:recipes[page],prompt,sourceRevisionIds:page==='style'?[]:[draft.sourceRevisionId],settings:{count:Number(draft.count),...(draft.ratio?{ratio:draft.ratio}:{})},expectedSelectionRevision:session.selection.revision,...(draft.repairOfRevisionId?{repairOfRevisionId:draft.repairOfRevisionId}:{})};
       return perform(async()=>{prepared=await api.request('/tasks/prepare',{method:'POST',body,idempotencyKey:draft.prepareKey});if(!prepared.confirmation){announce(prepared.task?.error?.message||'准备未完成，请查看任务记录。');prepared=null;}else announce('任务准备记录已保存，请核对原账号、空间和费用。');events.dispatchEvent(new CustomEvent('tasks:changed',{detail:{projectId:selected}}));await load();});
     }

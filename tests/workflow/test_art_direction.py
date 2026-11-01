@@ -49,6 +49,22 @@ class ArtDirectionTests(unittest.TestCase):
         self.assertFalse(self.workflow.get_project(self.ctx,self.project_id)['artDirection']['valid'])
         with self.assertRaises(WorkflowError):self.task('image2_asset',source=replacement['id'])
 
+    def test_current_subject_precedes_show_bible_and_validation_is_idempotent(self):
+        style=self.review(self.output('mj_style'));self.confirm(style,notes='角色甲穿白衣；角色乙穿黑衣；统一写实质感')
+        task=self.task('mj_style')
+        self.assertLess(task['prompt'].index('合成测试提示'),task['prompt'].index('角色甲'))
+        spec={k:task[k] for k in ('projectId','entityId','recipe','prompt','sourceRevisionIds','settings')}
+        checked=self.workflow.validate_task_inputs(self.ctx,spec,self.owner)
+        self.assertEqual(checked['spec']['prompt'],task['prompt'])
+        self.assertEqual(task['prompt'].count('本剧美术规范 v1'),1)
+
+    def test_legacy_prepared_prompt_keeps_exact_bytes_but_changed_bible_fails(self):
+        from backend.workflow.art_direction import contains_direction
+        direction={'version':1,'notes':'统一电影写实'}
+        legacy='[本剧美术规范 v1]\n统一电影写实\n[/本剧美术规范]\n只画空仓库'
+        self.assertTrue(contains_direction(legacy,direction))
+        self.assertFalse(contains_direction(legacy,{**direction,'notes':'新版水彩'}))
+
     def test_approved_standard_assets_can_complete_without_optional_refinement(self):
         for entity in ('ent_character','ent_scene','ent_prop'):
             style=self.review(self.output('mj_style',entity=entity))

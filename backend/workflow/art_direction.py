@@ -47,6 +47,20 @@ def confirm(workflow, ctx, project_id, payload):
         return describe(workflow, tx, project)
 
 
+def prompt_context(direction):
+    return (f"\n\n[本剧美术规范 v{direction['version']}：仅作画风背景]\n"
+        "当前任务的主体、性别、物件、视图数量和构图只以上文制作要求为准。"
+        "以下全剧规范只继承适用的画风、材质和光影；不要把其中其他人物、场景、道具或视图画进本图。\n"
+        f"{direction['notes']}\n[/本剧美术规范]\n"
+        "最终只绘制上文当前制作对象，严格遵守上文的单体或多视图要求。")
+
+
+def contains_direction(prompt, direction):
+    # Preserve already prepared immutable tasks from the previous composer.
+    legacy = f"[本剧美术规范 v{direction['version']}]\n{direction['notes']}\n[/本剧美术规范]\n"
+    return prompt.startswith(legacy) or prompt.endswith(prompt_context(direction))
+
+
 def apply(workflow, tx, project, prompt, ownership, recipe):
     direction = describe(workflow, tx, project)
     if not direction:
@@ -55,5 +69,6 @@ def apply(workflow, tx, project, prompt, ownership, recipe):
         raise WorkflowError('STYLE_REVIEW_REQUIRED', '本剧风格参考已变化，请先重新确认风格。', 409)
     if owner_key({**direction['ownership'], 'tenantId':project['tenantId']}) != owner_key(ownership):
         raise WorkflowError('OWNERSHIP_MISMATCH', '请切回本剧风格原账号与空间继续制作。', 409)
-    prefix = f"[本剧美术规范 v{direction['version']}]\n{direction['notes']}\n[/本剧美术规范]\n"
-    return (prompt if prompt.startswith(prefix) else prefix + prompt), direction['version']
+    # Put the concrete subject first. A whole-show bible may mention several
+    # identities and layouts; leading with it contaminated real MJ candidates.
+    return (prompt if contains_direction(prompt, direction) else prompt + prompt_context(direction)), direction['version']

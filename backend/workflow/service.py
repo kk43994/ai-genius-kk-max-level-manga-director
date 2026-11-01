@@ -610,8 +610,8 @@ class WorkflowService:
         if prepared['workflowSnapshot'].get('artDirectionVersion'):
             project = self.get_project(ctx, spec['projectId'])
             direction = project['artDirection']
-            prefix = f"[本剧美术规范 v{direction['version']}]\n{direction['notes']}\n[/本剧美术规范]\n"
-            if not spec.get('prompt', '').startswith(prefix):
+            from .art_direction import contains_direction
+            if not contains_direction(spec.get('prompt', ''), direction):
                 conflict('请沿用当前本剧美术规范重新准备任务。')
         if prepared['sourceRevisionIds'] != spec.get('sourceRevisionIds', []):
             conflict('Nano 任务必须明确引用原始 Image2 版本，请重新准备。')
