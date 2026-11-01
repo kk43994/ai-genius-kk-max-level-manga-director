@@ -1,4 +1,4 @@
-const control = path => /^\/(session(?:\?|$)|workspace-intents\/|authorization-attempts\/)/.test(path);
+const control = path => /^\/(session(?:\?|$)|workspace-intents\/|local-workspace-intents\/|authorization-attempts\/)/.test(path);
 const failure = () => Object.assign(new Error('工作区会话正在同步，原工作区请求已暂停。'),{code:'WORKSPACE_CONTEXT_CHANGED'});
 
 /** Retire responses and writes tied to the old Cookie context before UI replacement. */

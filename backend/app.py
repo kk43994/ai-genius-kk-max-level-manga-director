@@ -432,6 +432,8 @@ class Application:
         self.router.add("GET", API_PREFIX + "/ready", self.ready, public=True)
         if config.local_client:
             self.router.add("GET", API_PREFIX + "/oauth/libtv/return", self.local_authorization_return, public=True)
+            from .local_workspace import register_routes as register_local_workspace
+            register_local_workspace(self)
         if not isinstance(self.services.storage, UnavailableService):
             from .integration_drafts import register_routes as register_drafts
             register_drafts(self.router, self.services)

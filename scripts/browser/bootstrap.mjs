@@ -4,6 +4,7 @@ import {mount as mountAccounts} from '../accounts/index.js';
 import {mount as mountWorkflow} from '../asset-lab.js';
 import {mount as mountUpdates} from '../updates/index.js';
 import {DraftCoordinator} from './drafts.mjs';
+import {mountLocalWorkspace} from './local-workspace.mjs';
 import {createSessionBoundary,inspectWorkspaceDrafts,saveWorkspaceDrafts} from './workspace-context.mjs';
 
 const config = JSON.parse(document.getElementById('asset-lab-config').textContent);
@@ -22,7 +23,7 @@ const openAccounts=()=>{if(!accountDialog.open)accountDialog.showModal();};
 accountButton.addEventListener('click',openAccounts);closeAccounts.addEventListener('click',()=>accountDialog.close());
 accountDialog.addEventListener('close',()=>accountButton.focus());
 let readOnly = false, activeDownloads = 0, pendingWrites = 0, switchingWorkspace=false;
-let workflow, accounts, drafts, shell, session, updates;
+let workflow, accounts, drafts, shell, session, updates, localWorkspace;
 const status = document.createElement('div'); status.className = 'integration-notice'; status.setAttribute('role','status');
 const save = document.createElement('button'); save.type='button'; save.textContent='保存当前草稿';
 const message = document.createElement('span'); status.append(message, save);
@@ -143,7 +144,7 @@ events.addEventListener('tasks:changed',()=>void refreshTasks());
 events.addEventListener('workflow:tasks-refreshed',()=>void refreshTasks());
 
 function reloadWorkspace() {
-  switchingWorkspace=true;drafts?.destroy();workflow?.unmount();accounts?.unmount();updates?.unmount();
+  switchingWorkspace=true;drafts?.destroy();workflow?.unmount();accounts?.unmount();updates?.unmount();localWorkspace?.unmount();
   location.assign(config.publicBasePath);
 }
 function workspaceRecoveryHooks() {
@@ -203,6 +204,11 @@ try {
     authorize.addEventListener('click',()=>openAccounts());
   }
   await Promise.all([accounts.ready,workflow.ready,refreshTasks()]);
+  if(config.mode==='local-client') {
+    localWorkspace=mountLocalWorkspace({anchor:accountRoot,api,saveDrafts:saveDraft,
+      beforeSwitch:()=>workspaceRecoveryHooks().beforeSessionRotation(),
+      onSwitched:()=>{boundary.hold();reloadWorkspace();},reload:reloadWorkspace});
+  }
   const connectionStatus=document.getElementById('local-libtv-status');
   if(connectionStatus)connectionStatus.textContent=accounts.hasConnectedAccount()?'LibTV 已连接':'连接 LibTV';
   drafts.onState(drafts);
