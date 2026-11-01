@@ -58,6 +58,9 @@ test('only a verified upload-only failure offers a fresh preparation key',()=>{
   view:{kind:'assets',index:0,stage:'asset'},assets:[],tasks:[{entityId:'master',status:'failed',error:{code:'REFERENCE_UPLOAD_FAILED'}}]};
  assert.match(generationInspector(options),/data-generation-reroll/);
  assert.match(generationInspector(options),/重新准备本次生成/);
+ options.tasks[0].error.code='REFERENCE_PREFLIGHT_REJECTED';
+ assert.match(generationInspector(options),/data-generation-reroll/);
+ assert.match(generationInspector(options),/重新准备本次生成/);
  options.tasks[0].status='needs_attention';options.tasks[0].error.code='SUBMISSION_UNKNOWN';
  assert.doesNotMatch(generationInspector(options),/data-generation-reroll/);
  options.tasks=[{...options.tasks[0],status:'failed',createdAt:'2026-01-01T00:00:00Z',error:{code:'REFERENCE_UPLOAD_FAILED',message:'old-upload-error'}},

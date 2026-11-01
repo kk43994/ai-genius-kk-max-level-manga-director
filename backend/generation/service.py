@@ -8,11 +8,13 @@ import hashlib
 import math
 import logging
 import re
+from contextlib import nullcontext
 
 from backend.tasks.ports import DownloadArtifact
 from .contracts import ResponseContracts, ToolCatalog, validate
 from .errors import GenerationError
 from .media import inspect_image
+from .project_coordination import project_mutation
 from .types import (AuthorizedMCP, GenerationPolicy, ProjectBinding, RecipeBinding,
                     VerifiedReference, digest, opaque, owner, safe_receipt, same_owner)
 
@@ -73,19 +75,22 @@ class BoundImageClient:
         self.a.catalog.request(name, arguments)
         permit = self._authorize_scopes(self.a.catalog.scopes(name))
         try:
-            result = permit.call_tool(name, copy.deepcopy(arguments))
+            project = arguments.get('projectId', arguments.get('project_id'))
+            mutation = name in {'create_node', 'update_node', 'upload_media', 'generation_submit', 'prepare_project_delivery'}
+            with project_mutation(self._owner, project) if mutation and project else nullcontext():
+                result = permit.call_tool(name, copy.deepcopy(arguments))
         except GenerationError:
             raise
         except Exception as exc:
             code = getattr(exc, 'code', None)
             known = {'PROVIDER_PROTOCOL_ERROR','PROVIDER_UNAVAILABLE','PROVIDER_RESPONSE_TOO_LARGE',
                      'PROVIDER_SCOPE_UNAVAILABLE','PROVIDER_AUTHORIZATION_REQUIRED','PROVIDER_SCOPE_REQUIRED',
-                     'OWNERSHIP_MISMATCH','PROVIDER_NODE_NAME_CONFLICT'}
+                     'OWNERSHIP_MISMATCH','PROVIDER_NODE_NAME_CONFLICT','PROVIDER_SNAPSHOT_REVISION_MISMATCH'}
             logging.getLogger(__name__).error('Official tool failed: tool=%s code=%s',
                 name, code if code in known else 'UNCLASSIFIED')
             if code == 'PROVIDER_SCOPE_UNAVAILABLE':
                 raise GenerationError('PROVIDER_SCOPE_REQUIRED', required_scopes=self.a.catalog.scopes(name)) from None
-            if code in {'PROVIDER_AUTHORIZATION_REQUIRED', 'PROVIDER_SCOPE_REQUIRED', 'OWNERSHIP_MISMATCH'}:
+            if code in {'PROVIDER_AUTHORIZATION_REQUIRED', 'PROVIDER_SCOPE_REQUIRED', 'OWNERSHIP_MISMATCH', 'PROVIDER_SNAPSHOT_REVISION_MISMATCH'}:
                 raise GenerationError(code) from None
             raise GenerationError('PROVIDER_UNAVAILABLE') from None
         return self.a.catalog.response(name, result)

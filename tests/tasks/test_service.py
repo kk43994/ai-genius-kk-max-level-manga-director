@@ -250,6 +250,26 @@ class TaskSafetyTests(unittest.TestCase):
         self.assertCode('SUBMISSION_ALREADY_ATTEMPTED', self.f.service.submit, self.f.ctx,
             recovered['id'], recovered['version'], 'unused', 'never-replay')
 
+    def test_verified_preflight_rejection_is_terminal_but_original_cannot_resubmit(self):
+        prepared=self.f.prepare()
+        self.f.providers.submit_error=TestProviderError('REFERENCE_PREFLIGHT_REJECTED', provider_receipt=self.f.providers.prepared_receipt)
+        rejected=self.f.submit(prepared)['task']
+        self.assertEqual(rejected['status'],'failed')
+        self.assertEqual(rejected['error']['code'],'REFERENCE_PREFLIGHT_REJECTED')
+        self.assertFalse(rejected['error']['details']['generationSubmitted'])
+        self.assertTrue(rejected['submissionAttempted'])
+        self.assertEqual(rejected['providerReceipt'],self.f.providers.prepared_receipt)
+        self.assertCode('SUBMISSION_ALREADY_ATTEMPTED',self.f.service.submit,self.f.ctx,
+            rejected['id'],rejected['version'],'unused','do-not-replay')
+
+    def test_revision_rejection_with_conflicting_receipt_remains_unknown(self):
+        prepared=self.f.prepare()
+        self.f.providers.submit_error=TestProviderError('REFERENCE_PREFLIGHT_REJECTED',provider_receipt={'nodeId':'different'})
+        rejected=self.f.submit(prepared)['task']
+        self.assertEqual(rejected['status'],'needs_attention')
+        self.assertEqual(rejected['error']['code'],'PROVIDER_RECEIPT_MISMATCH')
+        self.assertEqual(rejected['providerReceipt'],self.f.providers.prepared_receipt)
+
     def test_timeout_without_receipt_stops_with_explanation(self):
         self.f.providers.prepared_receipt = None
         prepared = self.f.prepare()

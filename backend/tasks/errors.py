@@ -50,6 +50,9 @@ PREPARATION_CODES = {
 def provider_failure(exc, *, attempted=False):
     # Never stringify an upstream exception: it may contain tokens/signed URLs.
     code = getattr(exc, "code", None)
+    if code == 'REFERENCE_PREFLIGHT_REJECTED':
+        return ('failed', {'code':code, 'message':'项目同时有其他更新，官方拒绝了这次提交；已核实原节点未生成。请重新准备，原记录保留。',
+            'retryable':True, 'details':{'generationSubmitted':False}})
     if code in PREPARATION_CODES:
         return ("needs_attention", {"code":code,"message":PREPARATION_CODES[code],
             "retryable":False,"details":{"submissionAttempted":bool(attempted)}})

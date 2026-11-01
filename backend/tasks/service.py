@@ -388,6 +388,9 @@ class TaskService:
                     evidence = None
             if self._owns(task, lease):
                 status, error = provider_failure(exc, attempted=attempted or task["submissionAttempted"])
+                if getattr(exc, 'code', None) == 'REFERENCE_PREFLIGHT_REJECTED' and (not evidence or evidence != task.get('providerReceipt') or evidence.get('taskId') or not evidence.get('nodeId')):
+                    status, error = 'needs_attention', {'code':'PROVIDER_RECEIPT_MISMATCH',
+                        'message':'拒绝记录与原节点回执不一致，仍需核对原任务。', 'retryable':False, 'details':{}}
                 if isinstance(exc, TaskError) and exc.code in {"SOURCE_CHANGED", "SOURCE_REVIEW_REQUIRED", "WORKFLOW_VERSION_CHANGED", "WORKFLOW_SNAPSHOT_MISSING", "PROVIDER_RECEIPT_MISMATCH", "OUTPUT_INVALID", "OUTPUT_STORE_UNVERIFIED"}:
                     status, error = "needs_attention", exc.public()
                 task.update(status=status, error=error, lease=None, confirmation=None)

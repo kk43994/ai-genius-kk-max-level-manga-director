@@ -5,6 +5,7 @@ Alternative contracts still require an explicit audited tool and subject path.
 """
 import json
 import logging
+import re
 from dataclasses import dataclass
 
 from backend.auth.errors import AuthError
@@ -95,11 +96,14 @@ class MCPReadSession:
         if result.get('isError'):
             blocks=result.get('content', [])
             text=blocks[0].get('text','') if isinstance(blocks,list) and len(blocks)==1 and isinstance(blocks[0],dict) else ''
-            logging.getLogger(__name__).error('MCP tool returned error: tool=%s name_conflict=%s',
-                tool['name'], isinstance(text,str) and 'NODE_NAME_CONFLICT' in text)
+            code = re.match(r'^Error executing tool '+re.escape(tool['name'])+r': ([A-Z][A-Z0-9_]{2,63}):', text) if isinstance(text,str) else None
+            logging.getLogger(__name__).error('MCP tool returned error: tool=%s provider_code=%s',
+                tool['name'], code.group(1) if code else 'UNCLASSIFIED')
             # A narrow observed preflight rejection, not an ambiguous timeout.
             if tool['name']=='create_node' and isinstance(text,str) and text.startswith('Error executing tool create_node: NODE_NAME_CONFLICT:'):
                 raise AuthError('PROVIDER_NODE_NAME_CONFLICT')
+            if tool['name']=='update_node' and code and code.group(1)=='SNAPSHOT_REVISION_MISMATCH':
+                raise AuthError('PROVIDER_SNAPSHOT_REVISION_MISMATCH')
             raise AuthError(error_code)
         if isinstance(result.get('structuredContent'), dict):
             return result['structuredContent']

@@ -4,6 +4,7 @@ import re
 
 from .errors import GenerationError
 from .types import opaque, digest
+from .project_coordination import project_mutation
 
 
 class LiveReferenceRoute:
@@ -84,21 +85,24 @@ class LiveReferenceRoute:
         client._sources(record['sources'],record['spec']['sourceRevisionIds'],record['spec']['recipe'])
         if client._project(record['spec']['projectId']) != project:
             raise GenerationError('OWNERSHIP_MISMATCH', receipt=receipt)
-        revision = self._snapshot(client, receipt, record, args['left'])
-        run = {'node':receipt['nodeId'], 'projectId':project, 'idempotencyKey':key,
-               'model':args['model'], 'prompt':args['prompt'], 'params':args['params'],
-               'leftEnsure':args['left'], 'expectedRevision':revision, 'run':True}
-        client.a.catalog.request('update_node', run)
-        with client.a.journal.edit(client._owner, local_task) as state:
-            state['originalReferenceRun'] = copy.deepcopy(run)
-        done = client._claim(local_task, 'generation', run)
-        if done is not None: return done
-        client.a.bridge.check(local_task, client._owner, record['prepared']['requestHash'], key)
-        try:
-            return self._accepted(client, local_task, receipt, client._call('update_node', run))
-        except GenerationError as exc:
-            if exc.provider_receipt is None: exc.provider_receipt = receipt
-            raise
+        with project_mutation(client._owner, project):
+            revision = self._snapshot(client, receipt, record, args['left'])
+            run = {'node':receipt['nodeId'], 'projectId':project, 'idempotencyKey':key,
+                   'model':args['model'], 'prompt':args['prompt'], 'params':args['params'],
+                   'leftEnsure':args['left'], 'expectedRevision':revision, 'run':True}
+            client.a.catalog.request('update_node', run)
+            with client.a.journal.edit(client._owner, local_task) as state:
+                state['originalReferenceRun'] = copy.deepcopy(run)
+            done = client._claim(local_task, 'generation', run)
+            if done is not None: return done
+            client.a.bridge.check(local_task, client._owner, record['prepared']['requestHash'], key)
+            try:
+                return self._accepted(client, local_task, receipt, client._call('update_node', run))
+            except GenerationError as exc:
+                if exc.code == 'PROVIDER_SNAPSHOT_REVISION_MISMATCH':
+                    self._prove_rejection(client, local_task, receipt, run)
+                if exc.provider_receipt is None: exc.provider_receipt = receipt
+                raise
 
     def recover_task(self, client, local_task, record, receipt):
         # Official update_node documents same-arguments/same-key recovery. Never
@@ -110,4 +114,22 @@ class LiveReferenceRoute:
                 or original.get('node') != receipt.get('nodeId') or original.get('projectId') != receipt.get('projectId')):
             raise GenerationError('ORIGINAL_RECEIPT_REQUIRED', receipt=receipt)
         if not client.a.policy.allow_external_writes: raise GenerationError('GENERATION_DISABLED')
-        return self._accepted(client, local_task, receipt, client._call('update_node', original))['providerReceipt']
+        with project_mutation(client._owner, receipt['projectId']):
+            try:
+                return self._accepted(client, local_task, receipt, client._call('update_node', original))['providerReceipt']
+            except GenerationError as exc:
+                if exc.code == 'PROVIDER_SNAPSHOT_REVISION_MISMATCH':
+                    self._prove_rejection(client, local_task, receipt, original)
+                raise
+
+    def _prove_rejection(self, client, local_task, receipt, original):
+        # Only an exact rejection of the immutable original call reaches here.
+        # Fresh graph evidence must still show that same node, prompt, model,
+        # parameters and references, with no task. Never change/replay its key.
+        record = {'prepared':{'modelKey':original['model']},
+                  'spec':{'prompt':original['prompt']}, 'params':original['params']}
+        revision = self._snapshot(client, receipt, record, original['leftEnsure'])
+        with client.a.journal.edit(client._owner, local_task) as state:
+            state['generationRejection'] = {'code':'SNAPSHOT_REVISION_MISMATCH',
+                'originalHash':digest(original), 'verifiedRevision':revision, 'generationSubmitted':False}
+        raise GenerationError('REFERENCE_PREFLIGHT_REJECTED', receipt=receipt)
