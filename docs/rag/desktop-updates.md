@@ -15,3 +15,5 @@
 实现：`local_client/updater.py`、`install_update.py`、`launch.py`、`scripts/browser/local-updates.mjs`。设置与安装包在 `<instance>/updates/`，与项目数据库、媒体和加密密钥分开。旧版本恢复使用对应历史安装包；勿覆盖项目数据目录。
 
 Windows 打包清单显式包含 `updater.py` 与 `install_update.py`；Mac/Windows 构建来源记录与实际默认图片开关、自动更新能力一致。此为打包修复，仍须核对实际产物及安装升级。
+
+2026-11-02 已从源码 `5923ea356a8e39dd30ec35a0005f46509e560ff1` 构建 Windows ZIP/EXE 与 macOS arm64 PKG。Windows ZIP 624 个清单文件逐项 SHA-256 一致，两平台更新器和安装辅助模块已包含。Mac 冻结运行时在隔离空工作区真实启动，Chrome 显示新版首页、默认开启的自动更新和旧版拒绝降级，随后从前端正常退出。没有运行系统安装器或 Windows 程序，未证明覆盖升级或数据保留，也未发布公开下载源。构建摘要在仓库外 `../evidence/desktop-package-preview4-checks.json`。
