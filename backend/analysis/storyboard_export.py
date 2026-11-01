@@ -1,5 +1,6 @@
 """Portable illustrated screenplay from saved, version-checked production state."""
 import copy
+import base64
 import hashlib
 import io
 import json
@@ -11,7 +12,7 @@ from backend.workflow.service import now
 from .production import MENTION, shot_entity_id
 
 
-def export(service, ctx, identity):
+def export(service, ctx, identity, *, preview=False):
     job = service.get(ctx, identity)
     if job['status'] != 'ready' or job['stale']:
         raise WorkflowError('PRODUCTION_NOT_READY', '请先核对并保存当前分镜脚本。', 409)
@@ -60,9 +61,11 @@ def export(service, ctx, identity):
                     if hashlib.sha256(raw).hexdigest() != revision['sha256']:
                         conflict('分镜图片校验失败，请刷新后重新下载。')
                     filename = f"images/shot-{position:03d}{revision['extension']}"
-                    archive.writestr(filename, raw)
+                    if not preview:
+                        archive.writestr(filename, raw)
                     record['image'] = {'file': filename, 'revisionId': revision['id'], 'sha256': revision['sha256']}
-                    illustration = f'<img src="{filename}" alt="镜头 {position:03d} 已审核分镜图">'
+                    source = f'data:{revision["mime"]};base64,{base64.b64encode(raw).decode("ascii")}' if preview else filename
+                    illustration = f'<img src="{source}" alt="镜头 {position:03d} 已审核分镜图">'
                 speech = []
                 for did in shot['dialogueIds']:
                     d = dialogues[did]
@@ -80,9 +83,13 @@ def export(service, ctx, identity):
                     + '</section></div></article>')
                 manifest['shots'].append(record)
             title = escape(project['name'] + ' · 图文分镜脚本')
+            viewing_note = ('这是已保存方案的图文预览，可使用浏览器打印保存为 PDF。返回导演台可下载包含原图与版本记录的完整压缩包。'
+                if preview else '解压后打开本文件查看图文，可使用浏览器打印保存为 PDF。图片与脚本版本对应关系保存在 storyboard.json。')
             document = f'''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title>
 <style>body{{font:15px/1.6 system-ui,sans-serif;color:#202020;background:#eee;margin:0;padding:32px}}header,article{{max-width:1180px;background:white;margin:0 auto 24px;padding:32px}}h1,h2,h3,p{{margin:0 0 12px}}.meta,figcaption{{color:#666}}.layout{{display:grid;grid-template-columns:1fr 1fr;gap:28px}}figure{{margin:0}}img{{width:100%;max-height:760px;object-fit:contain}}.missing{{padding:100px 20px;text-align:center;background:#f3f3f3}}.field p{{white-space:normal}}b{{font-size:13px;color:#555}}@media(max-width:760px){{body{{padding:12px}}header,article{{padding:20px}}.layout{{grid-template-columns:1fr}}}}@media print{{@page{{size:A4 landscape;margin:12mm}}body{{padding:0;background:white;font-size:11px}}header,article{{padding:0}}article{{break-before:page}}img{{max-height:160mm}}h2{{font-size:19px}}}}</style>
-<header><h1>{title}</h1><p>{manifest['totalShots']} 个镜头 · {manifest['illustratedShots']} 张已审核分镜图 · {prose(manifest['aspectRatio'])}</p><p>{'本次制作内容已完成审核' if manifest['complete'] else '制作中：本文件包含未完成项，空图不代表生成成功'}</p><p>解压后打开本文件查看图文，可使用浏览器打印保存为 PDF。图片与脚本版本对应关系保存在 storyboard.json。</p></header>{''.join(pages)}</html>'''
+<header><h1>{title}</h1><p>{manifest['totalShots']} 个镜头 · {manifest['illustratedShots']} 张已审核分镜图 · {prose(manifest['aspectRatio'])}</p><p>{'本次制作内容已完成审核' if manifest['complete'] else '制作中：本文件包含未完成项，空图不代表生成成功'}</p><p>{viewing_note}</p></header>{''.join(pages)}</html>'''
+            if preview:
+                return document.encode('utf-8'), manifest
             archive.writestr('分镜脚本.html', document)
             archive.writestr('storyboard.json', json.dumps(manifest, ensure_ascii=False, indent=2))
         return buffer.getvalue(), manifest

@@ -320,9 +320,9 @@ class ProductionService(AnalysisService):
         from .production_bindings import save
         return save(self, ctx, identity, body)
 
-    def export_storyboard(self, ctx, identity):
+    def export_storyboard(self, ctx, identity, *, preview=False):
         from .storyboard_export import export
-        return export(self, ctx, identity)
+        return export(self, ctx, identity, preview=preview)
 
     def save_review(self, ctx, identity, body):
         from .production_review import inspect

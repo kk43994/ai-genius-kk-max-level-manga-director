@@ -103,6 +103,11 @@ def register_routes(router, services):
     if getattr(workflow, 'production', None):
         add('GET', '/production-jobs/{productionId}/storyboard-export', lambda c,p,b,q:
             download(workflow.production.export_storyboard(c,p['productionId'])[0], 'storyboard-script.zip'))
+        add('GET', '/production-jobs/{productionId}/storyboard-preview', lambda c,p,b,q:
+            Response(200, workflow.production.export_storyboard(c,p['productionId'], preview=True)[0], {
+                'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store',
+                'X-Content-Type-Options': 'nosniff',
+                'Content-Security-Policy': "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"}))
 
     add('GET', '/projects/{projectId}/export', lambda c, p, b, q:
         download(workflow.export(c, p['projectId'])[0], 'approved-assets.zip'))

@@ -39,7 +39,7 @@ export function generationContext(options){
 export function generationGallery(versions,apiBase,{stage,category,direction=false,busy=false,master=false}={}){
  const rows=stage?versions.filter(r=>r.stage===stage):versions;
  const card=r=>{
-  const valid=r.status==='ready',chosen=r.review==='approved',keep=r.stage==='style'?({character:'选用此张作为人物形象',scene:'选用此张作为场景风格',prop:'选用此张作为道具造型'}[category]||'选用此张风格图'):r.stage==='asset'?(category==='character'?(master?'确认这版人物主多视图':'保留这版状态多视图'):(assetFormats[category]?.keep||'保留这版资产图')):'保留这版精修图';
+  const valid=r.status==='ready',chosen=r.review==='approved',keep=r.stage==='style'?({character:'选用此张作为人物形象',scene:'选用此张作为场景风格',prop:'选用此张作为道具造型'}[category]||'选用此张风格图'):r.stage==='asset'?(category==='character'?(master?'确认这版人物主多视图':'保留这版状态多视图'):(assetFormats[category]?.keep||'保留这版资产图')):r.stage==='storyboard'?'保留这张分镜图':'保留这版精修图';
   return `<figure><button data-wf-review="${esc(r.id)}" aria-label="放大查看 ${esc(revisionLabel(r))} ${esc(r.id.slice(-6))}"><img src="${esc(assetURL(apiBase,r.assetId,r.id,true))}" alt="${esc(revisionLabel(r))} 候选图" loading="lazy"></button><figcaption>${esc(revisionLabel(r))} · ${esc(states[valid?r.review:'stale']||r.review)}</figcaption><div class="wf-actions"><button class="${chosen?'':'primary'}" data-creator-keep="${esc(r.id)}" ${!valid||chosen||busy?'disabled':''}>${chosen?'已选用':keep}</button>${direction&&r.stage==='style'?`<button data-creator-direction="${esc(r.id)}" ${!valid||busy?'disabled':''}>选为本剧风格</button>`:''}<button data-wf-review="${esc(r.id)}">放大 / 修改意见</button></div></figure>`;
  };
  const current=[...rows].reverse().filter(r=>r.status==='ready'),history=[...rows].reverse().filter(r=>r.status!=='ready');

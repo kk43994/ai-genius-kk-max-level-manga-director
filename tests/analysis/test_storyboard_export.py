@@ -1,8 +1,10 @@
 """Portable deliverables use synthetic fixtures and never invoke a provider."""
 import copy
+import base64
 import hashlib
 import io
 import json
+import re
 import unittest
 import zipfile
 from unittest.mock import patch
@@ -57,6 +59,27 @@ class StoryboardExportTests(unittest.TestCase):
         self.assertFalse(manifest['complete'])
         self.assertIsNone(manifest['shots'][0]['image'])
         self.assertEqual(manifest['illustratedShots'], 1)
+
+    def test_preview_embeds_exact_approved_bytes_and_excludes_changed_shot(self):
+        job = self.complete()
+        result = copy.deepcopy(job['result'])
+        result['shots'][0]['camera'] = '<script>changed</script>'
+        self.production.save_review(self.ctx, job['id'], {
+            'expectedVersion': job['reviewVersion'], 'expectedEditVersion': 0, 'result': result})
+        before = len(self.provider.submissions)
+        raw, manifest = self.production.export_storyboard(self.ctx, job['id'], preview=True)
+        html = raw.decode()
+        images = re.findall(r'<img src="data:image/[^;]+;base64,([^"]+)"', html)
+        self.assertEqual(len(images), 1)
+        self.assertEqual(hashlib.sha256(base64.b64decode(images[0])).hexdigest(),
+                         manifest['shots'][1]['image']['sha256'])
+        self.assertIn('分镜图待生成或待审核', html)
+        self.assertIn('&lt;script&gt;changed&lt;/script&gt;', html)
+        self.assertNotIn('<script>', html)
+        self.assertNotIn('解压后打开', html)
+        self.assertEqual(len(self.provider.submissions), before)
+        with self.assertRaises((StorageError, WorkflowError)):
+            self.production.export_storyboard(self.other, job['id'], preview=True)
 
     def test_scene_title_uses_analysis_contract_in_html_and_manifest(self):
         job = self.finish()
