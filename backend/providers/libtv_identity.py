@@ -91,6 +91,11 @@ class MCPReadSession:
         # Only audited readers or the ownership/scope-bound adapter may call this.
         result = self._rpc('tools/call', {'name': tool['name'], 'arguments': arguments})
         if result.get('isError'):
+            blocks=result.get('content', [])
+            text=blocks[0].get('text','') if isinstance(blocks,list) and len(blocks)==1 and isinstance(blocks[0],dict) else ''
+            # A narrow observed preflight rejection, not an ambiguous timeout.
+            if tool['name']=='create_node' and isinstance(text,str) and text.startswith('Error executing tool create_node: NODE_NAME_CONFLICT:'):
+                raise AuthError('PROVIDER_NODE_NAME_CONFLICT')
             raise AuthError(error_code)
         if isinstance(result.get('structuredContent'), dict):
             return result['structuredContent']

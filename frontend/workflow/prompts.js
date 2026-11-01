@@ -1,0 +1,22 @@
+import {escapeHTML as esc, stageLabels} from './model.js';
+
+export const promptProcessing = job => ['preparing','submitting','running','reviewing'].includes(job?.status);
+export const usablePrompt = job => Boolean(job?.status==='ready' && job.result?.usable && !job.stale);
+export function promptIssue({draft,job,entity,styleVersion}) {
+  if(!draft?.prompt?.trim())return '请先让 AI 编写提示词，再核对制作要求。';
+  if(/请填写希望采用的视觉风格|生成完整的风格候选图。/.test(draft.prompt))return '这份草稿仍是旧版通用提示词，请先按剧本重新编写。';
+  if(draft.manualPrompt)return '';
+  if(!usablePrompt(job)||draft.promptJobId!==job.id)return '请先使用当前资产的 AI 提示词，或展开手工编写选项。';
+  if(job.entityId!==entity?.id||job.entityVersion!==entity.version||job.styleVersion!==styleVersion)return '资产设定或统一风格已变化，请重新让 AI 编写提示词。';
+  return '';
+}
+
+export function promptPanel({job,entity,stage,models=[],modelId,enabled,connected,busy=false,error='',history=[]}) {
+  const ready=job?.status==='ready',processing=promptProcessing(job),canStart=!job||ready||job.canRetry;
+  const list = values => values.length?`<ul>${values.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`:'<p class="wf-muted">未列出</p>';
+  const facts = values => values.map(v=>`<article class="wf-analysis-record"><b>${esc(v.detail)}</b><blockquote>L${v.evidence.startLine}–${v.evidence.endLine} · ${esc(v.evidence.quote)}</blockquote></article>`).join('');
+  const r=job?.result;
+  const previous=history.filter(j=>j.id!==job?.id&&usablePrompt(j));
+  const historyHTML=previous.length?`<details><summary>已保存的其他 AI 草稿 · ${previous.length}</summary><p class="wf-muted">新请求中断不会覆盖旧结果。选择后可核对这份历史草稿。</p>${previous.map(j=>`<button type="button" data-wf-prompt-view="${esc(j.id)}">${esc(j.model)} · ${esc(new Date(j.createdAt).toLocaleString())}</button>`).join('')}</details>`:'';
+  return `<section class="wf-panel wf-analysis" data-wf-prompts aria-label="AI 资产提示词"><div class="wf-section-title"><div><p class="wf-eyebrow">ASSET / AI PROMPTS</p><h3>让 AI 按剧本设计「${esc(entity.name)}」</h3></div><span class="wf-tag">${esc(job?.model||models.find(m=>m.id===modelId)?.name||'文本模型')}</span></div><p class="wf-muted">阅读整份剧本，为当前资产编写视觉说明、MJ 风格、Image2 资产与 Nano 精修提示词。你可以核对后修改。</p>${error?`<p class="wf-note wf-error">${esc(error)}</p>`:''}${job?`<div role="status" aria-live="polite"><b>${esc(job.message)}</b><p class="wf-muted">${job.displayNumber?`编号 ${String(job.displayNumber).padStart(3,'0')} · `:''}${job.completedCalls} / 1 次文本调用已完成 · ${esc(job.ownership?.accountLabelAtCreation||'原授权账号')}${job.updatedAt?' · 更新于 '+esc(new Date(job.updatedAt).toLocaleTimeString()):''}</p>${processing?'<progress aria-label="AI 正在编写资产提示词，尚无准确百分比"></progress>':''}</div>`:''}${ready?`<p>${esc(r.summary)}</p>${job.stale?'<p class="wf-note wf-error">资产或风格已更新。这份旧提示词保留供参考，请重新编写后再使用。</p>':''}${!r.usable?'<p class="wf-note wf-error">AI 未能把此条目对应到有效资产，请先修正资产清单。</p>':''}<details open><summary>剧本事实 · 可核对原文</summary>${facts(r.scriptFacts)}</details><details open><summary>视觉设计选择 · 需要你确认</summary>${list(r.creativeChoices)}</details>${r.uncertainties.length?`<details open><summary>尚未明确的信息</summary>${list(r.uncertainties)}</details>`:''}${r.variants.length?`<details><summary>剧情中的不同状态 · 分开制作</summary>${facts(r.variants)}</details>`:''}<details><summary>画面排除项</summary>${list(r.exclusions)}</details><details open><summary>本阶段完整提示词 · ${esc(stageLabels[stage])}</summary><pre class="wf-prompt-text">${esc(r.prompts[stage])}</pre></details><button type="button" class="primary" data-wf-action="prompt-use" ${busy||!usablePrompt(job)?'disabled':''}>使用这份提示词，继续核对 ↓</button>`:''}${job?.canRetrySubmission?'<button type="button" data-wf-action="prompt-retry-rejected">使用新编号继续（上次未提交）</button>':''}${job?.canRefresh?`<div class="wf-actions"><button type="button" data-wf-action="prompt-refresh" ${busy?'disabled':''}>继续查询原提示词任务</button><button type="button" data-wf-action="connect">检查原账号授权</button></div>`:''}${canStart?`<label>文本模型<select data-wf-analysis-model ${busy?'disabled':''}>${models.map(m=>`<option value="${esc(m.id)}" ${m.id===modelId?'selected':''}>${esc(m.name)} · LibTV</option>`).join('')}</select></label><p class="wf-muted">点击下方按钮会调用 1 次文本模型并使用当前账号积分；不会提交图片生成。费用以 LibTV 官方记录为准。</p><button type="button" data-wf-action="prompt-generate" ${busy||!enabled||!connected?'disabled':''}>${job?'重新让 AI 编写提示词':'AI 根据剧本编写提示词'} →</button>`:''}${historyHTML}${!connected?'<p class="wf-note">请先连接 LibTV 并选择账号与空间。</p>':''}${!enabled?'<p class="wf-note">AI 提示词服务尚未启用，原有草稿已保留。</p>':''}</section>`;
+}

@@ -9,7 +9,7 @@ function task(extra={}){return {id:'task',entityId:'e',recipe:'mj_style',status:
 test('script draft requires review, then account selection, before preparing',()=>{
  const data=state(); data.plan.needsReview=true; assert.equal(nextAction(data).kind,'plan');
  delete data.plan.needsReview; data.selection=null; assert.equal(nextAction(data).kind,'connect');
- data.selection=selected; const step=nextAction(data); assert.equal(step.kind,'prepare'); assert.equal(step.spec.settings.count,1);
+ data.selection=selected; const step=nextAction(data); assert.equal(step.kind,'prompt'); assert.equal(step.spec.settings.count,1); assert.equal(step.spec.prompt,undefined);
 });
 test('each stage pauses for review and Nano always uses Image2',()=>{
  assert.equal(nextAction(withImages(revision('style','pending'))).kind,'review');
@@ -29,7 +29,7 @@ test('saved drafts reconfirm, failed tasks do not silently retry',()=>{
 });
 test('explicitly cancelled unsubmitted preparation permits a new identity',async()=>{
  const data=state();data.tasks=[task({status:'cancelled',canConfirm:false,submissionAttempted:false})];
- const next=nextAction(data);assert.equal(next.kind,'prepare');assert.equal(next.cancelledTaskId,'task');
+ const next=nextAction(data);assert.equal(next.kind,'prompt');assert.equal(next.cancelledTaskId,'task');
  assert.notEqual(await prepareIdentity(next.spec,1),await prepareIdentity(next.spec,1,{cancelledTaskId:next.cancelledTaskId}));
  data.tasks[0].submissionAttempted=true;assert.equal(nextAction(data).kind,'blocked');
 });

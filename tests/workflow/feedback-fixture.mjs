@@ -17,6 +17,7 @@ let reads=0, recoveries=0, progressObserved=false;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const api={request:async(path)=>{
   if(path==='/workflow/capabilities')return {scriptAnalysis:false,localScriptExtraction:false};
+  if(path.endsWith('/prompts'))return {items:[]};
   if(path.endsWith('/analysis'))return {analysis:null};
   if(path==='/projects')return {items:[project]};
   if(path.endsWith('/plan'))return plan;

@@ -145,6 +145,67 @@ class AnalysisTests(unittest.TestCase):
             row=tx.get('analysis.jobs',job['id']);data=row['data'];data['lease']={'token':'other-worker','until':9999999999}
             tx.update('analysis.jobs',job['id'],data,expected_version=row['version'])
         self.ai.advance(self.ctx,job['id']);self.assertFalse(self.provider.submissions)
+    def test_selected_model_is_saved_and_cannot_change_for_an_existing_request(self):
+        job=self.begin(modelId='cvlm-5.5')
+        self.assertEqual(job['modelId'],'cvlm-5.5')
+        self.assertEqual(job['model'],'CVLM 5.5')
+        with self.assertRaises(WorkflowError) as error:self.begin(modelId='aurora-3-prime')
+        self.assertEqual(error.exception.code,'IDEMPOTENCY_CONFLICT')
+        # A new click while the original task is active still returns that task.
+        same=self.begin(idempotencyKey='changed-model-click',modelId='aurora-3-lite',reanalyze=True)
+        self.assertEqual(same['id'],job['id']);self.assertEqual(same['modelId'],'cvlm-5.5')
+        with self.assertRaises(WorkflowError):self.begin(modelId='unverified-gpt-alias')
+
+    def test_bad_draft_evidence_is_sent_to_ai_review_but_final_evidence_stays_strict(self):
+        bad=copy.deepcopy(EXAMPLE['result']);bad['sourceRevision']=self.script['sourceRevision']
+        bad['characters'][0]['evidence'][0]['quote']='不是原文的省略引用……'
+        bad['dialogues'][0]['text']='擅自拼接的前后两段台词'
+        self.provider.text=json.dumps(bad)
+        job=self.begin();self.ai.advance(self.ctx,job['id']);self.ai.advance(self.ctx,job['id'])
+        self.assertEqual(self.ai.get(self.ctx,job['id'])['phase'],'review')
+        self.ai.advance(self.ctx,job['id']);self.ai.advance(self.ctx,job['id'])
+        failed=self.ai.get(self.ctx,job['id'])
+        self.assertEqual(failed['status'],'failed');self.assertTrue(failed['canRepairResult'])
+        self.assertEqual(failed['completedCalls'],2)
+        with self.assertRaises(WorkflowError):self.ai.repair_result(self.ctx,job['id'],{'confirmSpend':False})
+        self.ai.repair_result(self.ctx,job['id'],{'confirmSpend':True})
+        self.ai.repair_result(self.ctx,job['id'],{'confirmSpend':True})
+        self.ai.advance(self.ctx,job['id']) # Reads original failed review, no paid submission.
+        self.assertEqual(len(self.provider.submissions),2)
+        from backend.analysis.contract import prompt
+        data=self.ai._get(self.ctx,job['id'])['data']
+        self.assertIn('validationIssues',prompt(self.script,data['repairDraft']))
+        self.assertIn('returnedQuote',prompt(self.script,data['repairDraft']))
+        self.assertIn('returnedText',prompt(self.script,data['repairDraft']))
+        self.provider.text=None
+        self.ai.advance(self.ctx,job['id']);self.ai.advance(self.ctx,job['id'])
+        ready=self.ai.get(self.ctx,job['id'])
+        self.assertEqual(ready['status'],'ready');self.assertEqual(ready['completedCalls'],3)
+        self.assertEqual([phase for _,phase in self.provider.submissions],['extract','review','repair'])
+
+    def test_numbers_survive_restart_and_only_definitive_rejections_can_retry(self):
+        from backend.auth.errors import AuthError
+        original=self.provider.submit
+        def rejected(job,script,save):
+            original(job,script,save)
+            raise AuthError('PROVIDER_NODE_NAME_CONFLICT')
+        self.provider.submit=rejected
+        job=self.begin();self.ai.advance(self.ctx,job['id'])
+        failed=self.ai.get(self.ctx,job['id'])
+        self.assertEqual(failed['displayNumber'],1);self.assertTrue(failed['canRetrySubmission'])
+        restarted=AnalysisService(self.services,self.provider,enabled=True,background=False)
+        self.assertEqual(restarted.get(self.ctx,job['id'])['displayNumber'],1)
+        retried=restarted.retry_submission(self.ctx,job['id'])
+        self.assertEqual(retried['displayNumber'],2)
+        data=restarted._get(self.ctx,job['id'])['data']
+        self.assertEqual(len(data['rejectedSteps']['extract']),1)
+        self.assertEqual(data['ownership'],self.owner)
+        self.provider.submit=original;self.provider.ambiguous=True
+        restarted.advance(self.ctx,job['id'])
+        unknown=restarted.get(self.ctx,job['id'])
+        self.assertEqual(unknown['status'],'unknown_submission');self.assertFalse(unknown['canRetrySubmission'])
+        with self.assertRaises(WorkflowError):restarted.retry_submission(self.ctx,job['id'])
+
     def test_valid_source_contract_and_fenced_json(self):
         result=copy.deepcopy(EXAMPLE['result']);result['sourceRevision']=self.script['sourceRevision']
         self.assertEqual(parse_result('```json\n'+json.dumps(result)+'\n```',self.script),result)

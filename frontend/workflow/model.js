@@ -31,16 +31,6 @@ export function resolveRefineSource(revision, revisions) {
   return original?.stage === 'asset' && original.projectId === revision.projectId && original.entityId === revision.entityId
     && original.ownership?.providerAccountId === revision.ownership?.providerAccountId && original.ownership?.spaceId === revision.ownership?.spaceId ? original : null;
 }
-export function defaultPrompt(entity, stage, style = '') {
-  if (stage === 'refine') return '从原始 Image2 资产保真清理。保留脸、服装纹样、道具结构、画幅与视图数量。宁可变化很小，也不丢失细节。';
-  const detail = `${entity.name}：${entity.description || '具体设定待补充'}`;
-  if (stage === 'style') return `${detail}\n${style || '请填写希望采用的视觉风格。'}\n生成完整的风格候选图。`;
-  const requirement = entity.category === 'scene' ? '固定建筑结构与地标，交代入口、出口和人物活动空间。一个完整机位画面，无拼版。'
-    : entity.category === 'prop' ? '正面、侧面和背面三视图，等比例、结构统一、纯色背景。'
-      : '同一角色的正面、侧面、背面与面部特写。身份、服装、发型与比例一致，四栏清楚排列。';
-  return `${detail}\n依照已审核的 MJ 风格图制作模型资产。${requirement}无多余文字。`;
-}
-
 export class DraftStore {
   constructor(storage, tenantId, apiBase) {
     if (!tenantId) throw new Error('缺少本站会话，草稿暂不能安全保存。');

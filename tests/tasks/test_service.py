@@ -30,6 +30,23 @@ class TaskSafetyTests(unittest.TestCase):
         self.assertEqual(self.f.providers.submit_count, 0)
         self.assertFalse(disabled.get(self.f.ctx, prepared["task"]["id"])["submissionAttempted"])
 
+    def test_old_placeholder_cannot_start_new_generation_but_paid_results_remain_recoverable(self):
+        from unittest.mock import patch
+        prompt='仓库\n请填写希望采用的视觉风格。\n生成完整的风格候选图。'
+        self.assertCode('PROMPT_REVIEW_REQUIRED',self.f.prepare,prompt=prompt)
+        self.assertEqual(self.f.providers.calls,[])
+        with patch.object(TaskService,'_assert_new_prompt',return_value=None):
+            old=self.f.prepare(prompt=prompt)
+        self.assertCode('PROMPT_REVIEW_REQUIRED',self.f.submit,old)
+        self.assertCode('PROMPT_REVIEW_REQUIRED',self.f.service.confirm,self.f.ctx,old['task']['id'],old['task']['version'])
+        # Simulate a task submitted by the older release, then upgrade and collect.
+        with patch.object(TaskService,'_assert_new_prompt',return_value=None):
+            paid=self.f.submit(old)['task']
+        self.f.providers.lookup_result={'status':'completed'}
+        recovered=self.f.service.recover(self.f.ctx,paid['id'],paid['version'])['task']
+        self.assertEqual(recovered['status'],'completed')
+        self.assertEqual(self.f.providers.submit_count,1)
+
     def test_config_string_cannot_accidentally_enable_paid_submission(self):
         policy = TaskPolicy(confirmation_key=b"test-policy-secret" * 2, allow_paid_submission="false")
         with self.assertRaises(ValueError):

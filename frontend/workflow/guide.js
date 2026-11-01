@@ -1,4 +1,4 @@
-import {stages, recipes, stageLabels, belongsToSelection, defaultPrompt} from './model.js';
+import {stages, recipes, stageLabels, belongsToSelection} from './model.js';
 
 // A projection of saved state. It never marks reviews, submits or changes owner.
 export function nextAction({project, plan, assets, tasks, bundles = [], selection, taskError = '', styleCount = 1}) {
@@ -41,11 +41,10 @@ export function nextAction({project, plan, assets, tasks, bundles = [], selectio
       if (current && !['completed','cancelled'].includes(current.status)) return result('blocked', '这一步需要处理', current.error?.message || '任务未完成，请查看任务记录；系统不会自行重试收费生成。', {...extra, task: current});
       if (current?.status === 'completed' && !candidates.length) return result('blocked', '结果尚未接入审核', '任务已返回，但没有可审核素材，请先核对文件收取记录。', {...extra, task: current});
       const spec = {projectId: project.id, entityId: entity.id, recipe: recipes[stage],
-        prompt: defaultPrompt(entity, stage, plan.stylePrompt || '根据剧本的时代、环境与氛围保持统一视觉设定，不增改角色身份。'),
         sourceRevisionIds: source ? [source.id] : [], settings: {count: stage === 'style' ? styleCount : 1},
         ...(repair ? {repairOfRevisionId: repair.id} : {})};
-      return result('prepare', `${repair ? '返修' : '制作'} ${entity.name} · ${stageLabels[stage]}`,
-        `制作要求、参考图和文件归属由系统填写，本次生成 ${stage === 'style' ? styleCount : 1} 张候选图。`, {...extra, spec});
+      return result('prompt', `核对 ${entity.name} · ${stageLabels[stage]} 提示词`,
+        '根据整份剧本编写本阶段制作要求，核对后再准备图片任务。', {...extra, spec});
     }
   }
   // A new review invalidates an old download even when the plan did not change.

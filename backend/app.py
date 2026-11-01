@@ -548,6 +548,9 @@ class Application:
                 from .analysis.provider import LibTVAnalysisProvider
                 self.services.analysis = AnalysisService(self.services, LibTVAnalysisProvider(self.services),
                     enabled=config.local_client and config.allowPaidSubmission)
+                from .analysis.asset_prompts import PromptService
+                self.services.prompt_jobs = PromptService(self.services, LibTVAnalysisProvider(self.services), enabled=self.services.analysis.enabled)
+                self.services.workflow.prompt_jobs = self.services.prompt_jobs
                 self.services.workflow.analysis = self.services.analysis
                 self.services.sessions.features['scriptAnalysis'] = self.services.analysis.enabled
                 if hasattr(self.services.providers, "on_account_removed"):

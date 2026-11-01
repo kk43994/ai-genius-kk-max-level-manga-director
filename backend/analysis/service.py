@@ -1,6 +1,7 @@
 """Durable, ownership-pinned AI jobs. GET never calls a model or resumes work."""
 import copy
 import hashlib
+import json
 import threading
 import time
 import uuid
@@ -10,6 +11,7 @@ from backend.tasks.errors import TaskError
 from backend.auth.errors import AuthError
 from backend.spaces.errors import SpaceError
 from backend.workflow.service import now
+from .models import MODELS, DEFAULT_MODEL, selected_model
 from .contract import MAX_SOURCE_CHARACTERS, PROMPT_VERSION, asset_candidates, parse_result
 
 ACTIVE = {'preparing', 'submitting', 'running', 'reviewing', 'interrupted', 'unknown_submission'}
@@ -26,6 +28,10 @@ MESSAGES = {
 
 
 class AnalysisService:
+    collection = 'analysis.jobs'
+    index_collection = 'analysis.current'
+    id_prefix = 'ana_'
+
     def __init__(self, services, provider, *, enabled=False, background=True, clock=time.time):
         self.services, self.store, self.provider = services, services.storage, provider
         self.enabled, self.background, self.clock = enabled, background, clock
@@ -35,23 +41,27 @@ class AnalysisService:
     def capabilities(self):
         return {'configured': self.enabled, 'method': 'ai', 'model': 'GVLM 3.1',
                 'maxCharacters': MAX_SOURCE_CHARACTERS, 'localRuleFallback': False,
+                'models': copy.deepcopy(list(MODELS)), 'defaultModelId': DEFAULT_MODEL,
                 'message': '导入后使用 LibTV 文本模型分析，需当前账号创作权限。' if self.enabled
                 else 'AI 分析服务尚未启用。原文会保留，不会使用本地规则替代。'}
 
     def _get(self, ctx, identity):
-        return self.store.get(ctx, 'analysis.jobs', identity)
+        return self.store.get(ctx, self.collection, identity)
 
     def _public(self, row):
         data = row['data']
         result = {k: copy.deepcopy(data.get(k)) for k in (
             'id', 'projectId', 'scriptId', 'sourceRevision', 'status', 'phase', 'model',
-            'createdAt', 'updatedAt', 'error', 'result', 'completedCalls', 'promptVersion')}
+            'createdAt', 'updatedAt', 'error', 'result', 'completedCalls', 'promptVersion', 'modelId', 'displayNumber')}
         result['version'] = row['version']
         result['message'] = data.get('error', {}).get('message') if data.get('error') else MESSAGES[data['status']]
         result['ownership'] = {k: data['ownership'].get(k) for k in ('providerAccountId', 'spaceId', 'accountLabelAtCreation', 'spaceNameAtCreation')}
         result['canRefresh'] = data['status'] in ACTIVE
+        result['canResumeReview'] = bool(data['status']=='failed' and data['phase']=='extract' and data.get('error',{}).get('code')=='ANALYSIS_RESULT_INVALID' and data['steps'].get('extract',{}).get('taskId') and not data['steps'].get('review'))
         result['canRetry'] = data['status'] == 'failed'
-        result['totalCalls'] = 2
+        result['canRetrySubmission'] = bool(data['status']=='failed' and data['steps'].get(data['phase'],{}).get('rejectedBeforeSubmission'))
+        result['canRepairResult'] = bool(data['status']=='failed' and data['phase'] in ('review','repair') and data.get('error',{}).get('code')=='ANALYSIS_RESULT_INVALID' and data['steps'].get(data['phase'],{}).get('taskId') and data.get('repairFromPhase')!=data['phase'])
+        result['totalCalls'] = 4 if data.get('repairFromPhase')=='repair' else 3 if data.get('repairRequested') else 2
         result['cost'] = {'state': 'unknown', 'message': '使用当前账号的 LibTV 积分，以官方扣费记录为准。'}
         return result
 
@@ -62,15 +72,15 @@ class AnalysisService:
         self.services.workflow.get_script(ctx, project_id, script_id)
         key = 'idx_' + hashlib.sha256((project_id + '\0' + script_id).encode()).hexdigest()
         try:
-            index = self.store.get(ctx, 'analysis.current', key)
+            index = self.store.get(ctx, self.index_collection, key)
         except Exception as error:
             if getattr(error, 'code', None) == 'NOT_FOUND':
                 return {'analysis': None}
             raise
         return {'analysis': self.get(ctx, index['data']['analysisId'])}
 
-    def start(self, ctx, project_id, script_id, body):
-        public_input(body, {'idempotencyKey', 'expectedSelectionRevision', 'confirmSpend', 'reanalyze'})
+    def start(self, ctx, project_id, script_id, body, *, context=None):
+        public_input(body, {'idempotencyKey', 'expectedSelectionRevision', 'confirmSpend', 'reanalyze', 'modelId'})
         if not self.enabled:
             raise WorkflowError('ANALYSIS_UNAVAILABLE', self.capabilities()['message'], 503)
         if body.get('confirmSpend') is not True:
@@ -78,6 +88,7 @@ class AnalysisService:
         key = body.get('idempotencyKey')
         if not isinstance(key, str) or not 8 <= len(key) <= 200 or not key.isascii() or not all(c.isalnum() or c in '-_.:' for c in key):
             raise WorkflowError('IDEMPOTENCY_KEY_REQUIRED', '分析请求编号无效。')
+        model = selected_model(body.get('modelId', DEFAULT_MODEL))
         script = self.services.workflow.get_script(ctx, project_id, script_id)
         if len(script['text']) > MAX_SOURCE_CHARACTERS:
             raise WorkflowError('ANALYSIS_SOURCE_TOO_LARGE', f'当前 AI 分析每次支持 {MAX_SOURCE_CHARACTERS} 字，请按剧集分别导入；原文已完整保存，没有截断。')
@@ -94,12 +105,13 @@ class AnalysisService:
             raise WorkflowError(error.code, error.message, error.status) from None
         if owner['spaceKind'] != 'personal':
             raise WorkflowError('ANALYSIS_SPACE_UNSUPPORTED', '当前文本分析已验证个人空间，请切换到自己的个人空间。', 409)
-        identity = 'ana_' + hashlib.sha256(key.encode()).hexdigest()
-        index_id = 'idx_' + hashlib.sha256((project_id + '\0' + script_id).encode()).hexdigest()
-        digest = hashlib.sha256((project_id + script_id + script['sourceRevision'] + str(selected['revision'])).encode()).hexdigest()
+        identity = self.id_prefix + hashlib.sha256(key.encode()).hexdigest()
+        scope_id = context['entityId'] if context else script_id
+        index_id = 'idx_' + hashlib.sha256((project_id + '\0' + scope_id).encode()).hexdigest()
+        digest = hashlib.sha256((project_id + script_id + script['sourceRevision'] + str(selected['revision']) + model['id'] + (json.dumps(context,sort_keys=True) if context else '')).encode()).hexdigest()
         with self.store.transaction(ctx) as tx:
             try:
-                row = tx.get('analysis.jobs', identity)
+                row = tx.get(self.collection, identity)
             except Exception as error:
                 if getattr(error, 'code', None) != 'NOT_FOUND': raise
                 row = None
@@ -107,12 +119,12 @@ class AnalysisService:
                 if row['data']['requestHash'] != digest:
                     raise WorkflowError('IDEMPOTENCY_CONFLICT', '这个请求编号已用于另一份分析。', 409)
             else:
-                try: index = tx.get('analysis.current', index_id)
+                try: index = tx.get(self.index_collection, index_id)
                 except Exception as error:
                     if getattr(error, 'code', None) != 'NOT_FOUND': raise
                     index = None
                 if index:
-                    old = tx.get('analysis.jobs', index['data']['analysisId'])
+                    old = tx.get(self.collection, index['data']['analysisId'])
                     if old['data']['status'] in ACTIVE or body.get('reanalyze') is not True:
                         row = old
                 if row is None:
@@ -121,15 +133,15 @@ class AnalysisService:
                     if fresh['revision'] != selected['revision']:
                         raise WorkflowError('SELECTION_CHANGED', '账号或空间已变化，尚未提交分析。', 409)
                     data = {'id': identity, 'requestHash': digest, 'projectId': project_id, 'scriptId': script_id,
-                        'sourceRevision': script['sourceRevision'], 'ownership': owner, 'model': 'GVLM 3.1',
+                        'sourceRevision': script['sourceRevision'], 'ownership': owner, 'model': model['name'], 'modelId': model['id'],
                         'promptVersion': PROMPT_VERSION, 'status': 'preparing', 'phase': 'extract',
                         'createdAt': now(), 'updatedAt': now(), 'completedCalls': 0, 'result': None,
-                        'error': None, 'steps': {}, 'lease': None}
-                    row = tx.create('analysis.jobs', data, record_id=identity,
-                        immutable_fields=('ownership', 'requestHash', 'sourceRevision', 'projectId', 'scriptId', 'promptVersion'))
-                    index_data = {'analysisId': identity}
-                    if index: tx.update('analysis.current', index_id, index_data, expected_version=index['version'])
-                    else: tx.create('analysis.current', index_data, record_id=index_id)
+                        'error': None, 'steps': {}, 'lease': None, 'context': copy.deepcopy(context)}
+                    row = tx.create(self.collection, data, record_id=identity,
+                        immutable_fields=('ownership', 'requestHash', 'sourceRevision', 'projectId', 'scriptId', 'promptVersion', 'modelId', 'model', 'context'))
+                    index_data = {'analysisId': identity, 'projectId': project_id, 'scriptId': script_id, 'entityId': (context or {}).get('entityId')}
+                    if index: tx.update(self.index_collection, index_id, index_data, expected_version=index['version'])
+                    else: tx.create(self.index_collection, index_data, record_id=index_id)
         self._schedule(ctx, row['id'])
         return self.get(ctx, row['id'])
 
@@ -154,23 +166,38 @@ class AnalysisService:
                 with self._lock: self._threads.discard(pair)
         threading.Thread(target=work, name='screenplay-analysis', daemon=True).start()
 
+    @staticmethod
+    def _allocate_number(tx, project_id):
+        key='num_'+hashlib.sha256(project_id.encode()).hexdigest()
+        try:row=tx.get('analysis.numbering',key)
+        except Exception as error:
+            if getattr(error,'code',None)!='NOT_FOUND':raise
+            row=None
+        number=row['data']['lastNumber']+1 if row else 1
+        data={'projectId':project_id,'lastNumber':number}
+        if row:tx.update('analysis.numbering',key,data,expected_version=row['version'])
+        else:tx.create('analysis.numbering',data,record_id=key)
+        return number
+
     def advance(self, ctx, identity):
         """One original provider step per explicit start/refresh. Never a blind retry."""
         token = uuid.uuid4().hex
         with self.store.transaction(ctx) as tx:
-            row = tx.get('analysis.jobs', identity); data = row['data']
+            row = tx.get(self.collection, identity); data = row['data']
             if data['status'] not in ACTIVE or (data.get('lease') and data['lease']['until'] > self.clock()):
                 return
+            if not data.get('displayNumber'):
+                data['displayNumber']=self._allocate_number(tx,data['projectId'])
             data['lease'] = {'token': token, 'until': self.clock() + 180}
-            tx.update('analysis.jobs', identity, data, expected_version=row['version'])
+            tx.update(self.collection, identity, data, expected_version=row['version'])
         def save(updates):
             with self.store.transaction(ctx) as tx:
-                row = tx.get('analysis.jobs', identity); data = row['data']
+                row = tx.get(self.collection, identity); data = row['data']
                 if not data.get('lease') or data['lease']['token'] != token:
                     raise WorkflowError('ANALYSIS_LEASE_LOST', '分析已由另一个操作接管。', 409)
                 data.update(copy.deepcopy(updates), updatedAt=now())
                 data['lease']['until'] = self.clock() + 180
-                tx.update('analysis.jobs', identity, data, expected_version=row['version'])
+                tx.update(self.collection, identity, data, expected_version=row['version'])
         try:
             data = self._get(ctx, identity)['data']
             script = self.services.workflow.get_script(ctx, data['projectId'], data['scriptId'])
@@ -194,16 +221,19 @@ class AnalysisService:
             if status == 'pending':
                 save({'status': 'running' if data['phase'] == 'extract' else 'reviewing', 'error': None})
                 return
-            result = parse_result(text, script)
-            if data['phase'] == 'extract':
-                save({'draft': result, 'completedCalls': 1, 'phase': 'review', 'status': 'reviewing', 'error': None})
-            else:
-                save({'result': result, 'completedCalls': 2, 'status': 'ready', 'error': None})
+            # A returned model call still consumed a step if its content fails
+            # validation; never hide that call from customer progress/cost review.
+            save({'completedCalls': max(data.get('completedCalls',0), {'extract':1,'review':2,'repair':3,'repair2':4}[data['phase']])})
+            save(self.result_updates(data, text, script))
         except Exception as error:
             data = self._get(ctx, identity)['data']
             step = data['steps'].get(data['phase'], {})
             code = getattr(error, 'code', 'ANALYSIS_PROVIDER_UNAVAILABLE')
-            if step.get('attempted') and not step.get('taskId'):
+            if code == 'PROVIDER_NODE_NAME_CONFLICT':
+                step['rejectedBeforeSubmission']=True
+                save({'steps':{**data['steps'],data['phase']:step}})
+                state, message = 'failed', 'LibTV 拒绝了重名节点，尚未提交。可以使用新编号继续本步骤。'
+            elif step.get('attempted') and not step.get('taskId'):
                 state, message = 'unknown_submission', '提交结果尚未确认，已保留原请求并停止重发。'
             elif code in ('ANALYSIS_RESULT_INVALID', 'ANALYSIS_PROVIDER_FAILED', 'ANALYSIS_SOURCE_CHANGED'):
                 state, message = 'failed', str(error)
@@ -213,10 +243,62 @@ class AnalysisService:
             except WorkflowError: pass
         finally:
             with self.store.transaction(ctx) as tx:
-                row = tx.get('analysis.jobs', identity); data = row['data']
+                row = tx.get(self.collection, identity); data = row['data']
                 if data.get('lease') and data['lease']['token'] == token:
                     data['lease'] = None
-                    tx.update('analysis.jobs', identity, data, expected_version=row['version'])
+                    tx.update(self.collection, identity, data, expected_version=row['version'])
+
+    def result_updates(self, data, text, script):
+        if data['phase'] == data.get('repairFromPhase', 'review' if data.get('repairRequested') else None):
+            result = parse_result(text, script, reviewable=True)
+            return {'repairDraft': result, 'completedCalls': 3 if data['phase']=='repair' else 2, 'phase': 'repair2' if data['phase']=='repair' else 'repair', 'status': 'reviewing', 'error': None}
+        result = parse_result(text, script, reviewable=data['phase']=='extract')
+        if data['phase'] == 'extract':
+            return {'draft': result, 'completedCalls': 1, 'phase': 'review', 'status': 'reviewing', 'error': None}
+        return {'result': result, 'completedCalls': {'review':2,'repair':3,'repair2':4}[data['phase']], 'status': 'ready', 'error': None}
+
+    def repair_result(self, ctx, identity, body):
+        public_input(body, {'confirmSpend'})
+        if not self.enabled or body.get('confirmSpend') is not True:
+            raise WorkflowError('ANALYSIS_SPEND_CONFIRMATION_REQUIRED', '修复需要额外 1 次 AI 调用，请确认使用原账号积分。', 409)
+        with self.store.transaction(ctx) as tx:
+            row=tx.get(self.collection,identity);data=row['data']
+            if data['status'] in ACTIVE and data.get('repairRequested'):
+                return self._public(row)
+            if not self._public(row).get('canRepairResult'):
+                raise WorkflowError('ANALYSIS_REVIEW_UNAVAILABLE','这份记录不满足继续修复条件，请核对任务状态。',409)
+            data.update(status='reviewing',repairRequested=True,repairFromPhase=data['phase'],error=None,updatedAt=now())
+            tx.update(self.collection,identity,data,expected_version=row['version'])
+        self._schedule(ctx,identity)
+        return self.get(ctx,identity)
+
+    def retry_submission(self, ctx, identity):
+        if not self.enabled:
+            raise WorkflowError('ANALYSIS_UNAVAILABLE', self.capabilities()['message'], 503)
+        with self.store.transaction(ctx) as tx:
+            row=tx.get(self.collection,identity);data=row['data']
+            if not self._public(row).get('canRetrySubmission'):
+                raise WorkflowError('ANALYSIS_RETRY_UNAVAILABLE','只允许继续被官方明确拒绝、尚未提交的请求；不重发未知回执。',409)
+            step=data['steps'].pop(data['phase'])
+            data.setdefault('rejectedSteps',{}).setdefault(data['phase'],[]).append(copy.deepcopy(step))
+            data.update(displayNumber=self._allocate_number(tx,data['projectId']),status='preparing',error=None,updatedAt=now())
+            tx.update(self.collection,identity,data,expected_version=row['version'])
+        self._schedule(ctx,identity)
+        return self.get(ctx,identity)
+
+    def resume_review(self, ctx, identity):
+        if not self.enabled:
+            raise WorkflowError('ANALYSIS_UNAVAILABLE', self.capabilities()['message'], 503)
+        with self.store.transaction(ctx) as tx:
+            row=tx.get(self.collection,identity);data=row['data']
+            if not (data['status']=='failed' and data['phase']=='extract' and
+                    data.get('error',{}).get('code')=='ANALYSIS_RESULT_INVALID' and
+                    data['steps'].get('extract',{}).get('taskId') and not data['steps'].get('review')):
+                raise WorkflowError('ANALYSIS_REVIEW_UNAVAILABLE','此记录不能继续原结果复核，请核对任务状态。',409)
+            data.update(status='running',error=None,updatedAt=now())
+            tx.update(self.collection,identity,data,expected_version=row['version'])
+        self._schedule(ctx,identity)
+        return self.get(ctx,identity)
 
     def candidate(self, ctx, identity):
         data = self._get(ctx, identity)['data']

@@ -37,3 +37,5 @@
 .wf label.wf-analysis-check{display:flex;align-items:center;gap:10px;margin:18px 0;font-weight:400}.wf .wf-analysis-check input{width:16px;height:16px;margin:0;flex:none;accent-color:#999}
 .wf .wf-source span{display:block}.wf .wf-source small{display:inline-block;min-width:3em;opacity:.4;user-select:none}.wf .wf-source-active{background:rgba(160,160,160,.22);outline:1px solid #888}
 @media(max-width:640px){.wf .wf-analysis-counts{grid-template-columns:repeat(3,1fr)}.wf .wf-analysis-record header{align-items:flex-start;flex-direction:column}.wf .wf-analysis-record dl>div{grid-template-columns:65px 1fr}}
+
+.wf .wf-prompt-text{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.8;background:var(--panel,#151515);padding:16px;border:1px solid var(--border,#333);border-radius:10px;max-height:400px;overflow:auto}

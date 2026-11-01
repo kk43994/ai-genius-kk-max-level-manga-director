@@ -203,6 +203,7 @@ class TaskService:
     def prepare(self, ctx, spec, expectedSelectionRevision, idempotencyKey):
         tenant(ctx)
         spec = validate_spec(spec)
+        self._assert_new_prompt(spec)
         expectedSelectionRevision = selection_revision(expectedSelectionRevision)
         request_hash = digest({"spec": spec, "selectionRevision": expectedSelectionRevision})
         with self.repository.transaction(ctx) as tx:
@@ -256,6 +257,7 @@ class TaskService:
             self._expect(task, expectedVersion)
             if task["status"] != "draft" or task["submissionAttempted"]:
                 raise TaskError("TASK_NOT_CONFIRMABLE", "此任务当前不能重新确认提交。", 409)
+            self._assert_new_prompt(task['spec'])
             tx.assert_selection(selected["revision"])
             self._set_confirmation(task, selected["revision"])
             self._save(tx, task)
@@ -263,6 +265,7 @@ class TaskService:
 
     def _check_confirmation(self, task, token, selected):
         self._saved_inputs(task)
+        self._assert_new_prompt(task['spec'])
         saved = task.get("confirmation")
         if not saved or saved["version"] != task["version"] or not isinstance(token, str) or not hmac.compare_digest(self._token(task), token):
             raise TaskError("CONFIRMATION_REQUIRED", "请先核对任务内容与原账号，再确认提交。", 409)
@@ -278,6 +281,14 @@ class TaskService:
         quote = task["cost"]
         if quote.get("expiresAt") and parse_time(quote["expiresAt"]) <= self.clock():
             raise TaskError("QUOTE_EXPIRED", "原报价已过期，请重新准备任务。", 409)
+
+    @staticmethod
+    def _assert_new_prompt(spec):
+        # New generation must use reviewed requirements. Previously submitted
+        # receipts remain recoverable even if their old prompts were inadequate.
+        prompt = spec.get('prompt', '')
+        if '请填写希望采用的视觉风格' in prompt or '生成完整的风格候选图。' in prompt:
+            raise TaskError('PROMPT_REVIEW_REQUIRED', '旧的通用或占位提示词不能提交，请先根据剧本编写并核对当前资产提示词。', 409)
 
     def submit(self, ctx, task_id, expectedVersion, confirmationToken, idempotencyKey):
         tenant(ctx)

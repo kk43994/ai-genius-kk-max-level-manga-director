@@ -32,3 +32,11 @@ test('source text is escaped and line-addressable, oversized script cannot start
   assert.doesNotMatch(html,/<img/);assert.match(html,/data-wf-line="2"/);
   assert.match(analysisPanel({...base,script:{...script,text:'字'.repeat(16001)}}),/data-wf-action="analyze" disabled/);
 });
+test('model selector uses provider names, preserves selection and displays pinned running model',()=>{
+  const models=[{id:'aurora-3-prime',name:'GVLM 3.1'},{id:'cvlm-5.5',name:'CVLM 5.5'}];
+  const html=analysisPanel({...base,models,modelId:'cvlm-5.5'});
+  assert.match(html,/data-wf-analysis-model/);assert.match(html,/value="cvlm-5.5" selected/);
+  assert.doesNotMatch(html,/GPT|Claude/);
+  const running=analysisPanel({...base,models,modelId:'aurora-3-prime',analysis:{id:'ana',model:'CVLM 5.5',status:'running',completedCalls:0,canRefresh:true,message:'分析中'}});
+  assert.match(running,/LibTV · CVLM 5.5/);assert.doesNotMatch(running,/data-wf-analysis-model/);
+});

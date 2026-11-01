@@ -1,6 +1,8 @@
 // Display only observed stages. Elapsed time is never converted to a fake percent.
 export function operationLabel(path, method = 'GET') {
   if (/\/workflow\/start/.test(path)) return '正在保存剧本与新项目';
+  if (/\/prompts$/.test(path) && method === 'POST') return '正在建立 AI 资产提示词任务';
+  if (/\/prompt-jobs\/.+\/refresh$/.test(path)) return '正在查询原提示词任务';
   if (/\/analyze$/.test(path)) return '正在建立 AI 分析任务';
   if (/\/analyses\/.+\/refresh$/.test(path)) return '正在检查原 AI 分析任务';
   if (/\/scripts$/.test(path) && method === 'POST') return '正在导入剧本';

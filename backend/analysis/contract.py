@@ -18,7 +18,7 @@ def fail(message):
     raise WorkflowError('ANALYSIS_RESULT_INVALID', message, 422)
 
 
-def parse_result(raw, script):
+def parse_result(raw, script, *, reviewable=False):
     if not isinstance(raw, str) or len(raw) > 2_000_000:
         fail('AI 返回内容为空或超过分析结果容量。')
     text = raw.strip()
@@ -30,7 +30,11 @@ def parse_result(raw, script):
         result = json.loads(text)
     except (ValueError, RecursionError):
         fail('AI 返回的结构不完整，请保留本次记录后重新分析。')
-    validate_result(result, script)
+    if reviewable:
+        if next(Draft202012Validator(SCHEMA).iter_errors(result), None) or result.get('sourceRevision') != script['sourceRevision']:
+            fail('AI 草稿结构不完整或原文版本不一致，无法进入复核。')
+    else:
+        validate_result(result, script)
     return result
 
 
@@ -119,6 +123,7 @@ def prompt(script, draft=None):
         '人物别名必须有证据，无法确定身份时保留待确认；区分实际在场和仅被提及。'
         '事件只描述原文中的具体行动与变化，不增加动机和因果。'
         '台词逐条逐字复制，保留标点和换行，动作提示另存；区分对白、OS、旁白和画外音。'
+        '如果一句话中间有括号动作或旁白插入，拆成多个连续原文台词记录；不得删除中间动作后把前后话语拼成一条 text。每条 text 必须连续出现在其 startLine/endLine 内。'
         '每项明确事实和推断必须有真实 evidence。unknown 的 value 必须为 null。'
         '每项证据的 quote 必须是对应行范围的原文连续片段。所有 ID 唯一、只用英文数字下划线。'
         '完整覆盖所有非空行，不能把摘要或部分结果标为 complete。'
@@ -128,13 +133,42 @@ def prompt(script, draft=None):
     )
     if draft is not None:
         instruction += ('这是独立复核阶段。逐场对照原文检查上一份草稿的漏句、错人、时空关系和虚构内容，'
-                        '返回修正后的完整六类结果。不要照抄错误；保留正确的稳定 ID。')
+                        '返回修正后的完整六类结果。不要照抄错误；保留正确的稳定 ID。'
+                        '尤其逐字检查每个 evidence.quote，必须连续出现在相应原文行里，不要合并间隔片段、改换标点或省略中间文字。')
     payload = {'sourceRevision': script['sourceRevision'], 'source': [
         {'line': i, 'text': line} for i, line in enumerate(script['text'].splitlines(), 1)],
         'schema': SCHEMA}
     if draft is not None:
         payload['untrustedDraft'] = draft
+        payload['validationIssues'] = evidence_issues(draft, script)
     return instruction + '\n' + json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
+
+
+def evidence_issues(result, script):
+    """Literal diagnostics for the model; never repair or infer script semantics."""
+    lines = script['text'].splitlines()
+    issues = []
+    def walk(value, path):
+        if isinstance(value, dict):
+            if {'startLine', 'endLine', 'quote'} <= value.keys():
+                start, end = value['startLine'], value['endLine']
+                valid = type(start) is int and type(end) is int and 1 <= start <= end <= len(lines)
+                source = '\n'.join(lines[start - 1:end]) if valid else ''
+                if not valid or value['quote'] not in source:
+                    issues.append({'path': path, 'problem': '引用必须逐字连续，不能加入省略号或拼接间隔文字',
+                                   'returnedQuote': value['quote'], 'sourceAtLines': source})
+            for key, child in value.items(): walk(child, path + '.' + key)
+        elif isinstance(value, list):
+            for index, child in enumerate(value): walk(child, path + f'.{index}')
+    walk(result, 'result')
+    for i,row in enumerate(result.get('dialogues', [])):
+        start,end=row['startLine'],row['endLine']
+        source='\n'.join(lines[start-1:end]) if 1<=start<=end<=len(lines) else ''
+        if row['text'] not in source:
+            issues.append({'path':f'result.dialogues.{i}.text',
+                'problem':'台词不是连续原文。请按动作插入位置拆成多个连续台词记录，每条逐字复制，保留人物、场景与事件关联，不要重写或拼接。',
+                'returnedText':row['text'],'sourceAtLines':source})
+    return issues
 
 
 def asset_candidates(result, script):

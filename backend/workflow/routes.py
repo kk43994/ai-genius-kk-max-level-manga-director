@@ -41,7 +41,17 @@ def register_routes(router, services):
             ai.latest(c, p['projectId'], p['scriptId']))
         add('GET', '/analyses/{analysisId}', lambda c, p, b, q: ai.get(c, p['analysisId']))
         add('POST', '/analyses/{analysisId}/refresh', lambda c, p, b, q: ai.refresh(c, p['analysisId']))
+        add('POST', '/analyses/{analysisId}/review-original', lambda c, p, b, q: ai.resume_review(c, p['analysisId']))
+        add('POST', '/analyses/{analysisId}/repair', lambda c, p, b, q: ai.repair_result(c, p['analysisId'], b))
+        add('POST', '/analyses/{analysisId}/retry-rejected', lambda c,p,b,q: ai.retry_submission(c,p['analysisId']))
         add('GET', '/analyses/{analysisId}/plan', lambda c, p, b, q: ai.candidate(c, p['analysisId']))
+    if getattr(workflow, 'prompt_jobs', None):
+        prompts = workflow.prompt_jobs
+        add('GET', '/projects/{projectId}/prompts', lambda c,p,b,q: prompts.list_project(c,p['projectId']))
+        add('POST', '/projects/{projectId}/entities/{entityId}/prompts', lambda c,p,b,q: prompts.start_entity(c,p['projectId'],p['entityId'],b))
+        add('GET', '/prompt-jobs/{promptId}', lambda c,p,b,q: prompts.get(c,p['promptId']))
+        add('POST', '/prompt-jobs/{promptId}/refresh', lambda c,p,b,q: prompts.refresh(c,p['promptId']))
+        add('POST', '/prompt-jobs/{promptId}/retry-rejected', lambda c,p,b,q: prompts.retry_submission(c,p['promptId']))
     add('GET', '/projects', lambda c, p, b, q: workflow.list_projects(c))
     add('POST', '/projects', lambda c, p, b, q: workflow.create_project(c, b))
     add('GET', '/projects/{projectId}', lambda c, p, b, q: workflow.get_project(c, p['projectId']))

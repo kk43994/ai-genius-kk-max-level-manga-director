@@ -9,7 +9,8 @@ from backend.generation.live import PersonalProjects, personal_account
 from backend.workflow.errors import WorkflowError
 from .contract import prompt
 
-MODEL = 'aurora-3-prime'
+from .models import DEFAULT_MODEL
+MODEL = DEFAULT_MODEL
 SCOPES = {'libtv:account:read', 'libtv:project:read', 'libtv:project:write', 'libtv:task:write'}
 
 
@@ -45,22 +46,32 @@ class LibTVAnalysisClient:
 
     def prepare(self, job, script, save):
         self.catalog.tool('create_node'); self.catalog.tool('task_status')
-        model = self._call('get_model', {'model': MODEL})
+        model_id = job.get('modelId', MODEL)
+        model = self._call('get_model', {'model': model_id})
         contract = model.get('inputContract', {})
         exact = contract.get('model', model.get('modelId'))
         modality = contract.get('modality', model.get('modality'))
-        if exact != MODEL or modality != 'text':
+        if exact != model_id or modality != 'text':
             raise WorkflowError('ANALYSIS_MODEL_UNAVAILABLE', '官方文本模型配置已变化，尚未提交分析。', 503)
         remote = self._project(job)
         save({'remoteProjectId': remote})
 
     def submit(self, job, script, save):
-        args = {'name': '剧本 AI 分析' if job['phase'] == 'extract' else '剧本 AI 原文复核',
-                'nodeType': 'text', 'projectId': job['remoteProjectId'], 'model': MODEL,
-                'prompt': prompt(script, job.get('draft') if job['phase'] == 'review' else None),
-                'params': {}, 'run': True, 'idempotencyKey': job['id'] + '-' + job['phase']}
+        asset_prompt = job.get('context', {}).get('kind') == 'asset_prompt' if job.get('context') else False
+        if asset_prompt:
+            from .asset_prompts import instruction
+            prompt_text = instruction(script, job['context'])
+        else:
+            prompt_text = prompt(script, job.get('repairDraft') if job['phase'].startswith('repair') else job.get('draft') if job['phase'] == 'review' else None)
+        number=job['displayNumber']
+        name=(job['context']['entity']['name'][:30]+'提示词') if asset_prompt else {'extract':'剧本分析','review':'剧本复核','repair':'剧本修复','repair2':'剧本再复核'}[job['phase']]
+        attempt=len(job.get('rejectedSteps',{}).get(job['phase'],[]))
+        args = {'name': f'{name} {number:03d}',
+                'nodeType': 'text', 'projectId': job['remoteProjectId'], 'model': job.get('modelId', MODEL),
+                'prompt': prompt_text,
+                'params': {}, 'run': True, 'idempotencyKey': job['id'] + '-' + job['phase'] + (f'-retry{attempt}' if attempt else '')}
         self.catalog.request('create_node', args)
-        step = {'attempted': True, 'arguments': {k: v for k, v in args.items() if k != 'prompt'},
+        step = {'attempted': True, 'arguments': copy.deepcopy(args),
                 'promptSha256': hashlib.sha256(args['prompt'].encode()).hexdigest(), 'taskId': None, 'nodeId': None}
         save({'steps': {**job['steps'], job['phase']: step}, 'status': 'submitting', 'error': None})
         result = self._call('create_node', args)
