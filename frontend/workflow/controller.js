@@ -9,7 +9,7 @@ import {mountCanvas} from './production-canvas.js';
 import {analysisPanel, sourceView} from './analysis.js';
 import {operationLabel, elapsedLabel, taskProgress, reviewProgress} from './progress.js';
 import {buildCustomerArchives} from '../asset-lab-archives.js';
-import {nextAction} from './guide.js';
+import {nextAction,prepareIdentity} from './guide.js';
 import {DraftStore, escapeHTML as esc, localBase, assetURL, categories, stages, stageLabels, states, recipes,
   approvedSources, belongsToSelection, resolveRefineSource} from './model.js';
 
