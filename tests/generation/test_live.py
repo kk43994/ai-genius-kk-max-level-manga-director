@@ -139,3 +139,29 @@ class UploadContractTests(unittest.TestCase):
         self.assertEqual(result['nodeId'],'source-node')
         self.assertNotIn(signed,str(stored));self.assertEqual(len(sent),1)
         self.assertEqual(calls,['upload_ticket','upload_complete','upload_media'])
+
+class UploadRecoveryTests(unittest.TestCase):
+    def client(self, state):
+        from contextlib import contextmanager
+        @contextmanager
+        def edit(*args):
+            yield state
+        c = LiveImageClient(SimpleNamespace(journal=SimpleNamespace(edit=edit),
+            bridge=SimpleNamespace(task_for_receipt=lambda *args:'local'), reference_route=None), OWNER, None)
+        c._record = lambda task: {'spec':{'projectId':'local-project'}}
+        c._project = lambda project:'project'
+        c._call = lambda *args: self.fail('Recovery must never submit or upload')
+        return c
+
+    def test_upload_only_failure_can_be_reprepared_without_claiming_remote_generation_failed(self):
+        state={'steps':{'upload_'+'a'*64:{'attempted':True, 'done':False}}}
+        result=self.client(state).lookup({'projectId':'project'})
+        self.assertEqual(result['status'],'failed')
+        self.assertIs(result['generationSubmitted'],False)
+        self.assertEqual(result['failureStage'],'reference_upload')
+
+    def test_missing_journal_or_any_possible_generation_claim_stays_blocked(self):
+        for steps in ({}, {'generation':{'attempted':True}}, {'reference_node':{'attempted':True}},
+                      {'upload_'+'a'*64:{'attempted':True, 'done':True}}, {'unknown':{'attempted':True}}):
+            with self.subTest(steps=steps), self.assertRaises(GenerationError):
+                self.client({'steps':steps}).lookup({'projectId':'project'})

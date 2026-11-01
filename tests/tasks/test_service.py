@@ -236,6 +236,20 @@ class TaskSafetyTests(unittest.TestCase):
         self.assertEqual(self.f.providers.lookups, [self.f.providers.prepared_receipt])
         self.assertEqual(self.f.providers.submit_count, 1)
 
+    def test_upload_failure_recovery_is_explicit_and_does_not_resubmit(self):
+        self.f.providers.prepared_receipt = {'projectId':'original-project'}
+        prepared = self.f.prepare()
+        self.f.providers.submit_error = TimeoutError()
+        unknown = self.f.submit(prepared)['task']
+        self.f.providers.lookup_result = {'status':'failed', 'failureStage':'reference_upload', 'generationSubmitted':False}
+        recovered = self.f.service.recover(self.f.ctx, unknown['id'], unknown['version'])['task']
+        self.assertEqual(recovered['status'],'failed')
+        self.assertEqual(recovered['error']['code'],'REFERENCE_UPLOAD_FAILED')
+        self.assertTrue(recovered['submissionAttempted'])
+        self.assertEqual(self.f.providers.submit_count,1)
+        self.assertCode('SUBMISSION_ALREADY_ATTEMPTED', self.f.service.submit, self.f.ctx,
+            recovered['id'], recovered['version'], 'unused', 'never-replay')
+
     def test_timeout_without_receipt_stops_with_explanation(self):
         self.f.providers.prepared_receipt = None
         prepared = self.f.prepare()

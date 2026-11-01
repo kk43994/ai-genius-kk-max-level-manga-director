@@ -169,6 +169,17 @@ class LiveImageClient(BoundImageClient):
         with self.a.journal.edit(self._owner, local_task) as state:
             state.setdefault('observedResponseShapes', {})[name] = shape(body)
 
+    def _upload_stopped_before_generation(self, local_task):
+        # Every charged call is preceded by a durable generation claim. Only a
+        # journal consisting entirely of unfinished uploads proves no paid run.
+        with self.a.journal.edit(self._owner, local_task) as state:
+            steps = copy.deepcopy(state.get('steps', {}))
+            if state.get('originalReferenceRun'):
+                return False
+        return bool(steps and all(re.fullmatch(r'upload_[a-f0-9]{64}', name) for name in steps)
+                    and all(row.get('attempted') is True for row in steps.values())
+                    and any(not row.get('done') for row in steps.values()))
+
     def lookup(self, receipt):
         receipt = safe_receipt(receipt)
         local_task = self.a.bridge.task_for_receipt(self._owner, receipt)
@@ -176,6 +187,9 @@ class LiveImageClient(BoundImageClient):
         if receipt.get('projectId') != self._project(record['spec']['projectId']):
             raise GenerationError('OWNERSHIP_MISMATCH')
         if not receipt.get('taskId'):
+            if not receipt.get('nodeId') and self._upload_stopped_before_generation(local_task):
+                return {'status':'failed', 'providerReceipt':receipt,
+                        'failureStage':'reference_upload', 'generationSubmitted':False}
             if not receipt.get('nodeId') or self.a.reference_route is None:
                 raise GenerationError('ORIGINAL_RECEIPT_REQUIRED', receipt=receipt)
             receipt = self.a.reference_route.recover_task(self, local_task, record, receipt)

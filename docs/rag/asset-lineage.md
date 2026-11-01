@@ -47,3 +47,9 @@ TaskService 的 `inputs.sources` 有意保存 revisionId、ownership、sha256，
 兼容：旧 MJ 图仍可供同一角色主图使用；旧任务可按不可变回执收回，但旧版 MJ 直接生成的人物状态图不满足新链路，只保留历史，不自动审核、不冒充主图。无需数据库批量改写。风格页聚合该角色历史 MJ 候选，创建的新候选进入独立主档案。前端生成草稿使用 identity-v2 命名，避免把旧状态提示词带入主图。
 
 前端：`production-generation.js`、`creator-desk.js`。后端：`production.py`、`production_bindings.py`、`production_lineage.py`、`production_coverage.py`、`workflow/service.py`、`generation/service.py`。回归覆盖主图派生、跳步拒绝、主图退回、旧 MJ 复用及交付缺项。
+
+## 参考上传失败与收费不明必须区分
+
+TaskService 的 submissionAttempted 标记写在上传之前，用来防止整体重复调用。真实测试出现 upload_media 超时，此时只有项目回执，没有生成任务 ID。旧查询统一报回执缺失，导致永远无法继续。
+
+LiveImageClient 查询原记录时，只有 journal steps 非空、全部为 upload_<sha256>、至少一个未完成、没有生成节点、收费 generation claim 或 originalReferenceRun，才返回 reference_upload / generationSubmitted=false。TaskService 还要求回执没有 nodeId 或 taskId，随后标记 failed + REFERENCE_UPLOAD_FAILED，保留 submissionAttempted=true 和全部旧记录。查询本身不上传、不生成；前端明确点击“重新准备本次生成”才创建新准备编号并重新确认。空日志、未知步骤、已进入节点／生成阶段一律保持原任务恢复限制。

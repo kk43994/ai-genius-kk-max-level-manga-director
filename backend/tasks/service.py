@@ -464,9 +464,13 @@ class TaskService:
                 elif state == "completed":
                     current.update(status="downloading", error=None)
                 elif state == "failed":
+                    upload_only = (result.get('failureStage') == 'reference_upload' and result.get('generationSubmitted') is False
+                                   and not ref.get('taskId') and not ref.get('nodeId'))
                     current.update(status="failed", lease=None,
-                                   error={"code": "PROVIDER_TASK_FAILED", "message": "官方原任务失败，未自动重新生成。",
-                                          "retryable": False, "details": {}})
+                        error=({"code":"REFERENCE_UPLOAD_FAILED", "message":"参考图上传未完成；已核实尚未调用收费生成。可以重新准备，原记录保留。",
+                                "retryable":True, "details":{"generationSubmitted":False}}
+                               if upload_only else {"code":"PROVIDER_TASK_FAILED", "message":"官方原任务失败，未自动重新生成。",
+                                                    "retryable":False, "details":{}}))
                 elif state == "cancelled":
                     current.update(status="cancelled", lease=None,
                                    cancellation={"localOnly": False, "remoteConfirmed": True, "refundConfirmed": False})

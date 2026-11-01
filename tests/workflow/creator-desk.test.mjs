@@ -40,3 +40,13 @@ test('state assets require the same character approved master, while style explo
  assert.equal(generationContext(options).sources.length,0);
  assert.match(generationInspector(options),/请先生成并确认人物主多视图/);
 });
+
+test('only a verified upload-only failure offers a fresh preparation key',()=>{
+ const result={assets:[{id:'hero',category:'character',states:[{id:'rain',name:'雨中'}]}]};
+ const options={result,job:{status:'ready',bindings:[{assetId:'hero',stateId:MASTER_STATE_ID,entityId:'master'}]},
+  view:{kind:'assets',index:0,stage:'asset'},assets:[],tasks:[{entityId:'master',status:'failed',error:{code:'REFERENCE_UPLOAD_FAILED'}}]};
+ assert.match(generationInspector(options),/data-generation-reroll/);
+ assert.match(generationInspector(options),/重新准备本次生成/);
+ options.tasks[0].status='needs_attention';options.tasks[0].error.code='SUBMISSION_UNKNOWN';
+ assert.doesNotMatch(generationInspector(options),/data-generation-reroll/);
+});

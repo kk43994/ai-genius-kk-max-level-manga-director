@@ -300,7 +300,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
           const feedback=root.querySelector('[data-board-generation-feedback]');if(feedback&&c)feedback.innerHTML=tasksView(c.binding?.entityId);
           if(mediaChanged){const temp=doc.createElement('div');temp.innerHTML=productionView();const old=root.querySelector('[data-board-stage]'),fresh=temp.querySelector('[data-board-stage]');if(old&&fresh){old.replaceChildren(...fresh.childNodes);canvas.refresh();}}
         }
-        const taskPanel=root.querySelector('[data-wf-task-feedback]');if(taskPanel)taskPanel.outerHTML=tasksView(selectedEntity);
+        const taskPanel=root.querySelector('[data-wf-task-feedback]');if(taskPanel&&!taskPanel.closest('[data-board-generation-feedback]'))taskPanel.outerHTML=tasksView(selectedEntity);
         if(mediaChanged){
         const returned=root.querySelector('[data-wf-returned]');if(returned)returned.innerHTML=returnedView(selectedEntity||currentEntity()?.id);
         const reviewPanel=root.querySelector('[data-wf-review-list]');if(reviewPanel)reviewPanel.outerHTML=reviewView();
