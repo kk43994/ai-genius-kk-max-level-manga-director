@@ -16,6 +16,7 @@ MESSAGES = {
     'SOURCE_CHANGED': '参考素材版本、归属、审核或文件摘要发生变化。',
     'PROVIDER_SNAPSHOT_REVISION_MISMATCH': '官方项目版本已变化，需要核对原节点是否仍未生成。',
     'REFERENCE_PREFLIGHT_REJECTED': '官方因项目版本变化拒绝提交，已核实原节点未生成；可重新准备，原记录保留。',
+    'REFERENCE_SETUP_STOPPED': '参考节点已保存，已核实尚未进入收费生成；可以重新准备，原记录保留。',
     'SOURCE_REVIEW_REQUIRED': '参考素材必须先通过人工审核。',
     'INPUT_INVALID': '图片模型参数或请求格式不符合官方 schema。',
     'PROVIDER_PROTOCOL_ERROR': '官方响应无法安全解析，请核对原任务。',

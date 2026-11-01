@@ -7,6 +7,21 @@ from .types import opaque, digest
 from .project_coordination import project_mutation
 
 
+def same_reference_prompt(actual, expected, image_nodes):
+    """Compare the observed Image N projection through verified graph edges.
+
+    Requests always retain Node IDs. Image indices are decoded only when
+    checking the server's read projection, never generated for submission.
+    """
+    if actual == expected:return True
+    if not isinstance(actual,str) or not isinstance(expected,str):return False
+    def resolve(match):
+        index=int(match.group(1))-1
+        if not 0<=index<len(image_nodes):return match.group(0)
+        return '{{Node '+image_nodes[index]+'}}'
+    return re.sub(r'\{\{Image ([1-9][0-9]*)\}\}',resolve,actual)==expected
+
+
 class LiveReferenceRoute:
     tools = ('create_node', 'read_project', 'update_node')
 
@@ -20,7 +35,11 @@ class LiveReferenceRoute:
             raise GenerationError('PROVIDER_RECEIPT_MISMATCH', receipt=receipt)
         data = nodes[0].get('data', {})
         params = data.get('params', {})
-        if (params.get('model') != record['prepared']['modelKey'] or params.get('prompt') != record['spec']['prompt']
+        incoming = [e.get('source') for e in body.get('edges', []) if e.get('target') == receipt['nodeId']]
+        images = [r.get('nodeId') for r in params.get('imageList', [])]
+        if sorted(incoming) != sorted(inputs) or images != inputs:
+            raise GenerationError('SOURCE_CHANGED', receipt=receipt)
+        if (params.get('model') != record['prepared']['modelKey'] or not same_reference_prompt(params.get('prompt'),record['spec']['prompt'],images)
                 or data.get('taskInfo', {}).get('taskId')):
             raise GenerationError('SOURCE_CHANGED', receipt=receipt)
         # The server stores creative controls in nested settings. Validate only
@@ -28,10 +47,6 @@ class LiveReferenceRoute:
         for key, value in record['params'].items():
             current = params.get(key, params.get('settings', {}).get(key, params.get('advancedSettings', {}).get(key)))
             if current != value: raise GenerationError('SOURCE_CHANGED', receipt=receipt)
-        incoming = [e.get('source') for e in body.get('edges', []) if e.get('target') == receipt['nodeId']]
-        images = [r.get('nodeId') for r in params.get('imageList', [])]
-        if sorted(incoming) != sorted(inputs) or images != inputs:
-            raise GenerationError('SOURCE_CHANGED', receipt=receipt)
         revision = body.get('revision', {}).get('token')
         if not isinstance(revision, str) or not re.fullmatch(r'sha256-[a-f0-9]{64}', revision):
             raise GenerationError('PROVIDER_PROTOCOL_ERROR', receipt=receipt)
@@ -109,6 +124,20 @@ class LiveReferenceRoute:
         with client.a.journal.edit(client._owner, local_task) as state:
             original = copy.deepcopy(state.get('originalReferenceRun'))
             attempt = copy.deepcopy(state['steps'].get('generation'))
+            steps=copy.deepcopy(state['steps'])
+        if not original and not attempt and record.get('spec'):
+            # Read-only inspection of setup that never reached a charged claim.
+            # Every charged call requires that durable claim before transmission.
+            upload_rows=[steps.get('upload_'+s['sha256'],{}) for s in record['sources']]
+            node_step=steps.get('reference_node',{})
+            if upload_rows and all(r.get('done') for r in upload_rows) and node_step.get('done') and node_step.get('result')==receipt:
+                nodes={r['result']['revisionId']:r['result']['nodeId'] for r in upload_rows}
+                inspected=copy.deepcopy(record)
+                inspected['spec']['prompt']=re.sub(r'\{\{reference:([A-Za-z0-9_-]+)\}\}',lambda m:'{{Node '+nodes[m.group(1)]+'}}',record['spec']['prompt'])
+                inputs=[r['result']['nodeId'] for r in upload_rows]
+                # This path never calls update_node; it diagnoses the saved node.
+                self._snapshot(client,receipt,inspected,inputs)
+                raise GenerationError('REFERENCE_SETUP_STOPPED',receipt=receipt)
         if (not original or not attempt or not attempt.get('attempted') or attempt.get('hash') != digest(original)
                 or original.get('node') != receipt.get('nodeId') or original.get('projectId') != receipt.get('projectId')):
             raise GenerationError('ORIGINAL_RECEIPT_REQUIRED', receipt=receipt)

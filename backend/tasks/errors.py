@@ -51,6 +51,9 @@ PREPARATION_CODES = {
 def provider_failure(exc, *, attempted=False):
     # Never stringify an upstream exception: it may contain tokens/signed URLs.
     code = getattr(exc, "code", None)
+    if code == 'REFERENCE_SETUP_STOPPED':
+        return ('failed', {'code':code,'message':'参考节点校验曾中断，已核实未调用收费生成。可以重新准备，原记录保留。',
+            'retryable':True,'details':{'generationSubmitted':False}})
     if code == 'REFERENCE_PREFLIGHT_REJECTED':
         return ('failed', {'code':code, 'message':'项目同时有其他更新，官方拒绝了这次提交；已核实原节点未生成。请重新准备，原记录保留。',
             'retryable':True, 'details':{'generationSubmitted':False}})

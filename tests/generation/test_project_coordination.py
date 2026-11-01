@@ -6,12 +6,35 @@ import unittest
 
 from backend.generation.errors import GenerationError
 from backend.generation.live_reference import LiveReferenceRoute
+from backend.generation.live_reference import same_reference_prompt
 from backend.generation.project_coordination import project_mutation
 from backend.generation.types import digest
 
 OWNER={'tenantId':'test','providerAccountId':'account','spaceId':'space'}
 
 class CoordinationTests(unittest.TestCase):
+    def test_projected_image_references_require_same_text_and_exact_node_order(self):
+        self.assertTrue(same_reference_prompt('A={{Image 1}} B={{Image 2}}','A={{Node one}} B={{Node two}}',['one','two']))
+        for actual,nodes in [('A={{Image 2}} B={{Image 1}}',['one','two']),('A={{Image 3}} B={{Image 2}}',['one','two']),('changed={{Image 1}} B={{Image 2}}',['one','two']),('A={{Image 1}} B={{Image 2}}',['wrong','two'])]:
+            self.assertFalse(same_reference_prompt(actual,'A={{Node one}} B={{Node two}}',nodes))
+
+    def test_inspection_of_setup_without_generation_claim_never_submits(self):
+        state={'steps':{'upload_hash':{'done':True,'result':{'nodeId':'reference','revisionId':'r'}},
+               'reference_node':{'done':True,'result':{'projectId':'project','nodeId':'node'}}}}
+        @contextmanager
+        def edit(*args):yield state
+        calls=[]
+        def call(name,args):
+            calls.append(name)
+            self.assertEqual(name,'read_project')
+            return {'projectId':'project','revision':{'token':'sha256-'+'a'*64},
+                'nodes':[{'id':'node','type':'image','data':{'params':{'model':'model','prompt':'A={{Image 1}}','count':1,'imageList':[{'nodeId':'reference'}]}}}],
+                'edges':[{'source':'reference','target':'node'}]}
+        client=SimpleNamespace(_owner=OWNER,_call=call,a=SimpleNamespace(journal=SimpleNamespace(edit=edit)))
+        record={'sources':[{'sha256':'hash'}],'spec':{'prompt':'A={{reference:r}}'},'prepared':{'modelKey':'model'},'params':{'count':1}}
+        with self.assertRaises(GenerationError) as error:LiveReferenceRoute().recover_task(client,'local',record,{'projectId':'project','nodeId':'node'})
+        self.assertEqual(error.exception.code,'REFERENCE_SETUP_STOPPED');self.assertEqual(calls,['read_project'])
+
     def test_same_project_serializes_and_other_project_does_not_wait(self):
         entered=Event(); done=Event()
         def worker():

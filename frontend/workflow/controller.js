@@ -9,7 +9,7 @@ import {batchSize,parallelGroups} from './generation-batch.js';
 import {selectedImageModel,collectImageSettings} from './image-models.js';
 import {creatorDesk} from './creator-desk.js';
 import {mountCanvas} from './production-canvas.js';
-import {splitShot,addShot} from './shot-structure.js';
+import {splitShot,addShot,removeBlankShot,numberShots} from './shot-structure.js';
 import {analysisDraft} from './analysis-edit.js';
 import {analysisPanel, sourceView} from './analysis.js';
 import {operationLabel, elapsedLabel, taskProgress, reviewProgress} from './progress.js';
@@ -226,7 +226,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const targetName=['mj_style','image25_style'].includes(task.recipe)?archiveName.replace(/ · 人物主多视图$/,''):archiveName;
     const purpose={mj_style:'基础形象与风格候选',image25_style:'基础形象与风格候选',image2_asset:'规范资产图',image25_asset:'Image2.5 规范资产图',nano_refine:'资产精修图',storyboard_image:'分镜图',image25_storyboard:'Image2.5 分镜图'}[task.recipe]||'候选图';
     const references=(task.sourceRevisionIds||[]).map(id=>{const a=assets.find(a=>a.revisions.some(r=>r.id===id));return a?`${a.name} · ${id.slice(-6)}`:`图片版本 ${id.slice(-6)}`;});
-    return `<section class="wf-panel" data-confirmation tabindex="-1"><h3>核对这次任务</h3><p><b>${batch.length} 组 · 共 ${total} 张</b> · 确认后并发生成</p>${batch.length>1?`<ol>${batch.map((r,i)=>`<li>第 ${i+1} 组 · ${esc(r.confirmation.summary.modelKey)} · ${r.confirmation.summary.count} 张 · ${esc(r.task.id.slice(-6))}</li>`).join('')}</ol>`:''}<p><strong>制作对象：${esc(targetName)}</strong> · ${esc(purpose)}</p>${references.length?`<p>已固定参考：${references.map(esc).join('；')}</p>`:''}<details open><summary>本次实际发送的完整提示词</summary><pre class="wf-prompt-text">${esc((prepared.confirmation?.summary?.prompt||'提示词暂不可读，请保留任务后刷新核对。').replace(/\{\{reference:[^}]+\}\}/g,'（已绑定参考图片）'))}</pre></details><p>模型：${esc(prepared.confirmation?.summary?.modelKey||recipeLabels[task.recipe]||task.recipe)}</p><p>每组生成 ${esc(prepared.confirmation?.summary?.count || task.spec?.settings?.count || 1)} 张候选图</p><p class="wf-note">任务账号：${esc(task.ownership?.accountLabelAtCreation||task.ownership?.providerAccountId)}<br>工作空间：${esc(task.ownership?.spaceNameAtCreation||task.ownership?.spaceId)}<br>费用：${cost.state==='known'?esc(`${cost.amount} ${cost.unit}`):'未知 · 不能视为免费'}</p><p class="wf-muted">切换页面上的账号不会改变这个任务的归属。${!enabled?'当前版本未启用图片提交；准备记录已保存。':''}</p><div class="wf-actions"><button data-wf-action="close-confirmation">保留准备记录</button><button data-wf-action="submit-task" class="primary" ${!enabled||busy?'disabled':''}>${batch.length>1?'确认并提交这 '+batch.length+' 组':'确认并提交生成'}</button></div></section>`;
+    return `<section class="wf-panel" data-confirmation tabindex="-1"><h3>${busy?'正在提交这批图片':'核对这次任务'}</h3>${busy?'<p role="status">正在上传参考并等待各组回执，请勿重复提交。</p><progress aria-label="正在提交图片任务"></progress>':''}<p><b>${batch.length} 组 · 共 ${total} 张</b> · 确认后并发生成</p>${batch.length>1?`<ol>${batch.map((r,i)=>`<li>第 ${i+1} 组 · ${esc(r.confirmation.summary.modelKey)} · ${r.confirmation.summary.count} 张 · ${esc(r.task.id.slice(-6))}</li>`).join('')}</ol>`:''}<p><strong>制作对象：${esc(targetName)}</strong> · ${esc(purpose)}</p>${references.length?`<p>已固定参考：${references.map(esc).join('；')}</p>`:''}<details><summary>本次实际发送的完整提示词</summary><pre class="wf-prompt-text">${esc((prepared.confirmation?.summary?.prompt||'提示词暂不可读，请保留任务后刷新核对。').replace(/\{\{reference:[^}]+\}\}/g,'（已绑定参考图片）'))}</pre></details><p>模型：${esc(prepared.confirmation?.summary?.modelKey||recipeLabels[task.recipe]||task.recipe)}</p><p>每组生成 ${esc(prepared.confirmation?.summary?.count || task.spec?.settings?.count || 1)} 张候选图</p><p class="wf-note">任务账号：${esc(task.ownership?.accountLabelAtCreation||task.ownership?.providerAccountId)}<br>工作空间：${esc(task.ownership?.spaceNameAtCreation||task.ownership?.spaceId)}<br>费用：${cost.state==='known'?esc(`${cost.amount} ${cost.unit}`):'未知 · 不能视为免费'}</p><p class="wf-muted">切换页面上的账号不会改变这个任务的归属。${!enabled?'当前版本未启用图片提交；准备记录已保存。':''}</p><div class="wf-actions"><button data-wf-action="close-confirmation">${busy?'收起并查看任务进度':'保留准备记录'}</button><button data-wf-action="submit-task" class="primary" ${!enabled||busy?'disabled':''}>${batch.length>1?'确认并提交这 '+batch.length+' 组':'确认并提交生成'}</button></div></section>`;
   }
   function deliveryView() {
     const allowed=coverage.scope==='production'?new Set(coverage.exportRevisionIds||[]):null;
@@ -734,6 +734,17 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
       return perform(async()=>{analysis=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/review`,{method:'PUT',body});removeDraft(name);analysisError='';announce(analysis.validationIssues.length?`修改已保存，仍有 ${analysis.validationIssues.length} 处标红待核对。`:'修改已保存，原文核对通过，可以继续制作。');});
     }
     if(action==='production-open-review'){page='plan';persist('page',page);updateBoard({inspector:production.validationIssues?.length?'issues':'handoff'});root.querySelector('[data-production-review-panel]')?.scrollIntoView({block:'start'});return;}
+    if(button.hasAttribute('data-shot-remove')){
+      const result=currentProduction(),index=Number(button.dataset.shotRemove),shot=result.shots[index];
+      if(!shot||shot.dialogueIds.length||shot.purpose!=='补充镜头 · 请编辑动作与构图')return;
+      persist(`production:removed:${production.id}`,{index,shot});if(saveError)return;
+      changeProductionField('shots',removeBlankShot(result,index).shots);updateBoard({inspector:'shots',index:Math.max(0,index-1)});
+      announce('已从镜头草稿删除这条空白镜头，其他镜头保留；请保存镜头编排。');return;
+    }
+    if(action==='production-number-shots'){
+      changeProductionField('shots',numberShots(currentProduction().shots));render();
+      announce('已按当前播放顺序整理镜头编号，镜头内容与引用不变；请保存镜头编排。');return;
+    }
     if(button.hasAttribute('data-shot-split')||button.hasAttribute('data-shot-add')){const index=Number(button.dataset.shotSplit??button.dataset.shotAdd),result=currentProduction();const edited=button.hasAttribute('data-shot-split')?splitShot(result,index,production.dialogues,()=>`shot_${crypto.randomUUID()}`):addShot(result,index,()=>`shot_${crypto.randomUUID()}`);changeProductionField('shots',edited.shots);updateBoard({inspector:'shots',index:button.hasAttribute('data-shot-add')?index+1:index});announce('镜头草稿已更新，请逐镜调整构图和动作后保存；原文台词未改写。');return;}
     if(action==='production-play')return preview.play();
     if(action==='production-pause')return preview.stop();

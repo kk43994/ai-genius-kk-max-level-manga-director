@@ -48,7 +48,7 @@ export function generationGallery(versions,apiBase,{stage,category,direction=fal
 export function generationInspector(options){
  const {view,result,job,busy,apiBase,tasks=[],generationDraft={}}=options,c=generationContext(options),d=generationDraft,stage=c.shot?'storyboard':view.stage||'style';
  const rows=tasks.filter(t=>t.entityId===c.binding?.entityId).sort((a,b)=>(Date.parse(b.createdAt)||0)-(Date.parse(a.createdAt)||0)),running=rows.find(t=>['preparing','submitting','queued','submitted','running','downloading','unknown_submission','needs_attention'].includes(t.status)),pending=rows.find(t=>t.canConfirm);
- const uploadRetry=rows[0]?.status==='failed'&&['REFERENCE_UPLOAD_FAILED','REFERENCE_PREFLIGHT_REJECTED'].includes(rows[0]?.error?.code);
+ const uploadRetry=rows[0]?.status==='failed'&&['REFERENCE_UPLOAD_FAILED','REFERENCE_PREFLIGHT_REJECTED','REFERENCE_SETUP_STOPPED'].includes(rows[0]?.error?.code);
  const source=c.sources.find(r=>r.id===d.sourceRevisionId)||c.sources.at(-1),made=c.versions.some(r=>r.stage===stage);
  const styleMissing=options.phase==='asset'&&(!options.project?.artDirection||options.project.artDirection.valid===false),disabled=busy||job.stale||job.status!=='ready'||(c.binding?.changed&&c.binding?.linked)||Boolean(running&&['unknown_submission','needs_attention'].includes(running.status))||styleMissing||(!c.shot&&stage!=='style'&&!source);
  const modelReady=options.imageContracts?.[c.mode.modelId]?.verified;
