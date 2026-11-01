@@ -9,6 +9,10 @@ class SpaceError(Exception):
         self.status = status
         self.retryable = retryable
 
+    def public(self):
+        return {"code": self.code, "message": self.message,
+                "retryable": self.retryable, "details": {}}
+
 
 def invalid_response():
     return SpaceError("PROVIDER_RESPONSE_INVALID", "官方资料格式尚未核实，请在 LibTV 官网查看。")
@@ -31,6 +35,8 @@ def call_provider(target, method, *args):
         raise unavailable() from None
     except Exception as error:
         code = getattr(error, "code", None)
+        if code == "PROVIDER_ACCOUNT_READ_UNAVAILABLE":
+            raise SpaceError(code, "LibTV 暂时无法读取原账号资料。已有任务保留，请稍后刷新账号或收取原任务。", retryable=True) from None
         if code in {"PROVIDER_CAPABILITY_UNAVAILABLE", "NOT_IMPLEMENTED"}:
             raise unavailable() from None
         if code in {"PROVIDER_UNCONFIGURED", "PROVIDER_IDENTITY_UNAVAILABLE", "PROVIDER_SCOPE_UNAVAILABLE"}:

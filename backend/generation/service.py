@@ -84,13 +84,14 @@ class BoundImageClient:
         except Exception as exc:
             code = getattr(exc, 'code', None)
             known = {'PROVIDER_PROTOCOL_ERROR','PROVIDER_UNAVAILABLE','PROVIDER_RESPONSE_TOO_LARGE',
+                     'PROVIDER_ACCOUNT_READ_UNAVAILABLE',
                      'PROVIDER_SCOPE_UNAVAILABLE','PROVIDER_AUTHORIZATION_REQUIRED','PROVIDER_SCOPE_REQUIRED',
                      'OWNERSHIP_MISMATCH','PROVIDER_NODE_NAME_CONFLICT','PROVIDER_SNAPSHOT_REVISION_MISMATCH'}
             logging.getLogger(__name__).error('Official tool failed: tool=%s code=%s',
                 name, code if code in known else 'UNCLASSIFIED')
             if code == 'PROVIDER_SCOPE_UNAVAILABLE':
                 raise GenerationError('PROVIDER_SCOPE_REQUIRED', required_scopes=self.a.catalog.scopes(name)) from None
-            if code in {'PROVIDER_AUTHORIZATION_REQUIRED', 'PROVIDER_SCOPE_REQUIRED', 'OWNERSHIP_MISMATCH', 'PROVIDER_SNAPSHOT_REVISION_MISMATCH'}:
+            if code in {'PROVIDER_AUTHORIZATION_REQUIRED', 'PROVIDER_SCOPE_REQUIRED', 'OWNERSHIP_MISMATCH', 'PROVIDER_SNAPSHOT_REVISION_MISMATCH', 'PROVIDER_ACCOUNT_READ_UNAVAILABLE'}:
                 raise GenerationError(code) from None
             raise GenerationError('PROVIDER_UNAVAILABLE') from None
         return self.a.catalog.response(name, result)

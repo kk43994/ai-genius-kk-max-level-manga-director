@@ -115,6 +115,7 @@ export function retainQuotaOnFailure(previous, next) {
 const errors = {
   NOT_IMPLEMENTED: '此功能尚未接入，请稍后再试。',
   PROVIDER_UNAVAILABLE: 'LibTV 暂时无法连接，请稍后重试。',
+  PROVIDER_ACCOUNT_READ_UNAVAILABLE: 'LibTV 暂时无法读取原账号资料。已保存的选择和任务仍在，请稍后刷新状态。',
   PROVIDER_CAPABILITY_UNAVAILABLE: 'LibTV 当前尚未提供这项能力。',
   PROVIDER_AUTHORIZATION_REQUIRED: '此账号授权需要更新，请重新授权后查询余额。',
   SPACE_UNAVAILABLE: '所选空间的访问权限需要重新核对，请刷新账号状态。',

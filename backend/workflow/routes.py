@@ -2,6 +2,9 @@
 from dataclasses import dataclass, field
 
 from .errors import WorkflowError, tenant, value
+from backend.auth.errors import AuthError
+from backend.spaces.errors import SpaceError
+from backend.tasks.errors import TaskError
 
 
 @dataclass
@@ -25,7 +28,7 @@ def register_routes(router, services):
                 result = action(ctx, params, value(ctx, 'json', {}) or {}, value(ctx, 'query', {}) or {})
                 return result if isinstance(result, Response) else Response(200, result)
             except Exception as error:
-                if isinstance(error, WorkflowError) or type(error).__module__ == 'backend.storage.errors':
+                if isinstance(error, (WorkflowError, AuthError, SpaceError, TaskError)) or type(error).__module__ == 'backend.storage.errors':
                     return Response(error.status, {'error': error.public()})
                 raise
         router.add(method, '/api/v1' + path, handler)

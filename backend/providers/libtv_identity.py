@@ -97,8 +97,11 @@ class MCPReadSession:
             blocks=result.get('content', [])
             text=blocks[0].get('text','') if isinstance(blocks,list) and len(blocks)==1 and isinstance(blocks[0],dict) else ''
             code = re.match(r'^Error executing tool '+re.escape(tool['name'])+r': ([A-Z][A-Z0-9_]{2,63}):', text) if isinstance(text,str) else None
-            logging.getLogger(__name__).error('MCP tool returned error: tool=%s provider_code=%s',
-                tool['name'], code.group(1) if code else 'UNCLASSIFIED')
+            status = re.search(r'\b(?:HTTP(?:/\d(?:\.\d)?)?\s+|status(?:_code| code)?\s*[:=]?\s*)([45]\d{2})\b', text) if isinstance(text,str) else None
+            logging.getLogger(__name__).error('MCP tool returned error: tool=%s provider_code=%s upstream_status=%s',
+                tool['name'], code.group(1) if code else 'UNCLASSIFIED', status.group(1) if status else 'UNCLASSIFIED')
+            if tool['name']=='account_user' and code and code.group(1)=='UPSTREAM_HTTP_ERROR':
+                raise AuthError('PROVIDER_ACCOUNT_READ_UNAVAILABLE')
             # A narrow observed preflight rejection, not an ambiguous timeout.
             if tool['name']=='create_node' and isinstance(text,str) and text.startswith('Error executing tool create_node: NODE_NAME_CONFLICT:'):
                 raise AuthError('PROVIDER_NODE_NAME_CONFLICT')

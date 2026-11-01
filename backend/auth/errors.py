@@ -24,6 +24,7 @@ MESSAGES = {
     'PROVIDER_REGISTRATION_REJECTED': ('LibTV 尚未允许此网站的授权回调，请联系网站管理员。', 503, False),
     'PROVIDER_SCOPE_UNAVAILABLE': ('LibTV 尚未提供网站所需的授权权限。', 503, False),
     'PROVIDER_IDENTITY_UNAVAILABLE': ('LibTV 官方身份读取尚未验证，此账号暂不能连接。', 503, False),
+    'PROVIDER_ACCOUNT_READ_UNAVAILABLE': ('LibTV 暂时无法读取原账号资料。已有任务保留，请稍后刷新账号或收取原任务。', 503, True),
     'PROVIDER_IDENTITY_MISMATCH': ('本次授权不是原来的 LibTV 账号，请使用原账号重授权。', 409, False),
     'PROVIDER_AUTHORIZATION_REQUIRED': ('此账号授权已不可用，请重新授权。', 401, False),
     'PROVIDER_CAPABILITY_UNAVAILABLE': ('此项 LibTV 官方能力尚未接入。', 503, False),

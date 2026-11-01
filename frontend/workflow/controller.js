@@ -1,4 +1,4 @@
-import {canAutoCollect, nextCollection, collectionDelay, needsAssetRefresh} from './collection.js';
+import {canAutoCollect, nextCollection, collectionDelay, collectionOwnerKey, needsAssetRefresh} from './collection.js';
 import {promptPanel, promptProcessing, usablePrompt, promptIssue} from './prompts.js';
 import {productionPanel, productionRunning, createPreview} from './production.js';
 import {returnedResult, reviewDraft, setReviewValue, valueAt, textLines} from './production-editor.js';
@@ -337,8 +337,10 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     try {
       const result=await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version},background:true});
       collectionAttempts.set(task.id,{due:Date.now()+collectionDelay(result.task)});
+      if(result.task.error?.code==='PROVIDER_ACCOUNT_READ_UNAVAILABLE')collectionAttempts.set(collectionOwnerKey(task),{due:Date.now()+60000});
     } catch(e) {
       collectionAttempts.set(task.id,{due:Date.now()+30000});
+      if(e.code==='PROVIDER_ACCOUNT_READ_UNAVAILABLE')collectionAttempts.set(collectionOwnerKey(task),{due:Date.now()+60000});
       if(alive&&projectId===selected&&!['TASK_BUSY','VERSION_CONFLICT'].includes(e.code))announce('原任务收取暂时中断，稍后自动继续；也可点击“查询原任务并收取”。');
     } finally {
       collecting=false;

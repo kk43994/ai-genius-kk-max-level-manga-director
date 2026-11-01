@@ -20,6 +20,7 @@ AUTH_CODES = frozenset({
 })
 
 PREPARATION_CODES = {
+    "PROVIDER_ACCOUNT_READ_UNAVAILABLE":"LibTV 暂时无法读取原账号资料。已有任务与回执保留，请稍后查询原任务；无需重复生成。",
     "INPUT_INVALID":"模型不接受当前制作参数。请检查画幅、数量或必填选项；尚未提交的记录可以取消后重新准备。",
     "SOURCE_CHANGED":"参考图版本或审核状态已变化，请重新选择已审核的有效图片。",
     "SOURCE_REVIEW_REQUIRED":"请先选用并审核参考图，再准备这次生成。",

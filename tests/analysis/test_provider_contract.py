@@ -52,3 +52,16 @@ class ProviderContractTests(unittest.TestCase):
         self.assertIn('provider_code=REVISION_CONFLICT',logs.output[0])
         self.assertNotIn('secret-prompt',logs.output[0])
         self.assertNotIn('private.example',logs.output[0])
+
+    def test_account_http_failure_is_temporary_without_echoing_upstream_body(self):
+        from backend.spaces.errors import call_provider, SpaceError
+        client=MCPReadSession(None,'synthetic-test-token')
+        client._rpc=Mock(return_value={'isError':True,'content':[{'type':'text','text':
+            'Error executing tool account_user: UPSTREAM_HTTP_ERROR: HTTP 429 secret-token https://private.invalid/secret'}]})
+        with self.assertLogs('backend.providers.libtv_identity',level='ERROR') as logs:
+            with self.assertRaises(SpaceError) as caught:
+                call_provider(SimpleNamespace(identity=lambda:client.read_identity({'name':'account_user'},{})),'identity')
+        self.assertEqual(caught.exception.code,'PROVIDER_ACCOUNT_READ_UNAVAILABLE')
+        self.assertTrue(caught.exception.retryable)
+        self.assertIn('upstream_status=429',logs.output[0])
+        self.assertNotIn('secret',str(caught.exception.public())+str(logs.output))

@@ -19,6 +19,7 @@ MESSAGES = {
     'INPUT_INVALID': '图片模型参数或请求格式不符合官方 schema。',
     'PROVIDER_PROTOCOL_ERROR': '官方响应无法安全解析，请核对原任务。',
     'PROVIDER_UNAVAILABLE': '官方服务未及时返回，未自动重试。',
+    'PROVIDER_ACCOUNT_READ_UNAVAILABLE': 'LibTV 暂时无法读取原账号资料，原任务与回执已保留。',
     'SUBMISSION_UNKNOWN': '提交结果不明，已保留原引用，禁止重新提交。',
     'OPERATION_UNKNOWN': '先前外部操作结果不明，禁止自动重发。',
     'IDEMPOTENCY_CONFLICT': '同一任务或操作编号对应了不同请求。',

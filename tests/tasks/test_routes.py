@@ -88,6 +88,22 @@ class RouteTests(unittest.TestCase):
             self.assertIn(expected, public['message'])
             self.assertNotIn('private', str(public))
 
+    def test_account_read_outage_preserves_recovery_state_and_safe_error(self):
+        from backend.auth.errors import AuthError
+        from backend.tasks.errors import provider_failure
+        error=AuthError('PROVIDER_ACCOUNT_READ_UNAVAILABLE')
+        state, public=provider_failure(error,attempted=True)
+        self.assertEqual(state,'needs_attention')
+        self.assertEqual(public['code'],error.code)
+        self.assertNotIn('generationSubmitted',public['details'])
+        self.assertTrue(public['details']['submissionAttempted'])
+        def unavailable(ctx):raise error
+        self.f.selections.get_selection=unavailable
+        result=self.call('POST','/api/v1/tasks/prepare',json={**spec(),'expectedSelectionRevision':1})
+        self.assertEqual(result.status,503)
+        self.assertEqual(result.body['error']['code'],error.code)
+        self.assertEqual(self.f.providers.submit_count,0)
+
 
 if __name__ == "__main__":
     unittest.main()

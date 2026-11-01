@@ -30,6 +30,7 @@ def register_routes(router, services):
                 # Dependencies may fail before a task is persisted. Do not let
                 # raw provider/DB error strings reach the common HTTP adapter.
                 safe = {
+                    "PROVIDER_ACCOUNT_READ_UNAVAILABLE": ("PROVIDER_ACCOUNT_READ_UNAVAILABLE", "LibTV 暂时无法读取原账号资料。已有任务保留，请稍后刷新账号或收取原任务。", 503),
                     "SESSION_REQUIRED": ("SESSION_REQUIRED", "请恢复本站会话后继续。", 401),
                     "NOT_FOUND": ("NOT_FOUND", "项目、账号或参考素材不存在。", 404),
                     "VALIDATION_FAILED": ("VALIDATION_FAILED", "任务参数或参考素材未通过校验。", 422),
