@@ -539,6 +539,14 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
   async function onClick(event) {
     const button=event.target.closest('button,a');if(!button||button.disabled)return;
     if(button.hasAttribute('data-wf-download')){event.preventDefault();const url=new URL(button.href);const relative=url.pathname.slice(apiBase.length);return perform(async()=>{const blob=await api.request(relative,{responseType:'blob'});const link=doc.createElement('a');const objectUrl=URL.createObjectURL(blob);link.href=objectUrl;link.download='asset-lab-approved-assets.zip';link.hidden=true;doc.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);announce('交付包已交给浏览器下载。');});}
+    if(button.hasAttribute('data-production-bind')){
+      if(drafts.get(planKey())||drafts.get(`production:review:${production?.id}`)||drafts.get(`production:edits:${production?.id}`)){announce('请先保存清单和方案修改，再关联已有档案。');return;}
+      const entity=plan.entities.find(e=>e.id===button.dataset.productionBind);if(!entity||!production)return;
+      const body={assetId:button.dataset.bindingAsset,stateId:button.dataset.bindingState,entityId:entity.id,
+        expectedPlanVersion:plan.version,expectedEntityVersion:entity.version,expectedReviewVersion:production.reviewVersion,
+        expectedEditVersion:production.editVersion,expectedBindingVersion:production.bindingVersion,confirmApplicable:true};
+      return perform(async()=>{production=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/bindings`,{method:'PUT',body});await load();announce('已有档案已关联，原图与审核状态保留。');});
+    }
     if(button.hasAttribute('data-board-generate')){updateBoard({inspector:'generate',kind:button.dataset.boardGenerate,index:Number(button.dataset.boardIndex),state:Number(button.dataset.boardStateIndex)||0,stage:button.dataset.boardGenerate==='shots'?'storyboard':'style'});return;}
     if(button.hasAttribute('data-board-generation-stage')){updateBoard({stage:button.dataset.boardGenerationStage});return;}
     if(button.hasAttribute('data-board-reference-open')){

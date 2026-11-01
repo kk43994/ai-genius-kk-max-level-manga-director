@@ -236,3 +236,7 @@
 .board-generation-refs button {font-size:11px;padding:6px;min-height:30px}
 .customer-shell[data-workflow-page=production] [data-confirmation],.customer-shell[data-workflow-page=production] [data-review-detail] {position:fixed;inset:90px max(24px,12vw) 32px;z-index:70;overflow:auto;background:#202020;box-shadow:0 0 0 100vmax #000a;margin:0;border:1px solid #777;padding:24px}
 @media(max-width:819px){.board-generation-inspector{width:100%;max-width:100%}.customer-shell[data-workflow-page=production] [data-confirmation],.customer-shell[data-workflow-page=production] [data-review-detail]{inset:100px 12px 20px}}
+
+/* Existing assets are linked only after an explicit applicability choice. */
+.creator-binding article{padding:12px 0;border-bottom:1px solid var(--border,#343434)}
+.creator-binding-images{display:flex;gap:8px;margin:8px 0}.creator-binding-images img{width:72px;height:72px;object-fit:contain}.creator-binding-images button{padding:0}

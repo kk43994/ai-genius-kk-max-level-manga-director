@@ -294,17 +294,16 @@ class ProductionService(AnalysisService):
         result['bindings'] = []
         result['shotBindings'] = [{'shotId':s['id'], 'entityId':shot_entity_id(result['scriptId'],s['id'])}
                                   for s in (result.get('result') or result.get('draftResult') or {}).get('shots', [])]
+        result['bindingVersion'] = project.get('productionBindingVersions', {}).get(identity, 0)
         if result['result']:
-            script = self.services.workflow.get_script(ctx, result['projectId'], result['scriptId'])
-            for candidate in candidates(result['result'], script):
-                entity = next((e for e in plan['entities'] if e['id'] == candidate['id']), None)
-                result['bindings'].append({'entityId': candidate['id'], 'name': candidate['name'],
-                    'saved': entity is not None, 'changed': bool(entity and any(entity.get(k) != candidate[k] for k in ('description', 'variant', 'quote')))})
-            for asset in result['result']['assets']:
-                for state in asset['states']:
-                    binding = next(b for b in result['bindings'] if b['entityId'] == entity_id(result['scriptId'], asset['id'], state['id']))
-                    binding.update(assetId=asset['id'], stateId=state['id'])
+            from .production_bindings import describe
+            library = self.services.workflow.list_assets(ctx, result['projectId'])['items']
+            result['bindings'] = describe(result, project, plan, script, library, data['ownership'])
         return result
+
+    def save_binding(self, ctx, identity, body):
+        from .production_bindings import save
+        return save(self, ctx, identity, body)
 
     def save_review(self, ctx, identity, body):
         from .production_review import inspect
@@ -391,6 +390,14 @@ class ProductionService(AnalysisService):
             candidate = next((e for e in candidates(job['result'],script) if e['id']==target), None)
             if candidate is None:
                 raise WorkflowError('NOT_FOUND', '未找到这个物料状态。', 404)
+            binding = next(b for b in job['bindings'] if b['assetId'] == body.get('assetId') and b['stateId'] == body.get('stateId'))
+            if binding.get('linked'):
+                if binding['changed'] or not binding['saved']:
+                    raise WorkflowError('BINDING_CHANGED', '关联依据已变化，请重新核对已有档案的适用性。', 409)
+                plan = self.services.workflow.get_plan(ctx, job['projectId'])
+                existing = next(e for e in plan['entities'] if e['id'] == binding['entityId'])
+                allowed = {'id','category','name','description','origin','quote','scriptId','variant'}
+                candidate = {k:copy.deepcopy(v) for k,v in existing.items() if k in allowed}
             prompt = body.get('prompt')
             refs = body.get('sourceRevisionIds', [])
         else:
@@ -497,7 +504,10 @@ class ProductionService(AnalysisService):
             raise WorkflowError('PRODUCTION_NOT_READY', '方案未完成或原文/风格已变化，请先核对。', 409)
         plan = self.services.workflow.get_plan(ctx, job['projectId'])
         script = self.services.workflow.get_script(ctx, job['projectId'], job['scriptId'])
-        added = candidates(job['result'], script)
+        linked = {entity_id(job['scriptId'], b['assetId'], b['stateId']) for b in job['bindings'] if b.get('linked') and b['saved']}
+        if any(b.get('linked') and b['changed'] for b in job['bindings']):
+            raise WorkflowError('BINDING_CHANGED', '已有物料的关联依据已变化，请先核对。', 409)
+        added = [e for e in candidates(job['result'], script) if e['id'] not in linked]
         old = copy.deepcopy(plan['entities'])
         ids = {e['id'] for e in old}
         # Add only: never overwrite user edits or silently remove old assets.
