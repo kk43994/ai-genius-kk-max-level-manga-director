@@ -1,0 +1,256 @@
+{
+  "exampleKind": "hand_authored_contract_example_not_ai_generated",
+  "sourceText": "傍晚，林舟和阿宁站在旧书店门口。林舟把信封递给阿宁。\n林舟低声说：“这封信，是留给你的。”\n阿宁接过信封，回答：“我等了很久。”",
+  "result": {
+    "schemaVersion": 1,
+    "sourceRevision": "6c22549955b6681c9e3be10c06ff6fcf8f908830b82ea8c9b9800bf677b1dccf",
+    "complete": true,
+    "coverage": {
+      "processedRanges": [
+        {
+          "startLine": 1,
+          "endLine": 3
+        }
+      ],
+      "unprocessedRanges": []
+    },
+    "characters": [
+      {
+        "id": "char_lin",
+        "name": "林舟",
+        "aliases": [],
+        "identity": {
+          "value": null,
+          "status": "unknown",
+          "evidence": []
+        },
+        "appearance": [],
+        "costume": [],
+        "relations": [],
+        "evidence": [
+          {
+            "startLine": 1,
+            "endLine": 1,
+            "quote": "林舟"
+          }
+        ],
+        "status": "explicit"
+      },
+      {
+        "id": "char_ning",
+        "name": "阿宁",
+        "aliases": [],
+        "identity": {
+          "value": null,
+          "status": "unknown",
+          "evidence": []
+        },
+        "appearance": [],
+        "costume": [],
+        "relations": [],
+        "evidence": [
+          {
+            "startLine": 1,
+            "endLine": 1,
+            "quote": "阿宁"
+          }
+        ],
+        "status": "explicit"
+      }
+    ],
+    "locations": [
+      {
+        "id": "loc_door",
+        "name": "旧书店门口",
+        "parentLocationId": null,
+        "description": {
+          "value": null,
+          "status": "unknown",
+          "evidence": []
+        },
+        "evidence": [
+          {
+            "startLine": 1,
+            "endLine": 1,
+            "quote": "旧书店门口"
+          }
+        ],
+        "status": "explicit"
+      }
+    ],
+    "times": [
+      {
+        "id": "time_evening",
+        "expression": "傍晚",
+        "timeOfDay": "傍晚",
+        "explicitDate": null,
+        "relationToTimeId": null,
+        "relativeDescription": null,
+        "narrativeLayer": "present",
+        "evidence": [
+          {
+            "startLine": 1,
+            "endLine": 1,
+            "quote": "傍晚"
+          }
+        ],
+        "status": "explicit"
+      }
+    ],
+    "scenes": [
+      {
+        "id": "scene_1",
+        "title": "书店门口交信",
+        "order": 1,
+        "locationIds": [
+          "loc_door"
+        ],
+        "timeIds": [
+          "time_evening"
+        ],
+        "presentCharacterIds": [
+          "char_lin",
+          "char_ning"
+        ],
+        "mentionedCharacterIds": [],
+        "summary": "林舟把信交给阿宁，阿宁说自己等了很久。",
+        "startLine": 1,
+        "endLine": 3,
+        "evidence": [
+          {
+            "startLine": 1,
+            "endLine": 3,
+            "quote": "傍晚，林舟和阿宁站在旧书店门口。林舟把信封递给阿宁。\n林舟低声说：“这封信，是留给你的。”\n阿宁接过信封，回答：“我等了很久。”"
+          }
+        ],
+        "status": "explicit"
+      }
+    ],
+    "events": [
+      {
+        "id": "event_1",
+        "sceneId": "scene_1",
+        "order": 1,
+        "summary": "林舟把信封递给阿宁。",
+        "characterIds": [
+          "char_lin",
+          "char_ning"
+        ],
+        "stateChange": {
+          "value": null,
+          "status": "unknown",
+          "evidence": []
+        },
+        "followsEventIds": [],
+        "causedByEventIds": [],
+        "narrativeLayer": "present",
+        "evidence": [
+          {
+            "startLine": 1,
+            "endLine": 1,
+            "quote": "林舟把信封递给阿宁。"
+          }
+        ],
+        "status": "explicit"
+      },
+      {
+        "id": "event_2",
+        "sceneId": "scene_1",
+        "order": 2,
+        "summary": "阿宁接过信封。",
+        "characterIds": [
+          "char_ning"
+        ],
+        "stateChange": {
+          "value": "阿宁接过信封",
+          "status": "explicit",
+          "evidence": [
+            {
+              "startLine": 3,
+              "endLine": 3,
+              "quote": "阿宁接过信封"
+            }
+          ]
+        },
+        "followsEventIds": [
+          "event_1"
+        ],
+        "causedByEventIds": [],
+        "narrativeLayer": "present",
+        "evidence": [
+          {
+            "startLine": 3,
+            "endLine": 3,
+            "quote": "阿宁接过信封"
+          }
+        ],
+        "status": "explicit"
+      }
+    ],
+    "dialogues": [
+      {
+        "id": "dialogue_1",
+        "sceneId": "scene_1",
+        "eventId": "event_1",
+        "order": 1,
+        "speakerId": "char_lin",
+        "speakerLabel": "林舟",
+        "addresseeIds": [
+          "char_ning"
+        ],
+        "kind": "dialogue",
+        "text": "这封信，是留给你的。",
+        "direction": {
+          "value": "低声",
+          "status": "explicit",
+          "evidence": [
+            {
+              "startLine": 2,
+              "endLine": 2,
+              "quote": "低声"
+            }
+          ]
+        },
+        "startLine": 2,
+        "endLine": 2,
+        "evidence": [
+          {
+            "startLine": 2,
+            "endLine": 2,
+            "quote": "林舟低声说：“这封信，是留给你的。”"
+          }
+        ],
+        "status": "explicit"
+      },
+      {
+        "id": "dialogue_2",
+        "sceneId": "scene_1",
+        "eventId": "event_2",
+        "order": 2,
+        "speakerId": "char_ning",
+        "speakerLabel": "阿宁",
+        "addresseeIds": [
+          "char_lin"
+        ],
+        "kind": "dialogue",
+        "text": "我等了很久。",
+        "direction": {
+          "value": null,
+          "status": "unknown",
+          "evidence": []
+        },
+        "startLine": 3,
+        "endLine": 3,
+        "evidence": [
+          {
+            "startLine": 3,
+            "endLine": 3,
+            "quote": "阿宁接过信封，回答：“我等了很久。”"
+          }
+        ],
+        "status": "explicit"
+      }
+    ],
+    "uncertainties": []
+  }
+}
