@@ -51,6 +51,16 @@ class LiveReferenceRoute:
 
     def submit(self, client, local_task, record, uploaded, key):
         project = record['prepared']['providerReceipt']['projectId']
+        # Resolve stable local reference IDs to the exact uploaded official nodes.
+        # Never guess Image/Mixed indices from the prompt text.
+        record = copy.deepcopy(record)
+        nodes = {r['revisionId']:r['nodeId'] for r in uploaded}
+        def mention(match):
+            node = nodes.get(match.group(1))
+            if not node: raise GenerationError('SOURCE_CHANGED')
+            return '{{Node '+node+'}}'
+        if record['spec']['recipe'] == 'storyboard_image':
+            record['spec']['prompt'] = re.sub(r'\{\{reference:([A-Za-z0-9_-]+)\}\}', mention, record['spec']['prompt'])
         args = {'name':record['spec']['recipe']+' · '+local_task[-8:], 'nodeType':'image',
                 'idempotencyKey':key+':node', 'projectId':project, 'model':record['prepared']['modelKey'],
                 'prompt':record['spec']['prompt'], 'params':record['params'],

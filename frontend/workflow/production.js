@@ -1,10 +1,10 @@
 import {escapeHTML as esc, assetURL, categories, belongsToSelection} from './model.js';
 import {elapsedLabel} from './progress.js';
-import {returnedResult, reviewDraft, field, quoteEditor, reviewIssues, reviewSaveBar} from './production-editor.js';
+import {returnedResult, reviewDraft} from './production-editor.js';
+import {productionBoard} from './production-board.js';
+import {linkedText} from './production-references.js';
 
 export const productionRunning = job => ['preparing','submitting','running','reviewing'].includes(job?.status);
-const list = items => items?.length ? `<ul>${items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="wf-muted">暂无补充</p>';
-const evidence = items => items.map(e=>`<button class="wf-evidence" data-wf-source="${e.startLine}" data-wf-source-end="${e.endLine}">L${e.startLine}–${e.endLine} · ${esc(e.quote)}</button>`).join('');
 const dialogueKinds = {dialogue:'对白',inner_monologue:'内心独白',narration:'旁白',voiceover:'画外音',offscreen:'画外对白',system_voice:'系统音',unknown:'待确认'};
 export function dialogueText(job, shot) {
   const names=new Map((job.characters||[]).map(c=>[c.id,c.name]));
@@ -19,10 +19,11 @@ export function referenceCards(job,shot,assets,selection,apiBase) {
     const binding=(job.bindings||[]).find(b=>b.assetId===ref.assetId&&b.stateId===ref.stateId);
     const asset=binding&&assets.find(a=>a.entityId===binding.entityId&&a.active);
     // Preview never substitutes pending/rejected/stale or another owner's image.
-    const candidates=job.status==='ready'&&!job.stale&&!binding?.changed?(asset?.revisions||[]).filter(r=>r.status==='ready'&&r.review==='approved'&&belongsToSelection(r,selection)):[];
-    const revision=[...candidates].sort((a,b)=>({refine:3,asset:2,style:1}[b.stage]-{refine:3,asset:2,style:1}[a.stage])||b.createdAt.localeCompare(a.createdAt))[0];
+    const candidates=job.status==='ready'&&!job.stale&&!binding?.changed?(asset?.revisions||[]).filter(r=>['asset','refine'].includes(r.stage)&&r.status==='ready'&&r.review==='approved'&&belongsToSelection(r,job.ownership||selection)):[];
+    const versions=[...candidates].sort((a,b)=>({refine:3,asset:2}[b.stage]-{refine:3,asset:2}[a.stage])||b.createdAt.localeCompare(a.createdAt));
+    const revision=ref.revisionId?versions.find(r=>r.id===ref.revisionId):versions[0];
     return {name:`${item?.name||ref.assetId} · ${state?.name||ref.stateId}`,category:item?.category,entityId:binding?.entityId,
-      saved:binding?.saved,changed:binding?.changed,src:revision?assetURL(apiBase,asset.id,revision.id,true):null};
+      saved:binding?.saved,changed:binding?.changed,revisionId:revision?.id,pinned:Boolean(ref.revisionId),versions,src:revision?assetURL(apiBase,asset.id,revision.id,true):null};
   });
 }
 function cardsHtml(cards, controls=false) {
@@ -37,9 +38,9 @@ export function previewFrame(job,index,{assets=[],selection,apiBase='/api/v1'}={
   const shot=returnedResult(job).shots[index];if(!shot)return '';
   const lines=dialogueText(job,shot);
   const cards=referenceCards(job,shot,assets,selection,apiBase);
-  return `<div class="wf-production-screen" data-ratio="${esc(returnedResult(job).aspectRatio)}"><p class="wf-eyebrow">镜头 ${String(index+1).padStart(3,'0')} · ${esc(shot.framing)}</p><h4>${esc(shot.purpose)}</h4>${cardsHtml(cards)}<p class="wf-production-action">${esc(shot.beat)}</p><p>${esc(shot.performance)}</p>${lines.map(d=>`<p class="wf-production-dialogue"><small>${esc(d.label)}</small><br>${esc(d.text)}</p>`).join('')}<p class="wf-muted">${cards.some(c=>c.src)?'已审核资产示意 · 尚非最终分镜画面':'文字图板预演 · 分镜图片尚未生成'}</p></div><p class="wf-muted">镜头：${esc(shot.camera)}<br>声音设计：${esc(shot.sound)}</p>`;
+  return `<div class="wf-production-screen" data-ratio="${esc(returnedResult(job).aspectRatio)}"><p class="wf-eyebrow">镜头 ${String(index+1).padStart(3,'0')} · ${esc(shot.framing)}</p><h4>${esc(shot.purpose)}</h4>${cardsHtml(cards)}<p class="wf-production-action">${linkedText(shot.beat,returnedResult(job),shot)}</p><p>${esc(shot.performance)}</p>${lines.map(d=>`<p class="wf-production-dialogue"><small>${esc(d.label)}</small><br>${esc(d.text)}</p>`).join('')}<p class="wf-muted">${cards.some(c=>c.src)?'已审核资产示意 · 尚非最终分镜画面':'文字图板预演 · 分镜图片尚未生成'}</p></div><p class="wf-muted">镜头：${esc(shot.camera)}<br>声音设计：${esc(shot.sound)}</p>`;
 }
-export function productionPanel({script,analysis,job,enabled,connected,busy,error='',models=[],modelId,assets=[],selection,apiBase,draft=null,review=null}) {
+export function productionPanel({script,analysis,job,enabled,connected,busy,error='',models=[],modelId,assets=[],selection,apiBase,draft=null,review=null,view={},tasks=[],generationDraft={}}) {
   if(!script)return '<section class="wf-panel"><h3>先导入剧本</h3><button data-wf-nav="plan">返回剧本</button></section>';
   const ready=job?.status==='ready',running=productionRunning(job),canStart=!job||ready||job.canRetry;
   const result=review?.result||(draft&&returnedResult(job)?reviewDraft(job,draft).result:returnedResult(job));
@@ -52,27 +53,7 @@ export function productionPanel({script,analysis,job,enabled,connected,busy,erro
     if(job?.canRevalidate)html+='<button data-wf-action="production-revalidate">重新读取原返回结果</button>';
     return html+'</section>';
   }
-  const total=result.shots.reduce((sum,s)=>sum+s.durationSeconds,0),states=result.assets.reduce((sum,a)=>sum+a.states.length,0);
-  const changed=Boolean(review||draft),issues=job.validationIssues||[];
-  html+=`<div class="wf-analysis-counts"><span><b>${result.assets.length}</b> 项基础物料</span><span><b>${states}</b> 个物料状态</span><span><b>${result.shots.length}</b> 个镜头</span><span><b>${Math.round(total)}</b> 秒预演建议</span></div>`;
-  html+=reviewSaveBar(job,changed,busy);
-  html+=`<div class="wf-actions wf-production-jumps"><button data-wf-action="production-assets-open">查看物料与状态</button><button data-wf-action="production-shots-open">查看分镜与提示词</button><button data-wf-action="production-preview-open">播放分镜预演</button>${issues.length?`<button data-wf-action="production-issues-open">核对 ${issues.length} 处问题</button>`:''}</div>`;
-  html+=reviewIssues(job,result);
-  html+=`<details><summary>美术设定与待确认项</summary>${field('美术设定（创作建议）','styleBible',result.styleBible,{max:4000,rows:5})}<p class="wf-muted">这里的修改随制作方案保存，不会自动覆盖全局风格。</p>${list(result.uncertainties)}</details>`;
-  html+=`<details open data-wf-production-assets><summary>物料与状态清单 · ${result.assets.length} 项物料 / ${states} 个状态</summary><div class="wf-grid">${result.assets.map((asset,ai)=>`<article class="wf-production-asset"><p class="wf-eyebrow">${categories[asset.category]}${issues.some(i=>i.path.startsWith('assets.'+ai+'.'))?' · 引用待核对':''}</p><h4>${esc(asset.name)}</h4>${field('物料名称',`assets.${ai}.name`,asset.name,{max:100,rows:1})}${field('物料设计',`assets.${ai}.design`,asset.design,{max:1500})}<details><summary>创作建议（原文未限定）</summary>${list(asset.creativeChoices)}</details>${asset.states.map((state,si)=>`<details ${si===0?'open':''}><summary>${esc(state.name)}</summary>${field('状态名称',`assets.${ai}.states.${si}.name`,state.name,{max:100,rows:1})}${field('状态描述',`assets.${ai}.states.${si}.description`,state.description,{max:1500})}${field('资产图提示词',`assets.${ai}.states.${si}.imagePrompt`,state.imagePrompt,{max:2500,rows:5})}<fieldset><legend>适用场次</legend>${result.scenePlans.map((scene,sc)=>`<label class="wf-analysis-check"><input type="checkbox" data-wf-production-field="assets.${ai}.states.${si}.sceneIds" value="${esc(scene.sceneId)}" ${state.sceneIds?.includes(scene.sceneId)?'checked':''}> 场次 ${sc+1}</label>`).join('')}</fieldset></details>`).join('')}<details><summary>查看 / 修改原文依据</summary>${quoteEditor(asset.evidence,`assets.${ai}.evidence`)}</details></article>`).join('')}</div></details>`;
-  html+=`<details><summary>场次空间与连续性</summary>${result.scenePlans.map((s,i)=>`<article class="wf-production-asset"><h4>场次 ${i+1}</h4>${field('空间布局',`scenePlans.${i}.spatialLayout`,s.spatialLayout)}${field('光线',`scenePlans.${i}.lighting`,s.lighting)}${field('情绪变化',`scenePlans.${i}.emotionalArc`,s.emotionalArc)}${list(s.continuity)}</article>`).join('')}</details>`;
-  html+=`<details data-wf-production-preview><summary>分镜图板预演 · ${Math.round(total)} 秒</summary><p class="wf-note">使用上次保存的方案，按建议时长播放镜头说明和原文台词；物料审核后可显示参考缩略图。当前不是生成的视频，系统试读也不是正式角色配音。${!ready?'此方案还有待核对内容，仅供草稿预览。':''}</p><div data-wf-preview-frame>${previewFrame(job,0,{assets,selection,apiBase})}</div><progress data-wf-preview-progress value="0" max="${total}" aria-label="分镜预演播放进度"></progress><p data-wf-preview-time class="wf-muted">0 / ${Math.round(total)} 秒</p><div class="wf-actions"><button data-wf-action="production-play">播放</button><button data-wf-action="production-pause">暂停</button><button data-wf-action="production-prev">上一镜</button><button data-wf-action="production-next">下一镜</button><button data-wf-action="production-rewind">从头播放</button></div><label><input type="checkbox" data-wf-preview-voice> 使用浏览器系统试读原文台词（非最终配音，仍需校准时长）</label></details>`;
-  html+=`<details open data-wf-production-shots><summary>逐镜设计与提示词 · ${result.shots.length} 个镜头</summary><p class="wf-muted">展开镜头即可修改表演、画面、提示词和物料状态。原文台词单独保留。修改后点击“保存修改并检查”。</p>${result.shots.map((shot,index)=>{
-    const path=`shots.${index}`;
-    return `<details class="wf-production-shot" ${index===0?'open':''}><summary>${String(index+1).padStart(3,'0')} · ${esc(shot.purpose)} · ${shot.durationSeconds} 秒${issues.some(i=>i.path.startsWith(path+'.'))?' · 引用待核对':''}</summary>${field('镜头目的',path+'.purpose',shot.purpose,{max:400,rows:2})}${field('动作',path+'.beat',shot.beat,{max:800})}<div class="wf-form-grid">${field('画面构图',path+'.framing',shot.framing,{max:500})}${field('摄影机',path+'.camera',shot.camera,{max:500})}</div>${cardsHtml(referenceCards(job,shot,assets,selection,apiBase),true)}<details><summary>修改镜头物料状态</summary>${shot.references.map((ref,ri)=>{const asset=result.assets.find(a=>a.id===ref.assetId);return `<label>${esc(asset?.name||ref.assetId)}<select data-wf-production-field="${path}.references.${ri}.stateId">${asset?.states.some(s=>s.id===ref.stateId)?'':`<option value="${esc(ref.stateId)}">当前状态无效，请选择</option>`}${(asset?.states||[]).map(s=>`<option value="${esc(s.id)}" ${s.id===ref.stateId?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label>`;}).join('')}</details>${field('建议时长（秒）',path+'.durationSeconds',shot.durationSeconds,{number:true,max:60})}${field('人物表演',path+'.performance',shot.performance,{max:1500})}${field('开始状态',path+'.startState',shot.startState)}${field('结束状态',path+'.endState',shot.endState)}${dialogueText(job,shot).map(d=>`<blockquote><small>${esc(d.label)} · 剧本原文</small><br>${esc(d.text)}</blockquote>`).join('')}${field('声音设计',path+'.sound',shot.sound)}${field('分镜静帧提示词',path+'.imagePrompt',shot.imagePrompt,{max:3000,rows:5})}${field('视频动作提示词',path+'.videoPrompt',shot.videoPrompt,{max:3000,rows:5})}<b>连续性检查</b>${list(shot.continuity)}<details><summary>查看 / 修改原文依据</summary>${quoteEditor(shot.evidence,path+'.evidence')}</details></details>`;
-  }).join('')}</details>`;
-  html+=`<div class="wf-production-handoff"><h4>继续制作资产</h4><p class="wf-muted">${!ready?'先核对标注的问题并保存，即可将物料加入资产清单。':changed?'先保存当前修改，再将物料加入资产清单。':'引用与关联检查通过，请核对创作内容后继续。'}</p><label class="wf-analysis-check"><input type="checkbox" data-wf-production-reviewed> 我已核对物料、状态和创作建议</label><button class="primary" data-wf-action="production-plan" ${busy||job.stale||!ready||changed?'disabled':''}>加入资产清单草稿 →</button><p class="wf-muted">仅新增本方案物料；保留现有条目和图片。</p></div>`;
-  html+='<details><summary>原始返回与其他操作</summary><p class="wf-muted">AI 原始返回保留不变，手动修改另存为方案。</p>';
-  if(job.returnedText)html+=`<details><summary>查看 AI 原始返回</summary><pre class="wf-production-raw">${esc(job.returnedText)}</pre></details>`;
-  if(job?.canRevalidate)html+='<button data-wf-action="production-revalidate">重新核验原返回结果</button><p class="wf-muted">更新后的程序可重新核验原回执，不会新增 AI 调用。若内容仍不完整，会保留具体问题。</p>';
-  if(job?.canRepairProduction)html+='<div class="wf-note"><label><input type="checkbox" data-wf-production-repair-spend> 允许 AI 修正原结果（额外 1 次文本调用）</label><button data-wf-action="production-repair">修正引用与物料关联</button><p class="wf-muted">保留原文和已有方案，让 AI 修正核验问题；本轮最多修正一次，不自动重试。</p></div>';
-  html+=startControls+'</details>';
-  return html+'</section>';
+  return productionBoard({script,analysis,job,enabled,connected,busy,error,models,modelId,assets,selection,apiBase,draft,review,result,startControls,view,tasks,generationDraft},{referenceCards,cardsHtml,dialogueText,previewFrame});
 }
 
 export function createPreview({root,getContext,onStatus=()=>{}}) {
@@ -81,7 +62,7 @@ export function createPreview({root,getContext,onStatus=()=>{}}) {
   function stop(){if(timer)clearInterval(timer);timer=null;win.speechSynthesis?.cancel();spoken=-1;}
   function sync(){const ctx=getContext(),job=ctx.job;if(!returnedResult(job))return null;if(jobId!==job.id){stop();jobId=job.id;elapsed=0;index=-1;}return ctx;}
   function draw(){const ctx=sync();if(!ctx)return;const {job}=ctx,shots=returnedResult(job).shots,total=shots.reduce((sum,s)=>sum+s.durationSeconds,0),current=timelineAt(shots,elapsed);
-    const target=root.querySelector('[data-wf-preview-frame]');if(!target||!root.querySelector('[data-wf-production-preview]')?.open){stop();return;}
+    const target=root.querySelector('[data-wf-preview-frame]');if(!target||!root.querySelector('[data-wf-production-preview]')){stop();return;}
     if(index!==current.index){index=current.index;target.innerHTML=previewFrame(job,index,ctx);}
     const progress=root.querySelector('[data-wf-preview-progress]');if(progress){progress.max=total;progress.value=Math.min(elapsed,total);}
     const label=root.querySelector('[data-wf-preview-time]');if(label)label.textContent=`${Math.floor(elapsed)} / ${Math.round(total)} 秒 · 镜头 ${index+1} / ${shots.length}`;

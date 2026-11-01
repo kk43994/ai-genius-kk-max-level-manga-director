@@ -64,6 +64,8 @@ def register_routes(router, services):
         add('POST', '/production-jobs/{productionId}/repair', lambda c,p,b,q: production.repair_plan(c,p['productionId'],b))
         add('POST', '/production-jobs/{productionId}/retry-rejected', lambda c,p,b,q: production.retry_submission(c,p['productionId']))
         add('GET', '/production-jobs/{productionId}/plan', lambda c,p,b,q: production.candidate(c,p['productionId']))
+        add('GET', '/production-jobs/{productionId}/shots/{shotId}/references', lambda c,p,b,q: production.reference_packet(c,p['productionId'],p['shotId']))
+        add('POST', '/production-jobs/{productionId}/images/prepare', lambda c,p,b,q: production.prepare_image(c,p['productionId'],b))
     add('GET', '/projects', lambda c, p, b, q: workflow.list_projects(c))
     add('POST', '/projects', lambda c, p, b, q: workflow.create_project(c, b))
     add('GET', '/projects/{projectId}', lambda c, p, b, q: workflow.get_project(c, p['projectId']))

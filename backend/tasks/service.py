@@ -302,7 +302,7 @@ class TaskService:
             self._expect(task, expectedVersion)
             if not self.policy.allow_paid_submission:
                 raise TaskError("PAID_SUBMISSION_DISABLED", "开发验收期间生成提交已关闭，任务草稿已保留。", 403)
-            if task["recipe"] not in {"mj_style", "image2_asset", "nano_refine", "script_analysis"}:
+            if task["recipe"] not in {"mj_style", "image2_asset", "nano_refine", "storyboard_image", "script_analysis"}:
                 raise TaskError("VIDEO_GENERATION_DISABLED", "正式视频生成仍暂停。", 403)
             if task["submissionAttempted"]:
                 raise TaskError("SUBMISSION_ALREADY_ATTEMPTED", "此任务已尝试提交，只能查回原任务。", 409)

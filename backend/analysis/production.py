@@ -7,6 +7,7 @@ import copy
 import hashlib
 import json
 import math
+import re
 from jsonschema import Draft202012Validator
 from backend.workflow.errors import WorkflowError, public_input
 from .asset_prompts import EVIDENCE
@@ -34,14 +35,18 @@ STATE = obj({'id': ID, 'name': string(100), 'description': string(1500),
 ASSET = obj({'id': ID, 'category': {'enum': ['character', 'scene', 'prop']},
              'name': string(100), 'sourceIds': IDS, 'evidence': arr(EVIDENCE, 1, 12),
              'design': string(1500), 'creativeChoices': TEXTS, 'states': arr(STATE, 1, 12)})
+ASSET['properties']['origin'] = {'const': 'manual'}
 SCENE = obj({'sceneId': ID, 'locationAssetId': ID, 'spatialLayout': string(),
              'lighting': string(), 'emotionalArc': string(), 'continuity': TEXTS})
+REFERENCE = obj({'assetId': ID, 'stateId': ID})
+REFERENCE['properties']['revisionId'] = ID  # Optional, explicitly pinned by user.
+MENTION = re.compile(r'\{\{asset:([a-zA-Z0-9_-]{1,80})\}\}')
 SHOT = obj({'id': ID, 'sceneId': ID, 'order': {'type': 'integer', 'minimum': 1},
             'durationSeconds': {'type': 'number', 'minimum': 1, 'maximum': 60},
             'purpose': string(400), 'beat': string(800), 'framing': string(500),
             'camera': string(500), 'performance': string(1500),
             'startState': string(), 'endState': string(),
-            'references': arr(obj({'assetId': ID, 'stateId': ID}), 1, 20),
+            'references': arr(REFERENCE, 1, 20),
             'dialogueIds': IDS, 'eventIds': IDS,
             'imagePrompt': string(3000, 20), 'videoPrompt': string(3000, 20),
             'sound': string(), 'continuity': TEXTS, 'evidence': arr(EVIDENCE, 1, 12)})
@@ -63,7 +68,7 @@ def instruction(script, context, repair=None):
 states.imagePrompt是完整的单一状态资产图提示词，固定人物身份/服装/材质/光线，场景用空镜，道具突出结构。角色使用单人独立参考图，不拼三视图。避免8K、大师级等空词。资产图不演绎整段剧情。
 scenePlans覆盖每个分析场次，给出可执行的空间布局、光线、情绪变化和跨镜连续性。
 shots按影片播放顺序全局连续编号。每镜有明确叙事目的、主动作、景别、机位、运镜、人物表演、首尾状态、画面与声音。动作复杂时拆镜，听者应有反应，不把一场戏压成一句概括。镜头时长是预演建议，要容纳完整对白、停顿与动作；不要所有镜头同一时长。
-每镜references必须准确引用本方案的assetId/stateId，包含该镜使用的场景、在场人物和关键道具。即使跨镜仍需重复列出引用，不能只在首镜列。状态应符合时序，跨镜的脸、服装、湿度、伤情、手中道具、视线方向、绳索、火势须连贯。
+每镜references必须准确引用本方案的assetId/stateId，包含该镜使用的场景、在场人物和关键道具。beat、imagePrompt、videoPrompt 中需要引用具体物料时，用 {{asset:物料ID}} 代替该物料名称，让描述关联真实档案；每个标签都必须出现在本镜 references 中。不要输出 revisionId，它由用户审核图片后选择。即使跨镜仍需重复列出引用，不能只在首镜列。状态应符合时序，跨镜的脸、服装、湿度、伤情、手中道具、视线方向、绳索、火势须连贯。
 每句analysis.dialogues必须且只能出现在一个镜头的dialogueIds中，使用原ID，不能改写台词，不可漏句。画外音/OS写入sound，不做说话口型。较长台词留足时间，可设计单镜表演或在后期切入听者反应。全部analysis.events至少有一个镜头eventIds引用。每场都有镜头。不要凭空添加对白或事件。
 shots.imagePrompt描述具体分镜静帧构图和首帧；videoPrompt描述主体动作、表演变化、镜头与环境运动，独立可读，引用的资产名称明确。对白由dialogueIds精确关联，不重新编造对白。原文明确的拍摄限制也必须保留。
 只规划画面和声音，不假称已生成图片/配音/视频；不输出URL、文件路径、凭证或审核通过结论。全方案是待人审的创作建议。
@@ -102,6 +107,8 @@ def validate(result, script, context):
     covered_characters = set()
     for asset in assets.values():
         evidence(asset['evidence'])
+        if asset.get('origin') == 'manual' and asset['category'] != 'prop':
+            fail('手动新增档案目前只支持补充道具。')
         allowed = characters & present if asset['category'] == 'character' else locations if asset['category'] == 'scene' else set()
         if not set(asset['sourceIds']) <= allowed or (asset['category'] != 'prop' and not asset['sourceIds']):
             fail('物料关联了错误的人物或地点，或将仅被提及的人物当作出场角色。')
@@ -137,6 +144,10 @@ def validate(result, script, context):
         if any(e['startLine'] < scene['startLine'] or e['endLine'] > scene['endLine'] for e in shot['evidence']):
             fail('镜头原文引用超出了所属场次。')
         refs = shot['references']
+        ref_ids = {r['assetId'] for r in refs}
+        for field in ('beat', 'imagePrompt', 'videoPrompt'):
+            if not set(MENTION.findall(shot[field])) <= ref_ids or '{{asset:' in MENTION.sub('', shot[field]):
+                fail('镜头描述中的物料标签未绑定有效档案，请重新选择引用。')
         if len({r['assetId'] for r in refs}) != len(refs): fail('一个镜头不能同时引用同一物料的两个状态。')
         for ref in refs:
             asset = assets.get(ref['assetId'])
@@ -173,6 +184,10 @@ def entity_id(script_id, asset_id, state_id):
     return 'ent_pd_' + hashlib.sha256(('\0'.join((script_id, asset_id, state_id))).encode()).hexdigest()[:24]
 
 
+def shot_entity_id(script_id, shot_id):
+    return 'ent_shot_' + hashlib.sha256((script_id+'\0'+shot_id).encode()).hexdigest()[:24]
+
+
 def candidates(result, script):
     rows = []
     names = set()
@@ -185,7 +200,9 @@ def candidates(result, script):
             names.add(name)
             rows.append({'id': entity_id(script['id'], asset['id'], state['id']), 'category': asset['category'],
                 'name': name, 'description': ('美术建议：' + result['styleBible'][:800] + '\n' + asset['design'] + '\n状态：' + state['description'] + '\n资产图要求：' + state['imagePrompt'])[:4000],
-                'variant': state['name'], 'origin': 'script', 'quote': asset['evidence'][0]['quote'], 'scriptId': script['id']})
+                'variant': state['name'], 'origin': asset.get('origin', 'script'),
+                'quote': '' if asset.get('origin') == 'manual' else asset['evidence'][0]['quote'],
+                'scriptId': script['id']})
     return rows
 
 
@@ -275,6 +292,8 @@ class ProductionService(AnalysisService):
             # has a separate review state, not a transport or generation error.
             result['error'] = None
         result['bindings'] = []
+        result['shotBindings'] = [{'shotId':s['id'], 'entityId':shot_entity_id(result['scriptId'],s['id'])}
+                                  for s in (result.get('result') or result.get('draftResult') or {}).get('shots', [])]
         if result['result']:
             script = self.services.workflow.get_script(ctx, result['projectId'], result['scriptId'])
             for candidate in candidates(result['result'], script):
@@ -319,6 +338,78 @@ class ProductionService(AnalysisService):
             # atomically so it cannot replace a newer manual correction.
             if legacy: tx.update('production.edits', identity, {'jobId': identity, 'shots': {}}, expected_version=legacy['version'])
         return self.get(ctx, identity)
+
+    def reference_packet(self, ctx, identity, shot_id):
+        from .production_references import build_packet
+        job = self.get(ctx, identity)
+        if job['status'] != 'ready' or job['stale']:
+            raise WorkflowError('PRODUCTION_NOT_READY', '请先保存并核对当前制作方案。', 409)
+        shot = next((s for s in job['result']['shots'] if s['id'] == shot_id), None)
+        if not shot:
+            raise WorkflowError('NOT_FOUND', '未找到这个镜头。', 404)
+        owner = self._get(ctx, identity)['data']['ownership']
+        library = self.services.workflow.list_assets(ctx, job['projectId'])['items']
+        return build_packet(job, shot, library, owner)
+
+    def prepare_image(self, ctx, identity, body):
+        """Human-operated canvas generation. Preparation still requires submit confirmation."""
+        from backend.workflow.service import owner_key
+        public_input(body, {'assetId','stateId','shotId','recipe','prompt','sourceRevisionIds','settings',
+                            'expectedReviewVersion','expectedEditVersion','expectedPlanVersion',
+                            'expectedSelectionRevision','idempotencyKey'})
+        job = self.get(ctx, identity)
+        if job['status'] != 'ready' or job['stale']:
+            raise WorkflowError('PRODUCTION_NOT_READY', '当前方案有未核对内容，请先保存修改。', 409)
+        if body.get('expectedReviewVersion') != job['reviewVersion'] or body.get('expectedEditVersion') != job['editVersion']:
+            raise WorkflowError('VERSION_CONFLICT', '方案已更新，请刷新后核对，尚未提交生图。', 409)
+        selection = self.services.tasks._selection(ctx)
+        owner = self.services.tasks._owner(ctx, selection)
+        original_owner = self._get(ctx, identity)['data']['ownership']
+        if owner_key(owner) != owner_key(original_owner):
+            raise WorkflowError('OWNERSHIP_MISMATCH', '请使用本方案原账号与空间制作，不能混用其他账号的参考图。', 409)
+        if selection['revision'] != body.get('expectedSelectionRevision'):
+            raise WorkflowError('SELECTION_CHANGED', '当前账号选择已变化，请重新核对。', 409)
+        recipe = body.get('recipe')
+        script = self.services.workflow.get_script(ctx, job['projectId'], job['scriptId'])
+        if recipe == 'storyboard_image':
+            packet = self.reference_packet(ctx, identity, body.get('shotId'))
+            if not packet['ready']:
+                raise WorkflowError('REFERENCE_REQUIRED', '本镜还有物料未制图、未审核或未选定版本，请在引用卡片中处理。', 409)
+            shot = next(s for s in job['result']['shots'] if s['id'] == body['shotId'])
+            refs = [r['revisionId'] for r in packet['references']]
+            prompt = body.get('prompt', packet['prompt'])
+            if isinstance(prompt,str):
+                mapping={r['assetId']:r['name'] for r in packet['references']}
+                prompt=MENTION.sub(lambda m:mapping.get(m.group(1),'未绑定物料'),prompt)
+                prompt='\n'.join(r['name']+'='+ '{{reference:'+r['revisionId']+'}}' for r in packet['references'])+'\n'+prompt
+            candidate = {'id':shot_entity_id(job['scriptId'],shot['id']), 'category':'shot',
+                         'name':f"分镜 {job['result']['shots'].index(shot)+1:03d} · {shot['purpose']}"[:120],
+                         'description':('方案签名：'+hashlib.sha256(json.dumps({'shot':shot,'refs':refs},ensure_ascii=False,sort_keys=True).encode()).hexdigest()+'\n'+shot['purpose'])[:4000],
+                         'origin':'manual','quote':'','variant':'分镜静帧'}
+        elif recipe in ('mj_style','image2_asset','nano_refine'):
+            target = entity_id(job['scriptId'], str(body.get('assetId')), str(body.get('stateId')))
+            candidate = next((e for e in candidates(job['result'],script) if e['id']==target), None)
+            if candidate is None:
+                raise WorkflowError('NOT_FOUND', '未找到这个物料状态。', 404)
+            prompt = body.get('prompt')
+            refs = body.get('sourceRevisionIds', [])
+        else:
+            raise WorkflowError('GENERATION_DISABLED', '请选择已接入的图片制作方式。', 422)
+        if not isinstance(prompt,str) or not 1<=len(prompt.strip())<=20000:
+            raise WorkflowError('INPUT_INVALID', '请填写有效的生图提示词。', 422)
+        plan = self.services.workflow.get_plan(ctx,job['projectId'])
+        existing = next((e for e in plan['entities'] if e['id']==candidate['id']),None)
+        fields = ('category','name','description','origin','quote','variant')
+        if not existing or any(existing.get(k,'')!=candidate.get(k,'') for k in fields):
+            if body.get('expectedPlanVersion') != plan['version']:
+                raise WorkflowError('VERSION_CONFLICT','资产清单已更新，请刷新后再操作。',409)
+            allowed={'id','category','name','description','origin','quote','scriptId','variant'}
+            entities = [{k:copy.deepcopy(v) for k,v in e.items() if k in allowed} for e in plan['entities'] if e['id']!=candidate['id']]+[candidate]
+            self.services.workflow.save_plan(ctx,job['projectId'],{'expectedVersion':plan['version'],
+                'stylePrompt':plan['stylePrompt'],'entities':entities})
+        return self.services.tasks.prepare(ctx,{'projectId':job['projectId'],'entityId':candidate['id'],
+            'recipe':recipe,'prompt':prompt,'sourceRevisionIds':refs,'settings':body.get('settings',{})},
+            body.get('expectedSelectionRevision'),body.get('idempotencyKey'))
 
     @staticmethod
     def _apply_edits(result, edits):

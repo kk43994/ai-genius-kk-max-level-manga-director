@@ -67,7 +67,7 @@ def make_adapter(services,task_repository, *, local_images=False):
                 resolver=PublicMediaResolver(('libtv-res.liblib.art','libtv-resource-prod.oss-accelerate.aliyuncs.com')),
                 evidence='2026-10-28 official prepare_project_delivery observed permanent media host'),
             recipes={key:RecipeBinding(model, evidence='2026-10-28 official search_models and get_model')
-                for key,model in [('mj_style','mj-v8.1'),('image2_asset','lib-image-2'),('nano_refine','nebula-2.1')]},
+                for key,model in [('mj_style','mj-v8.1'),('image2_asset','lib-image-2'),('storyboard_image','lib-image-2'),('nano_refine','nebula-2.1')]},
             catalog=ToolCatalog(catalog_data['tools'], evidence=catalog_data['source']),
             reference_route=LiveReferenceRoute(),
             policy=GenerationPolicy(allow_external_writes=True))

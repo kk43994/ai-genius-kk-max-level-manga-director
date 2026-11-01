@@ -48,6 +48,62 @@ class ProductionTests(unittest.TestCase):
         self.production.advance(self.ctx,job['id']);self.production.advance(self.ctx,job['id'])
         return self.production.get(self.ctx,job['id'])
 
+    def test_mentions_survive_save_and_reference_check_never_submits(self):
+        job=self.finish();before=len(self.provider.submissions);result=copy.deepcopy(job['result'])
+        result['shots'][0]['beat']='{{asset:a_lin}}把{{asset:a_letter}}交给{{asset:a_ning}}。'
+        result['shots'][0]['references'][0]['revisionId']='fixed_version'
+        updated=self.production.save_review(self.ctx,job['id'],{'expectedVersion':0,'expectedEditVersion':0,'result':result})
+        self.assertEqual(updated['status'],'ready')
+        self.assertEqual(updated['result']['shots'][0]['beat'],result['shots'][0]['beat'])
+        packet=self.production.reference_packet(self.ctx,job['id'],'shot_1')
+        self.assertFalse(packet['ready']);self.assertEqual(packet['readyCount'],0)
+        self.assertFalse(packet['submissionCreated']);self.assertEqual(len(self.provider.submissions),before)
+        with self.assertRaises((WorkflowError,StorageError)):self.production.reference_packet(self.other,job['id'],'shot_1')
+        with self.assertRaises(WorkflowError):self.production.reference_packet(self.ctx,job['id'],'missing')
+        result['shots'][0]['imagePrompt']+='{{asset:not_bound}}'
+        with self.assertRaises(WorkflowError):validate(result,self.script,self.context)
+
+    def test_manual_prop_handoff_preserves_creative_provenance(self):
+        job=self.finish();result=copy.deepcopy(job['result'])
+        prop=copy.deepcopy(result['assets'][-1]);prop.update(id='manual_chair',origin='manual',name='椅子')
+        result['assets'].append(prop);result['shots'][0]['references'].append({'assetId':'manual_chair','stateId':'base'})
+        self.production.save_review(self.ctx,job['id'],{'expectedVersion':0,'expectedEditVersion':0,'result':result})
+        plan=self.production.candidate(self.ctx,job['id']);row=next(e for e in plan['entities'] if e['name'].startswith('椅子'))
+        self.assertEqual(row['origin'],'manual');self.assertEqual(row['quote'],'')
+        self.workflow.save_plan(self.ctx,self.project['id'],{k:plan[k] for k in ('expectedVersion','entities','stylePrompt')})
+        self.assertFalse(any(b['changed'] for b in self.production.get(self.ctx,job['id'])['bindings']))
+
+    def test_canvas_preparation_creates_only_requested_asset_and_preserves_owner(self):
+        job=self.finish();calls=[]
+        self.services.tasks.prepare=lambda ctx,spec,rev,key:calls.append(spec) or {'task':{'id':'synthetic'}}
+        plan=self.workflow.get_plan(self.ctx,self.project['id'])
+        body={'assetId':'a_lin','stateId':'base','recipe':'mj_style','prompt':'独立角色风格设计',
+              'expectedReviewVersion':0,'expectedEditVersion':0,'expectedPlanVersion':plan['version'],
+              'expectedSelectionRevision':1,'idempotencyKey':'canvas-test','settings':{'count':4}}
+        self.production.prepare_image(self.ctx,job['id'],body)
+        self.production.prepare_image(self.ctx,job['id'],body)
+        saved=self.workflow.get_plan(self.ctx,self.project['id'])
+        self.assertEqual(len(saved['entities']),len(plan['entities'])+1)
+        self.assertEqual(calls[0],calls[1]);self.assertEqual(calls[0]['recipe'],'mj_style')
+        self.assertEqual(len(self.provider.submissions),1)
+        self.services.tasks._owner=lambda ctx,sel:{**self.owner,'spaceId':'different'}
+        with self.assertRaises(WorkflowError):self.production.prepare_image(self.ctx,job['id'],body)
+
+    def test_reference_packet_pins_exact_approved_asset_and_owner(self):
+        from backend.analysis.production_references import build_packet
+        job=self.finish();shot=copy.deepcopy(job['result']['shots'][0]);shot['references']=[{'assetId':'a_lin','stateId':'base','revisionId':'r1'}]
+        shot['imagePrompt']='{{asset:a_lin}}站在书店门口，夕阳逆光，神情犹豫。'
+        job['bindings']=[{'assetId':'a_lin','stateId':'base','entityId':'e1','saved':True,'changed':False}]
+        revision={'id':'r1','stage':'asset','status':'ready','review':'approved','ownership':self.owner,'sha256':'a'*64,'contentUrl':'/local/content','thumbnailUrl':'/local/thumbnail'}
+        library=[{'entityId':'e1','active':True,'revisions':[revision]}]
+        packet=build_packet(job,shot,library,self.owner)
+        self.assertTrue(packet['ready']);self.assertIn('参考图1（林舟',packet['prompt']);self.assertNotIn('{{asset:',packet['prompt'])
+        self.assertEqual(packet['references'][0]['revisionId'],'r1')
+        for patch in ({'id':'newer'},{'stage':'style'},{'review':'pending'},{'status':'stale'},{'ownership':{**self.owner,'spaceId':'other'}}):
+            bad=[{**library[0],'revisions':[{**revision,**patch}]}]
+            blocked=build_packet(job,shot,bad,self.owner)
+            self.assertFalse(blocked['ready']);self.assertNotIn('contentUrl',blocked['references'][0])
+
     def test_one_call_preserves_script_analysis_and_old_assets(self):
         before=self.workflow.get_plan(self.ctx,self.project['id'])
         job=self.finish()

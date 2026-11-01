@@ -90,6 +90,25 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(getattr(raised.exception, 'code', None), code, str(raised.exception))
         return raised.exception
 
+    def test_storyboard_accepts_multiple_reviewed_assets_and_keeps_lineage(self):
+        refs=[self.chain(entity)[1] for entity in ('ent_character','ent_scene','ent_prop')]
+        plan=self.workflow.get_plan(self.ctx,self.project_id)
+        entities=[{k:v for k,v in e.items() if k in ('id','name','category','description','origin','variant','quote','scriptId')} for e in plan['entities']]
+        entities.append({'id':'ent_shot','name':'镜头 001','category':'shot','origin':'manual'})
+        self.workflow.save_plan(self.ctx,self.project_id,{'expectedVersion':plan['version'],'stylePrompt':plan['stylePrompt'],'entities':entities})
+        payload={'projectId':self.project_id,'entityId':'ent_shot','recipe':'storyboard_image','prompt':'人物站在庭院手持灯笼','sourceRevisionIds':[r['id'] for r in refs],'settings':{'count':1}}
+        checked=self.workflow.validate_task_inputs(self.ctx,payload,self.owner)
+        self.assertEqual(len(checked['sources']),3)
+        task={**payload,'id':'storyboard_task','ownership':self.owner,'status':'downloading','workflowSnapshot':checked['workflowSnapshot']}
+        image=self.workflow.record_output(self.ctx,task,png())
+        self.assertEqual(image['stage'],'storyboard');self.assertEqual(image['review'],'pending')
+        self.assertEqual(image['sourceRevisionIds'],payload['sourceRevisionIds'])
+        with self.assertRaises(WorkflowError):self.workflow.build_spec(self.ctx,payload,{**self.owner,'spaceId':'other'})
+        with self.assertRaises(WorkflowError):self.workflow.build_spec(self.ctx,{**payload,'recipe':'image2_asset'},self.owner)
+        self.review(refs[0],'changes_requested','人物衣服需要修改')
+        with self.assertRaises(WorkflowError):self.workflow.validate_task_inputs(self.ctx,payload,self.owner)
+        self.assertEqual(self.workflow.get_revision(self.ctx,image['id'],require_approved=False)['status'],'stale')
+
     def test_import_is_not_analysis_and_is_project_scoped(self):
         body = encoded('测试剧本.txt', '旅人来到庭院，拿起灯笼。'.encode())
         first = self.workflow.import_script(self.ctx, self.project_id, body)
