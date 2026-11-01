@@ -7,6 +7,10 @@ const revision=(id,stage)=>({id,stage,assetId:'library',createdAt:'2026-11-01',s
 test('candidate galleries are stage-specific and do not imply pending approval',()=>{
  const html=generationGallery([revision('style1','style'),revision('asset1','asset')],'/api/v1',{stage:'asset',category:'character'});
  assert.doesNotMatch(html,/style1/);assert.match(html,/asset1/);assert.match(html,/保留这版状态多视图/);assert.match(html,/待人工审核/);
+ const mixed=generationGallery([{...revision('old','asset'),status:'stale'},revision('current','asset')],'/api/v1',{stage:'asset',category:'character'});
+ const split=mixed.indexOf('<details');
+ assert.ok(split>0);assert.match(mixed.slice(0,split),/current/);assert.doesNotMatch(mixed.slice(0,split),/data-creator-keep="old"/);
+ assert.match(mixed.slice(split),/查看历史版本（1）/);assert.match(mixed.slice(split),/data-creator-keep="old" disabled/);
 });
 test('standard prompts distinguish people, scenes and props from the film aspect ratio',()=>{
  for(const [category,required] of [['character','头部特写'],['scene','反打视图'],['prop','白底正视图']]){
