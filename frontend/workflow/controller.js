@@ -60,7 +60,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   let filter = 'all', search = '', saveError = '', creating = Boolean(drafts.get('quick-start')?.text), focusedBeforeReview;
   const status = () => root.querySelector('[data-wf-status]');
   const listen = (target, event, handler) => { if (!target) return; target.addEventListener(event,handler); listeners.push(() => target.removeEventListener(event,handler)); };
-  const announce = message => { notice = message; if (status()) status().textContent = message; };
+  const announce = message => { notice = message; if (status() && !error && !saveError) status().textContent = message; };
   const currentAsset = () => assets.find(a => a.entityId === selectedEntity && a.active);
   const currentEntity = () => plan.entities.find(e => e.id === selectedEntity) || plan.entities[0];
   const planKey = () => `plan:${selected}`;
