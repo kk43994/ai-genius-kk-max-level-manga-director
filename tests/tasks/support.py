@@ -150,7 +150,7 @@ class FakeClient:
             raise self.provider.submit_error
         return deepcopy(self.provider.submit_result)
 
-    def lookup(self, ref):
+    def lookup(self, ref, *, local_task_id=None):
         self.provider.calls.append(("lookup", deepcopy(self.owner)))
         self.provider.lookups.append(deepcopy(ref))
         if self.provider.lookup_hook:

@@ -4,6 +4,7 @@ The default contract was verified through browser-approved account-read OAuth.
 Alternative contracts still require an explicit audited tool and subject path.
 """
 import json
+import logging
 from dataclasses import dataclass
 
 from backend.auth.errors import AuthError
@@ -50,6 +51,7 @@ class MCPReadSession:
         if result.status in (401, 403):
             raise AuthError('PROVIDER_AUTHORIZATION_REQUIRED')
         if result.status not in (200, 202, 204):
+            logging.getLogger(__name__).warning('MCP HTTP rejected: status=%s', result.status)
             raise AuthError('PROVIDER_UNAVAILABLE')
         session = next((v for k, v in result.headers.items() if k.lower() == 'mcp-session-id'), None)
         if session:
@@ -91,6 +93,7 @@ class MCPReadSession:
         # Only audited readers or the ownership/scope-bound adapter may call this.
         result = self._rpc('tools/call', {'name': tool['name'], 'arguments': arguments})
         if result.get('isError'):
+            logging.getLogger(__name__).warning('MCP tool returned error: tool=%s', tool['name'])
             blocks=result.get('content', [])
             text=blocks[0].get('text','') if isinstance(blocks,list) and len(blocks)==1 and isinstance(blocks[0],dict) else ''
             # A narrow observed preflight rejection, not an ambiguous timeout.

@@ -355,10 +355,10 @@ class BoundImageClient:
         self._finish(task_id, step, normalized)
         return normalized
 
-    def lookup(self, receipt):
+    def lookup(self, receipt, *, local_task_id=None):
         self._preflight_tools(['task_status'])
         receipt = safe_receipt(receipt)
-        task_id = self.a.bridge.task_for_receipt(self._owner, receipt)
+        task_id = self.a.bridge.task_for_receipt(self._owner, receipt, **({'local_task_id':local_task_id} if local_task_id is not None else {}))
         record = self._record(task_id)
         if receipt.get('projectId') != self._project(record['spec']['projectId']):
             raise GenerationError('OWNERSHIP_MISMATCH')

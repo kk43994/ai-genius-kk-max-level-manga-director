@@ -12,6 +12,31 @@ from helpers import FakeHTTP
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_mcp_upload_deadline_does_not_expand_oauth_deadline(self):
+        seen = []
+        class Response(io.BytesIO):
+            status = 200
+            headers = {'Content-Type': 'application/json'}
+        class Opener:
+            def open(self, request, *, timeout):
+                seen.append(timeout)
+                return Response(b'{}')
+        http = OfficialHTTP(); http._opener = Opener()
+        http.request('POST', RESOURCE)
+        http.request('GET', RESOURCE_METADATA)
+        self.assertEqual([60, 15], seen)
+
+    def test_transport_diagnostics_never_log_exception_or_credentials(self):
+        class Opener:
+            def open(self, *args, **kwargs):
+                raise URLError(TimeoutError('private-token-and-signed-url'))
+        http = OfficialHTTP(); http._opener = Opener()
+        with self.assertLogs('backend.providers.libtv_oauth', level='WARNING') as logs:
+            self.code('PROVIDER_UNAVAILABLE', lambda: http.request('POST', RESOURCE,
+                      data=b'private-script', headers={'Authorization': 'Bearer private-token'}))
+        self.assertIn('endpoint=mcp kind=timeout', logs.output[0])
+        self.assertNotIn('private', str(logs.output))
+
     def setUp(self):
         self.http = FakeHTTP()
         self.config = OAuthConfig('https://website.example/asset-lab/api/v1/oauth/libtv/callback', return_paths=('/', '/asset-lab/'))

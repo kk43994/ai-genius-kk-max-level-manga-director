@@ -50,6 +50,8 @@ TaskService 的 `inputs.sources` 有意保存 revisionId、ownership、sha256，
 
 ## 参考上传失败与收费不明必须区分
 
-TaskService 的 submissionAttempted 标记写在上传之前，用来防止整体重复调用。真实测试出现 upload_media 超时，此时只有项目回执，没有生成任务 ID。旧查询统一报回执缺失，导致永远无法继续。
+TaskService 的 submissionAttempted 标记写在上传之前，用来防止整体重复调用。真实测试出现 upload_media 未返回可确认结果，此时只有项目回执，没有生成任务 ID。旧查询统一报回执缺失，导致永远无法继续。
 
 LiveImageClient 查询原记录时，只有 journal steps 非空、全部为 upload_<sha256>、至少一个未完成、没有生成节点、收费 generation claim 或 originalReferenceRun，才返回 reference_upload / generationSubmitted=false。TaskService 还要求回执没有 nodeId 或 taskId，随后标记 failed + REFERENCE_UPLOAD_FAILED，保留 submissionAttempted=true 和全部旧记录。查询本身不上传、不生成；前端明确点击“重新准备本次生成”才创建新准备编号并重新确认。空日志、未知步骤、已进入节点／生成阶段一律保持原任务恢复限制。
+
+同一个项目可能有多条仅含 projectId 的上传失败回执。TaskService 恢复时传入服务端已解析的 local_task_id，bridge 按该任务校验原 owner 与完整回执，不再凭共享项目回执反查任意任务；旧的无任务 ID 调用遇到多条仍拒绝。MCP 传输单独允许 60 秒等待，OAuth 仍为 15 秒；不自动重试请求。诊断只记录固定的超时／传输分类、HTTP 状态、工具名，不记录上游正文、凭据或链接。

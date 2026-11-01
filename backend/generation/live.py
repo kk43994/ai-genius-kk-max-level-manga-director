@@ -180,9 +180,9 @@ class LiveImageClient(BoundImageClient):
                     and all(row.get('attempted') is True for row in steps.values())
                     and any(not row.get('done') for row in steps.values()))
 
-    def lookup(self, receipt):
+    def lookup(self, receipt, *, local_task_id=None):
         receipt = safe_receipt(receipt)
-        local_task = self.a.bridge.task_for_receipt(self._owner, receipt)
+        local_task = self.a.bridge.task_for_receipt(self._owner, receipt, **({'local_task_id':local_task_id} if local_task_id is not None else {}))
         record = self._record(local_task)
         if receipt.get('projectId') != self._project(record['spec']['projectId']):
             raise GenerationError('OWNERSHIP_MISMATCH')

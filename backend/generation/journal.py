@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 
 from .errors import GenerationError
-from .types import digest, owner, same_owner, safe_receipt
+from .types import digest, opaque, owner, same_owner, safe_receipt
 
 
 def context_for(source, ownership):
@@ -81,10 +81,11 @@ class TaskSubmissionBridge:
         if error:
             raise GenerationError(error)
 
-    def task_for_receipt(self, ownership, receipt):
+    def task_for_receipt(self, ownership, receipt, *, local_task_id=None):
         receipt = safe_receipt(receipt)
         with self.repository.transaction(context_for(self.ctx, ownership)) as tx:
-            rows = [t for t in tx.list_tasks() if same_owner(t['ownership'], ownership)
+            candidates = [tx.get_task(opaque(local_task_id))] if local_task_id is not None else tx.list_tasks()
+            rows = [t for t in candidates if t and same_owner(t['ownership'], ownership)
                     and t.get('providerReceipt') == receipt]
         if len(rows) != 1:
             raise GenerationError('ORIGINAL_RECEIPT_REQUIRED')

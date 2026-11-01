@@ -448,7 +448,7 @@ class TaskService:
                         current.update(status="draft", lease=None, error=None, confirmation=None)
                         self._save(tx, current)
                     return {"task": public_task(current)}
-            result = client.lookup(deepcopy(task["providerReceipt"]))
+            result = client.lookup(deepcopy(task["providerReceipt"]), local_task_id=task_id)
             if not isinstance(result, dict):
                 raise TaskError("LOOKUP_UNCONFIRMED", "官方任务状态尚未确认。", 409)
             ref = merge_receipt(task["providerReceipt"], result.get("providerReceipt"))
