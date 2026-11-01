@@ -86,4 +86,6 @@ test('storyboard generation carries source start state and continuity without ju
  assert.match(context.prompt,/单幅人物近景/);assert.match(context.prompt,/脸部近景/);
  assert.match(context.prompt,/人物仍在地面，手脚被绑/);assert.match(context.prompt,/没有椅子/);
  assert.doesNotMatch(context.prompt,/镜末被救起站立/);
+ const html=generationInspector({result:{shots:[shot],assets:[]},job:{status:'ready'},view:{kind:'shots',index:0,stage:'storyboard'},generationDraft:{prompt:'保留手工草稿'},apiBase:'/api/v1'});
+ assert.match(html,/data-generation-use-saved/);assert.match(html,/>保留手工草稿<\/textarea>/);
 });

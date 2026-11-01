@@ -671,6 +671,13 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(button.hasAttribute('data-image-models-refresh')){await loadImageModels(true);return;}
     if(button.hasAttribute('data-wf-download')){event.preventDefault();const url=new URL(button.href);const relative=url.pathname.slice(apiBase.length);if(relative.endsWith('/storyboard-export')&&drafts.get(`production:review:${production?.id}`)){announce('请先保存镜头编排，再下载图文分镜脚本。');return;}return perform(async()=>{const blob=await api.request(relative,{responseType:'blob'});const link=doc.createElement('a');const objectUrl=URL.createObjectURL(blob);link.href=objectUrl;link.download=relative.endsWith('/storyboard-export')?'分镜脚本与图片.zip':'asset-lab-approved-assets.zip';link.hidden=true;doc.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);announce('交付包已交给浏览器下载。');});}
     if(button.hasAttribute('data-director-reference')){if(Date.now()<suppressDirectorClickUntil)return;insertDirectorAsset(button.dataset.directorReference,button.dataset.directorState,button.dataset.directorRevision,boardView().index||0);return;}
+    if(button.hasAttribute('data-generation-use-saved')){
+      const form=button.closest('form'),inputs=Object.fromEntries(new FormData(form));
+      if(drafts.get(`production:review:${production?.id}`)||drafts.get(`production:edits:${production?.id}`)){announce('请先保存镜头编排，再载入镜头要求。');return;}
+      const c=generationContext({result:returnedResult(production),job:production,view:boardView(),assets,selection:session.selection});
+      if(!c.shot)return;
+      persist(boardGenerationKey(),{...inputs,prompt:c.prompt,prepareKey:key()});render();announce('已载入当前保存的镜头要求、首帧状态与连续性；原分镜内容未改动。');return;
+    }
     if(button.hasAttribute('data-character-layer')){updateBoard({characterLayer:button.dataset.characterLayer,stage:'asset'});return;}
     if(button.hasAttribute('data-creator-select')){updateBoard({index:Number(button.dataset.creatorSelect),kind:'assets',state:0,characterLayer:'master'});return;}
     if(button.hasAttribute('data-creator-go-stage')){const next=button.dataset.creatorGoStage;if(next==='asset')boardViews.set(production.id,{...boardView(),stage:'asset'});return navigate(next);}

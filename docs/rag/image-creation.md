@@ -32,6 +32,10 @@ LibTV 素材库使用官方 `search_assets` / `get_asset`。实测个人库查�
 
 代码：`backend/generation/model_catalog.py`、`backend/generation/asset_library.py`、`backend/workflow/reference_library.py`、`frontend/workflow/image-models.js`、`image-references.js`、`generation-batch.js`。截图与私有回执位于仓库外验收目录，项目知识源不保存客户内容。
 
+## 镜头与生图草稿同步
+
+导演台已保存镜头要求与当前生图草稿不同时，保留手工草稿，并显示“使用已保存镜头要求”。用户显式载入后带入当前构图、首帧和连续性，保留模型参数与其他选择。未保存的镜头修改须先保存；不静默覆盖手工提示词。
+
 ## 长时间等待
 
 官方 SSE 的 keepalive 只表示连接存活，不能重置单次请求的等待期限。`OfficialHTTP` 同时保留 socket 超时与按 monotonic 时钟计算的总等待上限，超时返回受控错误，不自动重试收费调用。相关认证协议测试 93 项通过。
