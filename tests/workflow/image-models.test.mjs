@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {selectedImageModel,collectImageSettings,imageModelPicker} from '../../frontend/workflow/image-models.js';
-import {batchSize,parallelGroups,missingStoryboardShots} from '../../frontend/workflow/generation-batch.js';
+import {batchSize,parallelGroups,missingStoryboardShots,repairStoryboardShots} from '../../frontend/workflow/generation-batch.js';
 
 const catalog={items:[{id:'official-pro',name:'Lib Image 2.5 Pro'},{id:'mj-real',name:'Style Image V8.1'}]};
 const contract={verified:true,schema:{properties:{count:{type:'integer',enum:[1,2,4]},ratio:{enum:['16:9','1:1']},seed:{type:'integer'},style:{enum:['raw','default']}}}};
@@ -44,4 +44,26 @@ test('missing-shot batches exclude uncertain tasks, returned images and unpinned
  assert.deepEqual(missingStoryboardShots(options,refs).map(r=>r.index),[4,9,10,11,12,13,14,15]);
  assert.deepEqual(missingStoryboardShots({...options,job:{...job,stale:true}},refs),[]);
  assert.equal(missingStoryboardShots({...options,tasks:[],assets:[]},()=>[{pinned:true,src:'image'}]).length,8);
+});
+
+
+test('repair batches require a rejected newest image and a matching completed receipt',()=>{
+ const owner={providerAccountId:'a',spaceId:'s'},shot={id:'s1'};
+ const options={job:{status:'ready',ownership:owner,shotBindings:[{shotId:'s1',entityId:'e'}]},result:{shots:[shot]},
+  assets:[{active:true,entityId:'e',revisions:[{id:'r',stage:'storyboard',status:'ready',review:'changes_requested',ownership:owner}]}],
+  tasks:[{entityId:'e',status:'completed',outputs:[{revisionId:'r'}]}]};
+ const refs=()=>[{pinned:true,src:'image'}];
+ assert.deepEqual(repairStoryboardShots(options,refs).map(s=>s.shot.id),['s1']);
+ for(const status of ['queued','prepared','failed','unknown_submission','needs_attention']){
+  assert.deepEqual(repairStoryboardShots({...options,tasks:[...options.tasks,{entityId:'e',status}]},refs),[]);
+ }
+ assert.deepEqual(repairStoryboardShots({...options,tasks:[]},refs),[]);
+ assert.deepEqual(repairStoryboardShots(options,()=>[{pinned:false,src:'image'}]),[]);
+ const revisions=options.assets[0].revisions;
+ revisions.push({...revisions[0],id:'new',review:'pending'});
+ assert.deepEqual(repairStoryboardShots(options,refs),[]);
+ revisions.pop();revisions[0].review='approved';
+ assert.deepEqual(repairStoryboardShots(options,refs),[]);
+ revisions[0].review='changes_requested';revisions[0].ownership={providerAccountId:'other',spaceId:'s'};
+ assert.deepEqual(repairStoryboardShots(options,refs),[]);
 });

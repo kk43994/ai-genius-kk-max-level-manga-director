@@ -16,6 +16,25 @@ export function missingStoryboardShots({job,result,assets=[],tasks=[],selection}
  }).slice(0,8);
 }
 
+// An explicit repair batch creates new tasks only for reviewed rejections.
+// Active, failed or ambiguous tasks always stay in their individual recovery flow.
+export function repairStoryboardShots({job,result,assets=[],tasks=[],selection},referenceCards){
+ if(!job||job.stale||job.status!=='ready')return [];
+ return result.shots.flatMap((shot,index)=>{
+  const binding=(job.shotBindings||[]).find(b=>b.shotId===shot.id);
+  if(!binding||binding.changed)return [];
+  const rows=tasks.filter(t=>t.entityId===binding.entityId);
+  if(rows.some(t=>!['completed','cancelled'].includes(t.status)))return [];
+  const library=assets.find(a=>a.active&&a.entityId===binding.entityId);
+  const versions=(library?.revisions||[]).filter(r=>r.stage==='storyboard'&&belongsToSelection(r,job.ownership||selection));
+  const latest=versions.at(-1);
+  if(latest?.review!=='changes_requested'||versions.some(r=>r.status==='ready'&&r.review==='approved'))return [];
+  if(!rows.some(t=>t.status==='completed'&&t.outputs?.some(o=>o.revisionId===latest.id)))return [];
+  const refs=referenceCards({...job,result},shot,assets,selection,'/api/v1');
+  return refs.length&&refs.every(r=>r.pinned&&r.src&&!r.changed)?[{shot,index}]:[];
+ }).slice(0,8);
+}
+
 export function batchSize(value){
  const n=Number(value||1);
  if(!Number.isInteger(n)||n<1||n>8)throw new Error('每批请选择 1 至 8 组。');

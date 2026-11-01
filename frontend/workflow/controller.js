@@ -5,7 +5,7 @@ import {returnedResult, reviewDraft, setReviewValue, valueAt, textLines} from '.
 import {assetToken,referenceLabel,readableText,storedText,linkedText,referencePicker,bindReference,removeReference,appendManualProp} from './production-references.js';
 import {generationContext,generationGallery} from './production-generation.js';
 import {extraReferences,referencePrompt,libraryPanel} from './image-references.js';
-import {batchSize,parallelGroups,missingStoryboardShots} from './generation-batch.js';
+import {batchSize,parallelGroups,missingStoryboardShots,repairStoryboardShots} from './generation-batch.js';
 import {selectedImageModel,collectImageSettings} from './image-models.js';
 import {creatorDesk} from './creator-desk.js';
 import {mountCanvas} from './production-canvas.js';
@@ -597,17 +597,18 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     }
     if(form.dataset.wfForm==='board-generation'){
       const view={...boardView()},inputs=Object.fromEntries(new FormData(form)),name=boardGenerationKey();
-      if(event.submitter?.hasAttribute('data-generation-missing-shots'))return perform(async()=>{
+      if(event.submitter?.hasAttribute('data-generation-missing-shots')||event.submitter?.hasAttribute('data-generation-repair-shots'))return perform(async()=>{
+        const repair=event.submitter.hasAttribute('data-generation-repair-shots');
         if(drafts.get(`production:review:${production?.id}`)||drafts.get(`production:edits:${production?.id}`))throw new Error('请先保存镜头编排，再批量准备分镜。');
         tasks=(await loadTasks(selected)).items;taskError='';
-        const result=returnedResult(production),targets=missingStoryboardShots({job:production,result,assets,tasks,selection:session.selection},referenceCards);
-        if(!targets.length)throw new Error('没有可批量准备的镜头。请先固定参考；已有图片或任务请逐镜查看，避免重复生成。');
+        const result=returnedResult(production),targets=(repair?repairStoryboardShots:missingStoryboardShots)({job:production,result,assets,tasks,selection:session.selection},referenceCards);
+        if(!targets.length)throw new Error(repair?'没有可批量返修的镜头。只包含最新图片已退回、参考齐全且没有处理中或待核对任务的镜头。':'没有可批量准备的镜头。请先固定参考；已有图片或任务请逐镜查看，避免重复生成。');
         const chosen=selectedImageModel(inputs,imageCatalog),settings=collectImageSettings(inputs,imageContracts[chosen.id]);
         const batchKey=key(),ready=[],failed=[];
         // Establish each shot archive with the latest plan version. Paid submits
         // remain concurrent only after the user reviews this complete batch.
         for(const {shot,index} of targets){
-          announce(`正在准备镜头 ${String(index+1).padStart(3,'0')} · 本批 ${ready.length+failed.length+1}/${targets.length}，尚未提交收费生成。`);
+          announce(`正在准备${repair?'返修':''}镜头 ${String(index+1).padStart(3,'0')} · 本批 ${ready.length+failed.length+1}/${targets.length}，尚未提交收费生成。`);
           try{
             const currentPlan=await api.request(`/projects/${encodeURIComponent(selected)}/plan`);
             const c=generationContext({result,job:production,view:{kind:'shots',index,stage:'storyboard'},assets,selection:session.selection});
@@ -621,7 +622,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
           }catch(e){failed.push(`镜头 ${String(index+1).padStart(3,'0')}：${e.message}`);}
         }
         prepared=ready.length?{...ready[0],batch:ready,multipleShots:true}:null;
-        await load();announce(`已准备 ${ready.length} 个镜头，使用各镜已保存提示词与固定参考。${failed.length?failed.join('；'):'核对清单后一起提交生成。'}`);
+        await load();announce(`已准备 ${ready.length} 个镜头，使用各镜已保存提示词与固定参考。${failed.length?failed.join('；'):repair?'返修会新建生成任务，核对清单与费用后一起提交。':'核对清单后一起提交生成。'}`);
       });
       const groups=batchSize(inputs.groups);
       const draft={...inputs,prepareKey:event.submitter?.hasAttribute('data-generation-reroll')?key():drafts.get(name)?.prepareKey||key()};persist(name,draft);
