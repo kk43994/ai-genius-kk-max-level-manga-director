@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import socket
+import time
 from dataclasses import dataclass, field
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
@@ -119,6 +120,7 @@ class OfficialHTTP:
     def request(self, method, url, *, data=None, headers=None):
         official_url(url)
         limit = self.mcp_max_bytes if url == RESOURCE else self.max_bytes
+        deadline = time.monotonic() + (self.mcp_timeout if url == RESOURCE else self.timeout)
         try:
             req = Request(url, data=data, headers=headers or {}, method=method)
             try:
@@ -133,6 +135,10 @@ class OfficialHTTP:
                 if 'text/event-stream' in content_type:
                     body, used, event_data = None, 0, []
                     while used <= limit:
+                        # Keepalive lines can prevent a socket timeout forever.
+                        # They are not progress and must not extend this request.
+                        if time.monotonic() >= deadline:
+                            raise TimeoutError()
                         line = response.readline(limit - used + 1)
                         used += len(line)
                         if used > limit:

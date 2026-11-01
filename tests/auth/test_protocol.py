@@ -172,6 +172,17 @@ class ProtocolTests(unittest.TestCase):
         http._opener = Opener()
         self.assertEqual({'ok': True}, http.request('POST', RESOURCE).data['result'])
 
+    def test_sse_keepalive_cannot_extend_total_request_deadline(self):
+        from unittest.mock import patch
+        class Response(io.BytesIO):
+            status=200
+            headers={'content-type':'text/event-stream'}
+        class Opener:
+            def open(self,*a,**kw):return Response(b': keepalive\n\n'*100)
+        http=OfficialHTTP(mcp_timeout=2);http._opener=Opener()
+        with patch('backend.providers.libtv_oauth.time.monotonic',side_effect=[0,1,2]):
+            self.code('PROVIDER_UNAVAILABLE',lambda:http.request('POST',RESOURCE))
+
 
 class MCPFixture:
     def __init__(self):

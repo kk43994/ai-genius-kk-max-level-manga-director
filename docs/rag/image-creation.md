@@ -31,3 +31,7 @@ LibTV 素材库使用官方 `search_assets` / `get_asset`。实测个人库查�
 本轮完整本地回归 701 项检查：698 项通过、3 项原有跳过，覆盖真实本地存储/HTTP及合成服务，不代表真实出图通过。前端实时模型目录与 Pro 参数已验证。个人库复制与审核已通过前端验证；真实并发出图、本地文件上传、全部分镜图与最终导出继续进行。桌面自动更新仍待实现与安装包验收；不声称现有客户应用已自动升级。
 
 代码：`backend/generation/model_catalog.py`、`backend/generation/asset_library.py`、`backend/workflow/reference_library.py`、`frontend/workflow/image-models.js`、`image-references.js`、`generation-batch.js`。截图与私有回执位于仓库外验收目录，项目知识源不保存客户内容。
+
+## 长时间等待
+
+官方 SSE 的 keepalive 只表示连接存活，不能重置单次请求的等待期限。`OfficialHTTP` 同时保留 socket 超时与按 monotonic 时钟计算的总等待上限，超时返回受控错误，不自动重试收费调用。相关认证协议测试 93 项通过。
