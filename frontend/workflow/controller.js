@@ -517,7 +517,14 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   listen(root,'input',onInput);listen(root,'submit',onSubmit);listen(root,'click',onClick);
   listen(root,'change',async event=>{
     const target=event.target;
-    if(target.matches('[data-wf-analysis-model]')){persist('text-model',target.value);return;}
+    if(target.matches('[data-wf-analysis-model]')){
+      persist('text-model',target.value);
+      const modelName=capabilities.analysis?.models?.find(model=>model.id===target.value)?.name||'文本模型';
+      // Update only the selection preview: preserve open editors and checkboxes,
+      // and never relabel the model pinned to an existing result or running job.
+      root.querySelectorAll('[data-wf-model-preview]').forEach(badge=>{badge.textContent=(badge.dataset.modelPrefix||'')+modelName;});
+      return;
+    }
     if(target.matches('[data-wf-project]'))return switchProject(target.value);
     if(target.matches('[data-wf-upload]'))return upload(target.files?.[0]);
     if(target.matches('[data-wf-quick-upload]'))return startFromFile(target.files?.[0]);

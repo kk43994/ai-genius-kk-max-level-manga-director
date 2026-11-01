@@ -46,8 +46,13 @@ def register_routes(router, services):
                 or any(value is not None and (not isinstance(value, str) or len(value) > 200)
                        for value in selection.values())):
             raise invalid()
-        allowed = {"selectedProject", "selectedEntity", "page", "new-project", "quick-start"}
-        if any(key not in allowed and not key.startswith(("plan:", "compose:", "review:", "flow:"))
+        allowed = {"selectedProject", "selectedEntity", "page", "new-project", "quick-start", "text-model"}
+        # Model preferences, original request keys and prompt drafts must survive
+        # a refresh just like the rest of the editable workflow. None of these
+        # fields authorizes a provider call or changes an existing job's owner.
+        prefixes = ("plan:", "compose:", "review:", "flow:", "analysis:", "prompt:",
+                    "prompt-view:", "prompt-backup:")
+        if any(key not in allowed and not key.startswith(prefixes)
                for key in content["workflow"]):
             raise invalid("草稿包含不支持的字段")
         if len(json.dumps(content, ensure_ascii=False).encode()) > 2 * 1024 * 1024:

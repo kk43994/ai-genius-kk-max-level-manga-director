@@ -114,6 +114,28 @@ class ComposedHTTPTests(unittest.TestCase):
         self.assertEqual(status,409,error)
         self.assertEqual(error['error']['code'],'SELECTION_REQUIRED')
 
+    def test_ai_model_and_prompt_drafts_survive_restart_without_creating_tasks(self):
+        cookie, session = self.session()
+        content = {'workflow': {
+            'text-model': 'cvlm-5.5',
+            'analysis:scr_fixture:1:cvlm-5.5:first': 'analysis-original-request',
+            'prompt:prj_fixture:ent_fixture:1:1:cvlm-5.5:1:first': 'prompt-original-request',
+            'prompt-view:prj_fixture:ent_fixture': 'pmt_fixture',
+            'prompt-backup:prj_fixture:ent_fixture:style': {'prompt': '此前手写的制作要求'},
+            'compose:prj_fixture:ent_fixture:style': {'prompt': '已编辑的 AI 提示词', 'promptJobId': 'pmt_fixture'},
+        }, 'accountSelection': None}
+        status, _, body = self.request('/drafts/browser', 'PUT', cookie=cookie,
+            csrf=session['csrfToken'], body={'expectedVersion': 0, 'content': content})
+        self.assertEqual(status, 200, body)
+        port = self.server.server_port; self.close(); self.start(port=port)
+        self.assertEqual(self.request('/drafts/browser', cookie=cookie)[2]['data']['content'], content)
+        self.assertEqual(self.request('/tasks', cookie=cookie)[2]['data']['items'], [])
+        other, _ = self.session()
+        self.assertEqual(self.request('/drafts/browser', cookie=other)[2]['data']['version'], 0)
+        content['workflow']['accessToken'] = 'synthetic-forbidden'
+        self.assertEqual(self.request('/drafts/browser', 'PUT', cookie=cookie,
+            csrf=session['csrfToken'], body={'expectedVersion': 1, 'content': content})[0], 422)
+
     def test_server_drafts_version_isolation_and_restart(self):
         cookie,session=self.session();content={'workflow':{'new-project':{'name':'尚未创建的项目','description':'刷新仍保留'},'review:synthetic':{'note':'人工审核备注'}},'accountSelection':None}
         self.assertEqual(self.request('/drafts/browser')[0],401)
