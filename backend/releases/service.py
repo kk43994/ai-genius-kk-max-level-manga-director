@@ -40,7 +40,7 @@ class ReleaseService:
         try:
             if path.stat().st_size > 131072:
                 raise ValueError('oversized')
-            return manifest_valid(json.loads(path.read_text()), self.origin, self.base_path)
+            return manifest_valid(json.loads(path.read_text(encoding='utf-8')), self.origin, self.base_path)
         except (OSError, ValueError, TypeError, KeyError):
             raise ReleaseUnavailable('版本信息暂时不可用') from None
 

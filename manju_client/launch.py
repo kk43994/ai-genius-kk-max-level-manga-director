@@ -31,7 +31,7 @@ def default_instance():
 def configure_workbench(app):
     """Serve only inventoried public prototype files; retain the existing API boundary."""
     root = app.config.frontend_dir
-    manifest = json.loads((root / 'studio-inventory.json').read_text())
+    manifest = json.loads((root / 'studio-inventory.json').read_text(encoding='utf-8'))
     allowed = set(manifest['files'])
     original = app.static
     base = app.config.public_base_path

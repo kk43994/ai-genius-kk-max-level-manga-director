@@ -46,7 +46,7 @@ class ToolCatalog:
     @classmethod
     def bundled(cls):
         path = Path(__file__).with_name('contracts') / 'libtv-tools-public-2026-10-27.json'
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding='utf-8'))
         return cls(data['tools'], evidence=data['source'])
 
     def tool(self, name):

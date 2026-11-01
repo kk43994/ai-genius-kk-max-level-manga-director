@@ -82,7 +82,7 @@ Function LaunchAssetLab
   System::Call 'kernel32::CloseHandle(p $InstallMutex)'
   StrCpy $InstallMutex 0
   SetOutPath "$INSTDIR\versions\${APPVERSION}"
-  Exec '"$INSTDIR\versions\${APPVERSION}\runtime\pythonw.exe" "$INSTDIR\versions\${APPVERSION}\server\local_client\launch.py" --frontend "$INSTDIR\versions\${APPVERSION}\public"'
+  Exec '"$INSTDIR\versions\${APPVERSION}\runtime\pythonw.exe" -X utf8 "$INSTDIR\versions\${APPVERSION}\server\local_client\launch.py" --frontend "$INSTDIR\versions\${APPVERSION}\public"'
 FunctionEnd
 
 Section "安装资产实验室"
@@ -92,8 +92,8 @@ Section "安装资产实验室"
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
-  CreateShortCut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\versions\${APPVERSION}\runtime\pythonw.exe" '"$INSTDIR\versions\${APPVERSION}\server\local_client\launch.py" --frontend "$INSTDIR\versions\${APPVERSION}\public"' "$INSTDIR\versions\${APPVERSION}\server\local_client\asset-lab.ico" 0 SW_SHOWNORMAL "" "打开资产实验室工作台"
-  CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\versions\${APPVERSION}\runtime\pythonw.exe" '"$INSTDIR\versions\${APPVERSION}\server\local_client\launch.py" --frontend "$INSTDIR\versions\${APPVERSION}\public"' "$INSTDIR\versions\${APPVERSION}\server\local_client\asset-lab.ico"
+  CreateShortCut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\versions\${APPVERSION}\runtime\pythonw.exe" '-X utf8 "$INSTDIR\versions\${APPVERSION}\server\local_client\launch.py" --frontend "$INSTDIR\versions\${APPVERSION}\public"' "$INSTDIR\versions\${APPVERSION}\server\local_client\asset-lab.ico" 0 SW_SHOWNORMAL "" "打开资产实验室工作台"
+  CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\versions\${APPVERSION}\runtime\pythonw.exe" '-X utf8 "$INSTDIR\versions\${APPVERSION}\server\local_client\launch.py" --frontend "$INSTDIR\versions\${APPVERSION}\public"' "$INSTDIR\versions\${APPVERSION}\server\local_client\asset-lab.ico"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\卸载资产实验室.lnk" "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "${REGKEY}" "DisplayName" "${APPNAME}"
   WriteRegStr HKCU "${REGKEY}" "DisplayVersion" "${APPVERSION}"

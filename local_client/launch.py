@@ -143,13 +143,16 @@ def main():
     instance = (args.instance or default_instance()).absolute()
     try:
         private_directory(instance / "logs")
-        logging.basicConfig(filename=instance / "logs/launcher.log", level=logging.ERROR,
+        logging.basicConfig(filename=instance / "logs/launcher.log", level=logging.ERROR, encoding="utf-8",
                             format="%(asctime)s %(levelname)s %(message)s")
         return run(instance, port=args.port, open_browser=not args.no_browser, frontend=args.frontend, enable_images=args.enable_image_generation)
     except Exception as error:
         # Never log URL queries, provider responses, tokens or credential contents.
-        logging.error("launcher_failed type=%s", type(error).__name__)
+        logging.error("launcher_failed type=%s errno=%s winerror=%s", type(error).__name__,
+                      getattr(error, "errno", None), getattr(error, "winerror", None))
         message = "资产实验室启动失败。请检查本地端口是否被占用，或将 logs/launcher.log 提供给支持人员。已有项目与账号数据未被替换。"
+        if isinstance(error, UnicodeError):
+            message = "程序文件读取失败（文本编码错误）。请从 https://kk666.best/asset-lab/ 下载新版安装包后重新安装。已有项目和账号连接会保留。"
         if os.name == "nt" and not args.no_browser:
             import ctypes
             ctypes.windll.user32.MessageBoxW(None, message, "资产实验室", 0x10)

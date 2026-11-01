@@ -714,7 +714,7 @@ class Application:
             return Response(308, headers={"Location": base + relative})
         if path in {"", "index.html", "asset-lab.html"}:
             if not (self.config.frontend_dir / "api-client.js").is_file():
-                raw = (ROOT / "scripts/templates/integration-shell.html").read_text()
+                raw = (ROOT / "scripts/templates/integration-shell.html").read_text(encoding="utf-8")
                 raw = raw.replace("{{PUBLIC_BASE_PATH}}", base).replace("{{API_BASE}}", self.config.api_base)
                 return Response(body=raw.encode(), headers={"Content-Type": "text/html; charset=utf-8"})
             path = "index.html" if (static_root / "index.html").is_file() else "asset-lab.html"

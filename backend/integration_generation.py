@@ -59,7 +59,7 @@ def make_adapter(services,task_repository, *, local_images=False):
         from backend.generation import RecipeBinding
         from backend.generation.contracts import ToolCatalog
         catalog_path = Path(__file__).parent / 'generation/contracts/libtv-tools-public-2026-10-28.json'
-        catalog_data = json.loads(catalog_path.read_text())
+        catalog_data = json.loads(catalog_path.read_text(encoding='utf-8'))
         return LiveGenerationAdapter(journal=StoreGenerationJournal(services.storage,original_context),
             submission_bridge=TaskSubmissionBridge(task_repository,original_context),
             project_resolver=PersonalProjects(services, original_context), references=WorkflowReferences(),
