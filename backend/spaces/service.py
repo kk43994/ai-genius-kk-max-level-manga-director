@@ -143,6 +143,12 @@ class SpaceService:
     def quota(self, ctx, account_id, space_id):
         account, identity = self._account(ctx, account_id)
         space = self._accessible_space(ctx, account, identity, space_id)
+        if account.get('capabilities', {}).get('quota') is False:
+            # Membership/identity was verified above. Do not build a generation
+            # client for an explicitly unsupported read capability.
+            return {**normalize.unknown_quota(account_id, space_id,
+                       reason='provider_capability_unavailable'),
+                    'checkedAt': normalize.iso(self.clock())}
         client, _ = self._client(ctx, account, identity, space)
         try:
             payload = call_provider(client, "quota", space_id)

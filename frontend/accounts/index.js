@@ -30,6 +30,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   const currentSpace = () => spaces.find(s => s.id === draft.spaceId);
   const canAuthorize = () => snapshot?.features?.providerAuthorization === true;
   const blocked = () => Boolean(busy || loading || activeAttempt(attempt) || ownerModule?.isActive());
+  const quotaBlocked = () => Boolean(busy || loading || spacesLoading || quotaLoading || ownerModule?.isActive());
   const emit = (name, detail) => events.dispatchEvent(new win.CustomEvent(name, { detail: { ...detail, source } }));
   const request = (path, options) => api.request(path, options);
   const fail = code => Object.assign(new Error(code), { code });
@@ -206,7 +207,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     text('plan', quota?.planName ? `套餐：${quota.planName}（不代表可用余额）` : '');
     refs.plan.hidden = !quota?.planName;
     refs.quota.setAttribute('aria-busy', String(quotaLoading));
-    buttons.quota.disabled = blocked() || spacesLoading || quotaLoading || !selectable(account, space);
+    buttons.quota.disabled = quotaBlocked() || !selectable(account, space);
     buttons.quota.textContent = quotaLoading ? '正在查询…' : quota ? '重新查询余额' : '查询余额';
     renderAttempt();
     ownerModule?.render();
@@ -530,7 +531,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   const ready = refresh({ rereadSession: !session });
   return {
     ready, refresh, authorize: () => beginAuthorization(),
-    queryQuota: () => !blocked() && !spacesLoading && !quotaLoading ? (accountState(currentAccount()) === 'expired' ? loadSpaces() : loadQuota()) : Promise.resolve(),
+    queryQuota: () => !quotaBlocked() ? (accountState(currentAccount()) === 'expired' ? loadSpaces() : loadQuota()) : Promise.resolve(),
     hasConnectedAccount: () => accounts.some(a => accountState(a) === 'connected'),
     // The integration persists this live value even when optional localStorage fails.
     getDraftSelection: () => dirty ? {providerAccountId:draft.providerAccountId, spaceId:draft.spaceId} : null,
