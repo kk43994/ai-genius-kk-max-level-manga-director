@@ -163,6 +163,22 @@ class OfficialAccountTests(unittest.TestCase):
         self.code('PROVIDER_SCOPE_UNAVAILABLE', lambda: transport.call_tool('generation_submit', {}, space_id='200001'))
         self.assertTrue(all(call['name'] == 'account_user' for call in self.http.tool_calls))
 
+    def test_transport_reuses_catalog_session_but_reads_live_identity_each_time(self):
+        account=self.connect();transport=BoundMCPTools(self.service,self.ctx,self.owner(account))
+        original=self.http.request;methods=[]
+        def tracked(method,url,**kwargs):
+            if url==RESOURCE and kwargs.get('data'):methods.append(json.loads(kwargs['data'])['method'])
+            return original(method,url,**kwargs)
+        self.http.request=tracked
+        first=transport.list_tools();first.clear()
+        self.assertTrue(transport.list_tools())
+        before=len(self.http.tool_calls)
+        transport.call_tool('account_user',{},space_id='200001')
+        transport.call_tool('account_user',{},space_id='200001')
+        self.assertEqual(methods.count('initialize'),1)
+        self.assertEqual(methods.count('tools/list'),1)
+        self.assertEqual(len(self.http.tool_calls)-before,2)
+
     def test_transport_does_not_trust_write_tool_claiming_account_read_scope(self):
         account = self.connect()
         account_tool = next(t for t in self.http.tools if t['name'] == 'account_user')

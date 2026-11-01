@@ -121,7 +121,19 @@ class ProtocolTests(unittest.TestCase):
             def open(self, *a, **kw): return Response(b'x' * 101)
         http = OfficialHTTP(max_bytes=100)
         http._opener = Large()
-        self.code('PROVIDER_PROTOCOL_ERROR', lambda: http.request('GET', RESOURCE))
+        self.code('PROVIDER_RESPONSE_TOO_LARGE', lambda: http.request('GET', RESOURCE))
+
+    def test_large_canvas_response_does_not_expand_oauth_metadata_limit(self):
+        payload=json.dumps({'result':{'project':'x'*(1200*1024)}}).encode()
+        class Response(io.BytesIO):
+            status=200
+            headers={'Content-Type':'application/json'}
+        class Opener:
+            def open(self,*args,**kwargs):return Response(payload)
+        http=OfficialHTTP();http._opener=Opener()
+        self.assertEqual(http.mcp_max_bytes,16*1024*1024)
+        self.assertEqual(len(http.request('POST',RESOURCE).data['result']['project']),1200*1024)
+        self.code('PROVIDER_RESPONSE_TOO_LARGE',lambda:http.request('GET','https://mcp.liblib.tv/token'))
 
     def test_sse_returns_first_response_without_waiting_for_connection_eof(self):
         class Response(io.BytesIO):

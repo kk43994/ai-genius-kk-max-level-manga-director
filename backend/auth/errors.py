@@ -19,6 +19,7 @@ MESSAGES = {
     'PROVIDER_UNAVAILABLE': ('LibTV 暂时无法连接，请稍后重新发起授权。', 503, True),
     'PROVIDER_PROTOCOL_ERROR': ('LibTV 返回的授权协议无法安全校验。', 502, False),
     'PROVIDER_NODE_NAME_CONFLICT': ('LibTV 拒绝了重名节点，尚未提交本次生成。', 409, False),
+    'PROVIDER_RESPONSE_TOO_LARGE': ('LibTV 返回的项目内容超过当前查询容量，原任务已保留，请联系支持处理；无需重复授权或重新生成。', 502, False),
     'PROVIDER_REGISTRATION_REJECTED': ('LibTV 尚未允许此网站的授权回调，请联系网站管理员。', 503, False),
     'PROVIDER_SCOPE_UNAVAILABLE': ('LibTV 尚未提供网站所需的授权权限。', 503, False),
     'PROVIDER_IDENTITY_UNAVAILABLE': ('LibTV 官方身份读取尚未验证，此账号暂不能连接。', 503, False),

@@ -5,6 +5,7 @@ import json
 import threading
 import time
 import uuid
+from collections import OrderedDict
 
 from backend.workflow.errors import WorkflowError, public_input
 from backend.tasks.errors import TaskError
@@ -32,16 +33,19 @@ class AnalysisService:
     index_collection = 'analysis.current'
     id_prefix = 'ana_'
 
-    def __init__(self, services, provider, *, enabled=False, background=True, clock=time.time):
+    def __init__(self, services, provider, *, enabled=False, background=True, clock=time.time, analysis_policy='single'):
         self.services, self.store, self.provider = services, services.storage, provider
         self.enabled, self.background, self.clock = enabled, background, clock
         self._threads = set()
         self._lock = threading.Lock()
+        self.analysis_policy = analysis_policy
+        self._clients = OrderedDict()
 
     def capabilities(self):
         return {'configured': self.enabled, 'method': 'ai', 'model': 'GVLM 3.1',
                 'maxCharacters': MAX_SOURCE_CHARACTERS, 'localRuleFallback': False,
                 'models': copy.deepcopy(list(MODELS)), 'defaultModelId': DEFAULT_MODEL,
+                'defaultCalls': 1,
                 'message': '导入后使用 LibTV 文本模型分析，需当前账号创作权限。' if self.enabled
                 else 'AI 分析服务尚未启用。原文会保留，不会使用本地规则替代。'}
 
@@ -55,13 +59,17 @@ class AnalysisService:
             'createdAt', 'updatedAt', 'error', 'result', 'completedCalls', 'promptVersion', 'modelId', 'displayNumber')}
         result['version'] = row['version']
         result['message'] = data.get('error', {}).get('message') if data.get('error') else MESSAGES[data['status']]
+        if not data.get('error') and data['status']=='reviewing' and data['phase'].startswith('repair'):
+            result['message'] = 'AI 正在修复原文引用' if data['phase']=='repair' else 'AI 正在修复台词分段与逐字引用'
         result['ownership'] = {k: data['ownership'].get(k) for k in ('providerAccountId', 'spaceId', 'accountLabelAtCreation', 'spaceNameAtCreation')}
         result['canRefresh'] = data['status'] in ACTIVE
         result['canResumeReview'] = bool(data['status']=='failed' and data['phase']=='extract' and data.get('error',{}).get('code')=='ANALYSIS_RESULT_INVALID' and data['steps'].get('extract',{}).get('taskId') and not data['steps'].get('review'))
         result['canRetry'] = data['status'] == 'failed'
         result['canRetrySubmission'] = bool(data['status']=='failed' and data['steps'].get(data['phase'],{}).get('rejectedBeforeSubmission'))
         result['canRepairResult'] = bool(data['status']=='failed' and data['phase'] in ('review','repair') and data.get('error',{}).get('code')=='ANALYSIS_RESULT_INVALID' and data['steps'].get(data['phase'],{}).get('taskId') and data.get('repairFromPhase')!=data['phase'])
-        result['totalCalls'] = 4 if data.get('repairFromPhase')=='repair' else 3 if data.get('repairRequested') else 2
+        base_calls=1 if data.get('analysisPolicy')=='single' and not data.get('reviewRequested') else 2
+        result['totalCalls'] = 4 if data.get('repairFromPhase')=='repair' else 3 if data.get('repairRequested') else base_calls
+        result['phaseStartedAt'] = data['steps'].get(data['phase'],{}).get('startedAt')
         result['cost'] = {'state': 'unknown', 'message': '使用当前账号的 LibTV 积分，以官方扣费记录为准。'}
         return result
 
@@ -108,7 +116,7 @@ class AnalysisService:
         identity = self.id_prefix + hashlib.sha256(key.encode()).hexdigest()
         scope_id = context['entityId'] if context else script_id
         index_id = 'idx_' + hashlib.sha256((project_id + '\0' + scope_id).encode()).hexdigest()
-        digest = hashlib.sha256((project_id + script_id + script['sourceRevision'] + str(selected['revision']) + model['id'] + (json.dumps(context,sort_keys=True) if context else '')).encode()).hexdigest()
+        digest = hashlib.sha256((project_id + script_id + script['sourceRevision'] + str(selected['revision']) + model['id'] + self.analysis_policy + (json.dumps(context,sort_keys=True) if context else '')).encode()).hexdigest()
         with self.store.transaction(ctx) as tx:
             try:
                 row = tx.get(self.collection, identity)
@@ -136,9 +144,9 @@ class AnalysisService:
                         'sourceRevision': script['sourceRevision'], 'ownership': owner, 'model': model['name'], 'modelId': model['id'],
                         'promptVersion': PROMPT_VERSION, 'status': 'preparing', 'phase': 'extract',
                         'createdAt': now(), 'updatedAt': now(), 'completedCalls': 0, 'result': None,
-                        'error': None, 'steps': {}, 'lease': None, 'context': copy.deepcopy(context)}
+                        'error': None, 'steps': {}, 'lease': None, 'context': copy.deepcopy(context), 'analysisPolicy':self.analysis_policy}
                     row = tx.create(self.collection, data, record_id=identity,
-                        immutable_fields=('ownership', 'requestHash', 'sourceRevision', 'projectId', 'scriptId', 'promptVersion', 'modelId', 'model', 'context'))
+                        immutable_fields=('ownership', 'requestHash', 'sourceRevision', 'projectId', 'scriptId', 'promptVersion', 'modelId', 'model', 'context', 'analysisPolicy'))
                     index_data = {'analysisId': identity, 'projectId': project_id, 'scriptId': script_id, 'entityId': (context or {}).get('entityId')}
                     if index: tx.update(self.index_collection, index_id, index_data, expected_version=index['version'])
                     else: tx.create(self.index_collection, index_data, record_id=index_id)
@@ -179,6 +187,21 @@ class AnalysisService:
         else:tx.create('analysis.numbering',data,record_id=key)
         return number
 
+    def _client(self, ctx, data):
+        key=(ctx.tenantId,ctx.siteSessionId,data['id'])
+        with self._lock:
+            cached=self._clients.get(key)
+            if cached is not None:
+                self._clients.move_to_end(key)
+                return cached
+        client=self.provider.bind(ctx,data['ownership'])
+        with self._lock:
+            self._clients[key]=client
+            while len(self._clients)>16:self._clients.popitem(last=False)
+        # BoundMCPTools still checks token, local revocation and live account /
+        # space on every operation. Only connection setup/catalog are reused.
+        return client
+
     def advance(self, ctx, identity):
         """One original provider step per explicit start/refresh. Never a blind retry."""
         token = uuid.uuid4().hex
@@ -208,7 +231,7 @@ class AnalysisService:
                 save({'status': 'unknown_submission', 'error': {'code': 'ANALYSIS_RECEIPT_REQUIRED',
                     'message': '原分析提交回执尚未确认，请保留记录并联系支持核对；系统不会重复提交。'}})
                 return
-            client = self.provider.bind(ctx, data['ownership'])
+            client = self._client(ctx, data)
             if not step.get('taskId'):
                 client.prepare(data, script, save)
                 data = self._get(ctx, identity)['data']
@@ -237,6 +260,10 @@ class AnalysisService:
                 state, message = 'unknown_submission', '提交结果尚未确认，已保留原请求并停止重发。'
             elif code in ('ANALYSIS_RESULT_INVALID', 'ANALYSIS_PROVIDER_FAILED', 'ANALYSIS_SOURCE_CHANGED'):
                 state, message = 'failed', str(error)
+            elif code == 'PROVIDER_RESPONSE_TOO_LARGE':
+                state, message = 'interrupted', str(error)
+            elif code in ('PROVIDER_PROTOCOL_ERROR','PROVIDER_UNAVAILABLE'):
+                state, message = 'interrupted', 'LibTV 的状态查询暂时异常，已保留原任务；继续查询不会重新生成或重复提交。'
             else:
                 state, message = 'interrupted', '分析暂时中断，请检查原账号授权后继续查询；已有结果和原文保留。'
             try: save({'status': state, 'error': {'code': code, 'message': message}})
@@ -247,8 +274,12 @@ class AnalysisService:
                 if data.get('lease') and data['lease']['token'] == token:
                     data['lease'] = None
                     tx.update(self.collection, identity, data, expected_version=row['version'])
+            if data['status'] not in ('preparing','submitting','running','reviewing'):
+                with self._lock:self._clients.pop((ctx.tenantId,ctx.siteSessionId,identity),None)
 
     def result_updates(self, data, text, script):
+        if data['phase']=='extract' and data.get('analysisPolicy')=='single' and not data.get('reviewRequested'):
+            return {'result':parse_result(text,script),'completedCalls':1,'status':'ready','error':None}
         if data['phase'] == data.get('repairFromPhase', 'review' if data.get('repairRequested') else None):
             result = parse_result(text, script, reviewable=True)
             return {'repairDraft': result, 'completedCalls': 3 if data['phase']=='repair' else 2, 'phase': 'repair2' if data['phase']=='repair' else 'repair', 'status': 'reviewing', 'error': None}
@@ -295,7 +326,7 @@ class AnalysisService:
                     data.get('error',{}).get('code')=='ANALYSIS_RESULT_INVALID' and
                     data['steps'].get('extract',{}).get('taskId') and not data['steps'].get('review')):
                 raise WorkflowError('ANALYSIS_REVIEW_UNAVAILABLE','此记录不能继续原结果复核，请核对任务状态。',409)
-            data.update(status='running',error=None,updatedAt=now())
+            data.update(status='running',reviewRequested=True,error=None,updatedAt=now())
             tx.update(self.collection,identity,data,expected_version=row['version'])
         self._schedule(ctx,identity)
         return self.get(ctx,identity)

@@ -476,7 +476,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       return perform(async()=>{const job=await api.request(`/projects/${encodeURIComponent(selected)}/entities/${encodeURIComponent(entity.id)}/prompts`,{method:'POST',body:{idempotencyKey,expectedSelectionRevision:session.selection.revision,confirmSpend:true,reanalyze:Boolean(previous),modelId}});promptJobs=[job,...promptJobs.filter(j=>j.id!==job.id)];removeDraft(`prompt-view:${selected}:${entity.id}`);promptError='';announce('AI 提示词请求已保存，结果会自动返回到当前资产。');});
     }
     if(action==='analyze'){
-      if(!root.querySelector('[data-wf-analysis-spend]')?.checked){announce('请先确认本次两步 AI 分析使用当前账号积分。');return;}
+      if(!root.querySelector('[data-wf-analysis-spend]')?.checked){announce('请先确认本次 AI 分析使用当前账号积分。');return;}
       const script=scripts.at(-1);if(!script)return;
       const modelId=drafts.get('text-model')||capabilities.analysis?.defaultModelId;
       const requestName=`analysis:${script.id}:${session.selection.revision}:${modelId}:${analysis?.id||'first'}`;

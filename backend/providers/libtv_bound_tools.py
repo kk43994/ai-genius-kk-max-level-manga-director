@@ -23,9 +23,13 @@ class BoundMCPTools:
 
     def list_tools(self):
         bundle, _ = self._service._bundle_for(self._ctx, self._owner)
-        result = MCPReadSession(self._service.oauth.http, bundle['tokens']['access_token']).tools()
+        token = bundle['tokens']['access_token']
+        if self._session is None or self._access_token != token:
+            self._session = MCPReadSession(self._service.oauth.http, token)
+            self._catalog = self._session.tools()
+            self._access_token = token
         self._service._bundle_for(self._ctx, self._owner)
-        return result
+        return copy.deepcopy(self._catalog)
 
     def call_tool(self, name, arguments, *, space_id):
         if (space_id != self._owner['spaceId'] or not isinstance(name, str)

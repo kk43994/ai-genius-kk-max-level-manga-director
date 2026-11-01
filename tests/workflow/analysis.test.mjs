@@ -8,7 +8,7 @@ const base={script,enabled:true,connected:true};
 test('AI panel requires explicit spend confirmation and distinguishes six categories',()=>{
   const html=analysisPanel(base);
   assert.match(html,/data-wf-analysis-spend/);assert.doesNotMatch(html,/checked/);
-  assert.match(html,/共 2 次调用/);assert.match(html,/16,000/);
+  assert.match(html,/默认 1 次 AI 调用/);assert.match(html,/16,000/);
   assert.ok(!html.includes('<script>测试'));
 });
 test('ready results expose literal dialogue, source links and human review gate',()=>{
@@ -39,4 +39,10 @@ test('model selector uses provider names, preserves selection and displays pinne
   assert.doesNotMatch(html,/GPT|Claude/);
   const running=analysisPanel({...base,models,modelId:'aurora-3-prime',analysis:{id:'ana',model:'CVLM 5.5',status:'running',completedCalls:0,canRefresh:true,message:'分析中'}});
   assert.match(running,/LibTV · CVLM 5.5/);assert.doesNotMatch(running,/data-wf-analysis-model/);
+});
+test('repair progress uses the actual call budget, never a hard-coded 3 over 2',()=>{
+  const html=analysisPanel({...base,analysis:{id:'analysis',model:'GVLM 3.1',status:'reviewing',phase:'repair2',
+    completedCalls:3,totalCalls:4,displayNumber:1,canRefresh:true,message:'正在修复台词分段',phaseStartedAt:new Date(Date.now()-150000).toISOString()}});
+  assert.match(html,/3 \/ 4 次/);assert.doesNotMatch(html,/3 \/ 2 次/);
+  assert.match(html,/编号 001/);assert.match(html,/等待时间较长/);
 });

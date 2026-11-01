@@ -108,13 +108,15 @@ class HTTPResult:
 
 class OfficialHTTP:
     """Bounded requests; redirects cannot exfiltrate codes/tokens/client secrets."""
-    def __init__(self, timeout=15, max_bytes=1024 * 1024):
+    def __init__(self, timeout=15, max_bytes=None):
         self.timeout = timeout
-        self.max_bytes = max_bytes
+        self.max_bytes = 1024 * 1024 if max_bytes is None else max_bytes
+        self.mcp_max_bytes = 16 * 1024 * 1024 if max_bytes is None else max_bytes
         self._opener = build_opener(_NoRedirects())
 
     def request(self, method, url, *, data=None, headers=None):
         official_url(url)
+        limit = self.mcp_max_bytes if url == RESOURCE else self.max_bytes
         try:
             req = Request(url, data=data, headers=headers or {}, method=method)
             try:
@@ -128,10 +130,12 @@ class OfficialHTTP:
                 content_type = next((v for k, v in response_headers.items() if k.lower() == 'content-type'), '')
                 if 'text/event-stream' in content_type:
                     body, used, event_data = None, 0, []
-                    while used <= self.max_bytes:
-                        line = response.readline(self.max_bytes - used + 1)
+                    while used <= limit:
+                        line = response.readline(limit - used + 1)
                         used += len(line)
-                        if used > self.max_bytes or not line:
+                        if used > limit:
+                            raise AuthError('PROVIDER_RESPONSE_TOO_LARGE')
+                        if not line:
                             raise ValueError()
                         decoded = line.decode().rstrip('\r\n')
                         if decoded.startswith('data:'):
@@ -145,9 +149,9 @@ class OfficialHTTP:
                     if body is None:
                         raise ValueError()
                     return HTTPResult(status, body, response_headers)
-                raw = response.read(self.max_bytes + 1)
-            if len(raw) > self.max_bytes:
-                raise AuthError('PROVIDER_PROTOCOL_ERROR')
+                raw = response.read(limit + 1)
+            if len(raw) > limit:
+                raise AuthError('PROVIDER_RESPONSE_TOO_LARGE')
             if not raw and status in (200, 202, 204):
                 body = {}
             else:

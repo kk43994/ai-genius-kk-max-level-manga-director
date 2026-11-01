@@ -8,6 +8,7 @@ from backend.generation.contracts import ToolCatalog
 from backend.generation.live import PersonalProjects, personal_account
 from backend.workflow.errors import WorkflowError
 from .contract import prompt
+from backend.workflow.service import now
 
 from .models import DEFAULT_MODEL
 MODEL = DEFAULT_MODEL
@@ -71,7 +72,7 @@ class LibTVAnalysisClient:
                 'prompt': prompt_text,
                 'params': {}, 'run': True, 'idempotencyKey': job['id'] + '-' + job['phase'] + (f'-retry{attempt}' if attempt else '')}
         self.catalog.request('create_node', args)
-        step = {'attempted': True, 'arguments': copy.deepcopy(args),
+        step = {'attempted': True, 'startedAt':now(), 'arguments': copy.deepcopy(args),
                 'promptSha256': hashlib.sha256(args['prompt'].encode()).hexdigest(), 'taskId': None, 'nodeId': None}
         save({'steps': {**job['steps'], job['phase']: step}, 'status': 'submitting', 'error': None})
         result = self._call('create_node', args)

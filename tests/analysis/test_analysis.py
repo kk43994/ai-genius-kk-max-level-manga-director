@@ -55,7 +55,7 @@ class AnalysisTests(unittest.TestCase):
         self.services=SimpleNamespace(storage=self.store,workflow=self.workflow,
             selections=SimpleNamespace(_get=lambda tx:self.selected),
             tasks=SimpleNamespace(_selection=lambda ctx:copy.deepcopy(self.selected),_owner=lambda ctx,sel:copy.deepcopy(self.owner)))
-        self.ai=AnalysisService(self.services,self.provider,enabled=True,background=False)
+        self.ai=AnalysisService(self.services,self.provider,enabled=True,background=False,analysis_policy='double')
         self.workflow.analysis=self.ai
         self.body={'idempotencyKey':'analysis-first-request','expectedSelectionRevision':1,'confirmSpend':True}
     def begin(self,**overrides):
@@ -79,6 +79,27 @@ class AnalysisTests(unittest.TestCase):
         saved=self.workflow.save_plan(self.ctx,self.project['id'],{k:candidate[k] for k in ('expectedVersion','entities','stylePrompt')})
         self.assertEqual(len(saved['entities']),3)
         self.assertFalse(saved.get('needsReview', False))
+
+    def test_new_default_needs_one_model_call_and_does_not_auto_spend_on_review(self):
+        self.ai.analysis_policy='single'
+        job=self.finish()
+        self.assertEqual(job['status'],'ready');self.assertEqual(job['completedCalls'],1)
+        self.assertEqual(job['totalCalls'],1);self.assertEqual(len(self.provider.submissions),1)
+        bad=copy.deepcopy(EXAMPLE['result']);bad['sourceRevision']=self.script['sourceRevision']
+        bad['characters'][0]['evidence'][0]['quote']='不连续的引用……'
+        self.provider.text=json.dumps(bad)
+        new=self.begin(idempotencyKey='single-invalid-request',reanalyze=True)
+        self.ai.advance(self.ctx,new['id']);self.ai.advance(self.ctx,new['id'])
+        failed=self.ai.get(self.ctx,new['id'])
+        self.assertEqual(failed['status'],'failed');self.assertEqual(failed['totalCalls'],1)
+        self.ai.refresh(self.ctx,new['id']);self.ai.advance(self.ctx,new['id'])
+        self.assertEqual(len(self.provider.submissions),2)
+        self.ai.resume_review(self.ctx,new['id'])
+        self.assertEqual(self.ai.get(self.ctx,new['id'])['totalCalls'],2)
+        self.ai.advance(self.ctx,new['id']);self.provider.text=None
+        self.ai.advance(self.ctx,new['id']);self.ai.advance(self.ctx,new['id'])
+        self.assertEqual(self.ai.get(self.ctx,new['id'])['status'],'ready')
+        self.assertEqual(len(self.provider.submissions),3)
     def test_duplicate_start_read_and_refresh_do_not_submit(self):
         job=self.begin();self.assertEqual(self.begin()['id'],job['id'])
         self.assertEqual(self.begin(idempotencyKey='second-click-key')['id'],job['id'])
