@@ -91,10 +91,13 @@ ProviderService（第 2 会话）对其他模块提供：`begin_authorization(ct
 {"providerAccountId":"pa_example","spaceId":"space_example",
  "state":"unknown","remaining":null,"unit":"credits","buckets":[],
  "planName":null,"source":"official","observedAt":null,"expiresAt":null,
- "reason":"provider_did_not_return_balance"}
+ "reason":"provider_did_not_return_balance", "checkedAt":"2026-11-01T06:00:00Z",
+ "officialViewUrl":"https://www.liblib.tv/"}
 ```
 
 state 为 `known | unknown | stale | unavailable`。`remaining:0` 只允许官方实际返回零；套餐名称/等级不推算积分；币种、积分与不同额度桶不相加。stale 允许显示带时间的上次值，但不得当实时可支付保证。空间切换后重读自己的 quota，不能复用上个账户缓存。缓存键至少 `(tenantId,providerAccountId,spaceId)`，明确 observedAt。未知余额不自行认定支付能力，收费提交需要真实参数/报价和用户明确确认；此开发轮统一禁止提交。
+
+`checkedAt` 是本服务完成本次账号/空间余额查询的时间，`observedAt` 是官方数值的观测时间；前者不能证明后者存在。当前授权接口未提供数值时返回 `reason=provider_capability_unavailable`，保留 `remaining=null`。顶部“查询余额”和账号面板的重查都会调用此路由，不因静态 capability 标志而直接显示假查询结果。仅暂时失败且归属完全相同的历史数值可标为 stale；身份错误会清空。官方分项余额逐项显示，不拼成合计。
 
 ## 6. 项目与资产流程
 

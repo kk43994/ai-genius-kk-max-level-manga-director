@@ -148,15 +148,20 @@ class SpaceService:
             payload = call_provider(client, "quota", space_id)
         except SpaceError as error:
             if error.code == "PROVIDER_CAPABILITY_UNAVAILABLE":
-                return normalize.unknown_quota(account_id, space_id,
-                                               reason="provider_capability_unavailable")
-            if error.code == "PROVIDER_UNAVAILABLE":
-                return normalize.unknown_quota(account_id, space_id, state="unavailable",
-                                               reason="provider_temporarily_unavailable")
-            raise
-        normalize.check_scope(payload, require_tenant(ctx), account_id, space_id)
-        return normalize.quota(payload, account_id, space_id, self.clock(),
-                               max_age_seconds=self.quota_max_age_seconds)
+                result = normalize.unknown_quota(account_id, space_id,
+                                                reason="provider_capability_unavailable")
+            elif error.code == "PROVIDER_UNAVAILABLE":
+                result = normalize.unknown_quota(account_id, space_id, state="unavailable",
+                                                reason="provider_temporarily_unavailable")
+            else:
+                raise
+        else:
+            normalize.check_scope(payload, require_tenant(ctx), account_id, space_id)
+            result = normalize.quota(payload, account_id, space_id, self.clock(),
+                                     max_age_seconds=self.quota_max_age_seconds)
+        # An attempted check is not an observation of a numeric balance.
+        result['checkedAt'] = normalize.iso(self.clock())
+        return result
 
     def list_models(self, ctx, account_id, space_id):
         account, identity = self._account(ctx, account_id)

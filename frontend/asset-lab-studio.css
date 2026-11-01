@@ -1,5 +1,9 @@
 /* Component theme; selectors stay scoped so the workflow and its state remain intact. */
 .customer-shell { -webkit-font-smoothing: antialiased; }
+/* Every native button gets a complete color pair, including buttons mounted
+   outside .wf (workspace dialogs, recovery notices and the local launcher). */
+.customer-shell button { background: var(--ui-raised); color: var(--ui-text); border: 1px solid var(--ui-line); border-radius: 8px; }
+.customer-shell button:hover:not(:disabled) { background: var(--ui-hover); border-color: var(--ui-line-hover); }
 .customer-shell ::selection { background: #f7f7f7; color: #141414; }
 .customer-shell :where(button, a, input, select, textarea, summary) { transition: background-color .15s, border-color .15s, color .15s; }
 .customer-shell :where(input, select, textarea) { background: var(--ui-input); color: var(--ui-text); border-color: var(--ui-line); accent-color: #ddd; }
@@ -61,7 +65,7 @@
 .customer-shell .wf button:hover:not(:disabled), .customer-shell .wf-link:hover { background: var(--ui-hover); border-color: var(--ui-line-hover); }
 .customer-shell .wf button.primary, .customer-shell .wf-start .primary, .customer-shell .wf-guide .primary { background: var(--ui-primary); color: var(--ui-on-primary); border-color: var(--ui-primary); }
 .customer-shell .wf button.primary:hover:not(:disabled) { background: #dedede; }
-.customer-shell .wf button:disabled { background: #202020; color: #929292; border-color: var(--ui-line); opacity: .7; }
+.customer-shell .wf button:disabled { background: #242424; color: #b0b0b0; border-color: #444; opacity: 1; }
 .customer-shell .wf input:not([type=checkbox]), .customer-shell .wf select, .customer-shell .wf textarea { background: var(--ui-input); color: var(--ui-text); border-color: var(--ui-line); border-radius: 8px; }
 .customer-shell .wf textarea { padding: 14px; line-height: 1.85; }
 .customer-shell .wf-tabs { background: var(--ui-panel); border: 1px solid var(--ui-line); padding: 5px; border-radius: 10px; gap: 4px; scrollbar-width: thin; scrollbar-color: #525252 transparent; }
@@ -132,6 +136,9 @@
 .customer-shell .integration-task small, .customer-shell .integration-task-note { color: var(--ui-muted); }
 .customer-shell :is(.integration-notice, .integration-task, .asset-version-notice) button { background: var(--ui-raised); border-color: var(--ui-line); color: var(--ui-text); border-radius: 8px; }
 .customer-shell .integration-account-dialog { background: var(--ui-panel); color: var(--ui-text); border-color: var(--ui-line); }
+.customer-shell .integration-account-dialog .wf-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.customer-shell button:disabled,
+.customer-shell .al-accounts .al-accounts__button:disabled { background: #242424; color: #b0b0b0; border-color: #444; opacity: 1; cursor: not-allowed; }
 .customer-shell[data-read-only=true] .integration-notice { background: var(--ui-warning-bg); color: var(--ui-warning); border-color: #655239; }
 
 @media (max-width: 1199px) { .customer-shell .topbar { padding-inline: 18px; } }

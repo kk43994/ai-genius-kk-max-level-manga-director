@@ -85,24 +85,39 @@ export function timeLabel(value) {
 export function quotaPresentation(quota, now = Date.now()) {
   const number = typeof quota?.remaining === 'number' && Number.isFinite(quota.remaining)
     && quota.remaining >= 0;
-  const known = ['known', 'stale'].includes(quota?.state) && number;
+  const buckets = (Array.isArray(quota?.buckets) ? quota.buckets : []).filter(b =>
+    typeof b.remaining === 'number' && Number.isFinite(b.remaining) && b.remaining >= 0);
+  const known = ['known', 'stale'].includes(quota?.state) && (number || buckets.length > 0);
   const expiry = Date.parse(quota?.expiresAt);
   const stale = quota?.state === 'stale' || (Number.isFinite(expiry) && expiry <= now);
   const unit = quota?.unit === 'credits' ? '积分' : (quota?.unit || '额度');
   if (known) return {
-    value: `${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 6 }).format(quota.remaining)} ${unit}`,
+    value: number ? `${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 6 }).format(quota.remaining)} ${unit}` : '分项余额',
     label: stale ? '上次已知余额' : '官方返回余额',
-    note: `${stale ? '数据已过期；' : ''}查询时间：${timeLabel(quota.observedAt)}。实际可用额度以官方结算为准。`,
+    note: `${stale ? '数据已过期；' : ''}余额更新时间：${timeLabel(quota.observedAt)}。实际可用额度以官方结算为准。`,
+    buckets: buckets.map(b => ({name:b.name || '额度', value:`${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 6 }).format(b.remaining)} ${b.unit === 'credits' ? '积分' : b.unit || '额度'}`})),
     state: stale ? 'stale' : 'known',
   };
   return { value: '余额未知', label: '所选空间余额', state: quota?.state === 'unavailable' ? 'unavailable' : 'unknown',
-    note: quota?.state === 'unavailable' ? '暂时无法查询余额，请稍后重试。' : '官方尚未返回可用余额，套餐信息不能用于推算积分。' };
+    buckets: [], note: quota?.state === 'unavailable' ? '暂时无法查询余额，请稍后重试。'
+      : quota?.reason === 'provider_capability_unavailable' ? '当前 LibTV 授权接口未提供余额数值，请前往 LibTV 查看。'
+      : quota ? '官方尚未返回可用余额，套餐信息不能用于推算积分。' : '点击查询余额，核对所选账号与空间的可用额度。' };
+}
+
+export function retainQuotaOnFailure(previous, next) {
+  // Keep a labelled historical value only for this exact account and space.
+  // Authorization, identity and malformed-response failures must clear it.
+  return next?.state === 'unavailable' && previous?.providerAccountId && previous?.spaceId
+    && sameSelection(previous, next) && ['known', 'stale'].includes(quotaPresentation(previous).state)
+    ? { ...previous, state:'stale', checkedAt:next.checkedAt, reason:next.reason } : next;
 }
 
 const errors = {
   NOT_IMPLEMENTED: '此功能尚未接入，请稍后再试。',
   PROVIDER_UNAVAILABLE: 'LibTV 暂时无法连接，请稍后重试。',
   PROVIDER_CAPABILITY_UNAVAILABLE: 'LibTV 当前尚未提供这项能力。',
+  PROVIDER_AUTHORIZATION_REQUIRED: '此账号授权需要更新，请重新授权后查询余额。',
+  SPACE_UNAVAILABLE: '所选空间的访问权限需要重新核对，请刷新账号状态。',
   PROVIDER_AUTHORIZATION_UNAVAILABLE: 'LibTV 网页授权尚未开放，请稍后再试。',
   AUTHORIZATION_UNCONFIGURED: 'LibTV 网页授权尚未开放，请稍后再试。',
   AUTHORIZATION_IN_PROGRESS: '已有授权正在进行。请完成或查询这次授权后再添加账号。',

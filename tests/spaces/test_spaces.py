@@ -246,6 +246,7 @@ class SpacesTests(unittest.TestCase):
         result = self.service.quota(TENANT_A, "pa-a", "personal")
         self.assertEqual((result["state"], result["remaining"]), ("known", 0))
         self.assertEqual(result["observedAt"], normalize.iso(NOW))
+        self.assertEqual(result["checkedAt"], normalize.iso(NOW))
 
     def test_account_and_space_reads_are_bound_independently(self):
         a = self.service.quota(TENANT_A, "pa-a", "team")
@@ -275,6 +276,7 @@ class SpacesTests(unittest.TestCase):
         self.assertEqual(result["reason"], "provider_capability_unavailable")
         self.assertIsNone(result["remaining"])
         self.assertIsNone(result["observedAt"])
+        self.assertEqual(result["checkedAt"], normalize.iso(NOW))
 
     def test_quota_network_failure_does_not_reuse_previous_accounts_balance(self):
         self.service.quota(TENANT_A, "pa-b", "personal")

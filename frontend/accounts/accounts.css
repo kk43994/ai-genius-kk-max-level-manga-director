@@ -78,6 +78,8 @@
 .al-accounts .al-accounts__quota > div { min-width: 0; }
 .al-accounts .al-accounts__quota strong { font-size: 22px; font-weight: 600; line-height: 1.4; }
 .al-accounts .al-accounts__quota > button { flex: 0 0 auto; }
+.al-accounts .al-accounts__quota > .al-accounts__actions { flex: 0 0 auto; flex-direction: column; align-items: stretch; }
+.al-accounts [data-view="quota-buckets"] { margin: 10px 0; padding-left: 18px; }
 .al-accounts .al-accounts__selection-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-top: 16px; border-top: 1px solid #e0e7dd; }
 .al-accounts .al-accounts__selection-footer > p { color: var(--aa-muted); font-size: 11px; max-width: 440px; }
 .al-accounts .al-accounts__selection-footer > button { flex: 0 0 auto; }

@@ -21,6 +21,9 @@ const closeAccounts=document.createElement('button');closeAccounts.type='button'
 accountDialog.append(closeAccounts,accountRoot);document.body.append(accountDialog);
 const openAccounts=()=>{if(!accountDialog.open)accountDialog.showModal();};
 accountButton.addEventListener('click',openAccounts);closeAccounts.addEventListener('click',()=>accountDialog.close());
+const balanceButton=document.createElement('button');balanceButton.type='button';balanceButton.className='lab-button integration-account-trigger';balanceButton.textContent='查询余额';balanceButton.disabled=true;
+accountButton.before(balanceButton);
+balanceButton.addEventListener('click',()=>{openAccounts();const quota=accountRoot.querySelector('[data-view="quota"]');quota?.scrollIntoView({block:'center'});accountRoot.querySelector('[data-action="quota"]')?.focus();void accounts?.queryQuota();});
 accountDialog.addEventListener('close',()=>accountButton.focus());
 let readOnly = false, activeDownloads = 0, pendingWrites = 0, switchingWorkspace=false;
 let workflow, accounts, drafts, shell, session, updates, localWorkspace;
@@ -204,6 +207,7 @@ try {
     authorize.addEventListener('click',()=>openAccounts());
   }
   await Promise.all([accounts.ready,workflow.ready,refreshTasks()]);
+  balanceButton.disabled=false;
   if(config.mode==='local-client') {
     localWorkspace=mountLocalWorkspace({anchor:accountRoot,api,saveDrafts:saveDraft,
       beforeSwitch:()=>workspaceRecoveryHooks().beforeSessionRotation(),

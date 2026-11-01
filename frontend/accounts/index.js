@@ -1,5 +1,5 @@
 import { accountLabels, accountState, accountName, validSelection, sameSelection, selectable,
-  officialAuthorizationUrl, publicReturnPath, attemptState, activeAttempt, publicAttemptError, timeLabel, quotaPresentation, errorText } from './state.js';
+  officialAuthorizationUrl, publicReturnPath, attemptState, activeAttempt, publicAttemptError, timeLabel, quotaPresentation, retainQuotaOnFailure, errorText } from './state.js';
 import { mountWorkspaceOwner } from './workspace-owner.js';
 
 let mountCount = 0;
@@ -70,7 +70,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
           <div><label for="${prefix}-identity">登录账号</label><select id="${prefix}-identity" data-view="identity" aria-describedby="${prefix}-scope"></select></div>
           <div><label for="${prefix}-space">工作空间</label><select id="${prefix}-space" data-view="space" aria-describedby="${prefix}-space-note"></select><p id="${prefix}-space-note" data-view="space-note" class="al-accounts__field-note"></p></div>
         </div>
-        <div data-view="quota" class="al-accounts__quota" aria-busy="false"><div><p data-view="quota-label" class="al-accounts__eyebrow"></p><strong data-view="quota-value"></strong><p data-view="quota-note" class="al-accounts__field-note"></p><p data-view="plan" class="al-accounts__field-note" hidden></p></div><button type="button" data-action="quota" class="al-accounts__button al-accounts__button--quiet">查询余额</button></div>
+        <div data-view="quota" class="al-accounts__quota" aria-busy="false"><div role="status" aria-live="polite"><p data-view="quota-label" class="al-accounts__eyebrow"></p><strong data-view="quota-value"></strong><ul data-view="quota-buckets" hidden></ul><p data-view="quota-note" class="al-accounts__field-note"></p><p data-view="quota-time" class="al-accounts__field-note" hidden></p><p data-view="plan" class="al-accounts__field-note" hidden></p></div><div class="al-accounts__actions"><button type="button" data-action="quota" class="al-accounts__button al-accounts__button--quiet">查询余额</button><a data-view="quota-official" class="al-accounts__button al-accounts__button--quiet" href="https://www.liblib.tv/" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">去 LibTV 查看 ↗</a></div></div>
         <div class="al-accounts__selection-footer"><p id="${prefix}-scope">切换仅用于之后的新任务。已有任务与素材保留原账号和空间归属。</p><button type="submit" data-action="apply" class="al-accounts__button al-accounts__button--primary">应用到新任务</button></div>
       </form>
       <dialog data-view="remove-dialog" class="al-accounts__dialog" aria-labelledby="${prefix}-remove-title" aria-describedby="${prefix}-remove-note"><h3 id="${prefix}-remove-title">移除这个账号？</h3><p data-view="remove-name"></p><p id="${prefix}-remove-note">本站将停止使用这个账号的授权。项目、文件和历史任务归属会保留；未完成任务可能需要重新授权。远端正在运行的任务不会因此自动停止。</p><div class="al-accounts__actions"><button type="button" data-action="keep-account" class="al-accounts__button" autofocus>保留账号</button><button type="button" data-action="confirm-remove" class="al-accounts__button al-accounts__button--danger">确认移除</button></div></dialog>
@@ -197,11 +197,17 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     const q = quotaPresentation(quota);
     text('quota-label', q.label);
     text('quota-value', quotaLoading ? '正在查询…' : !space ? '选择空间后查询' : q.value);
-    text('quota-note', quotaError || (!space ? '余额只对应所选账号的这个空间。' : q.note));
+    text('quota-note', !space ? '余额只对应所选账号的这个空间。' : [quotaError, q.note].filter(Boolean).join(' '));
+    text('quota-time', quota?.checkedAt ? `最近查询：${timeLabel(quota.checkedAt)}` : '');
+    refs['quota-time'].hidden = !quota?.checkedAt;
+    refs['quota-buckets'].innerHTML = q.buckets.map(b => `<li>${e(b.name)}：${e(b.value)}</li>`).join('');
+    refs['quota-buckets'].hidden = !q.buckets.length;
+    refs['quota-official'].hidden = !space;
     text('plan', quota?.planName ? `套餐：${quota.planName}（不代表可用余额）` : '');
     refs.plan.hidden = !quota?.planName;
     refs.quota.setAttribute('aria-busy', String(quotaLoading));
     buttons.quota.disabled = blocked() || spacesLoading || quotaLoading || !selectable(account, space);
+    buttons.quota.textContent = quotaLoading ? '正在查询…' : quota ? '重新查询余额' : '查询余额';
     renderAttempt();
     ownerModule?.render();
   }
@@ -283,16 +289,22 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
 
   async function loadQuota() {
     const seq = ++quotaSequence, localEpoch = epoch, account = currentAccount(), space = currentSpace();
-    quota = null; quotaError = ''; quotaLoading = false;
+    const previous = quota;
+    quota = sameSelection(quota, {providerAccountId:account?.id,spaceId:space?.id}) ? quota : null;
+    quotaError = ''; quotaLoading = false;
     if (!selectable(account, space)) { render(); return; }
-    if (account.capabilities?.quota === false) { quota = { state: 'unknown' }; render(); return; }
     quotaLoading = true; render();
     try {
       const result = await request(`/provider-accounts/${idPath(account.id)}/spaces/${idPath(space.id)}/quota`);
       if (disposed || localEpoch !== epoch || seq !== quotaSequence) return;
       if (result?.providerAccountId !== account.id || result?.spaceId !== space.id) throw fail('OWNERSHIP_MISMATCH');
-      quota = result;
-    } catch (err) { if (!disposed && localEpoch === epoch && seq === quotaSequence) { quotaError = errorText(err); quota = { state: 'unavailable' }; } }
+      quota = retainQuotaOnFailure(previous, result);
+      if (result.state === 'unavailable') quotaError = '本次查询暂未取得新余额。';
+    } catch (err) { if (!disposed && localEpoch === epoch && seq === quotaSequence) {
+      quotaError = errorText(err);
+      const failed = {providerAccountId:account.id,spaceId:space.id,state:'unavailable'};
+      quota = ['PROVIDER_UNAVAILABLE','NETWORK_ERROR','TIMEOUT'].includes(err?.code) ? retainQuotaOnFailure(previous, failed) : failed;
+    } }
     finally { if (!disposed && localEpoch === epoch && seq === quotaSequence) { quotaLoading = false; render(); } }
   }
 
@@ -510,6 +522,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   const ready = refresh({ rereadSession: !session });
   return {
     ready, refresh, authorize: () => beginAuthorization(),
+    queryQuota: () => !blocked() && !spacesLoading && !quotaLoading ? loadQuota() : Promise.resolve(),
     hasConnectedAccount: () => accounts.some(a => accountState(a) === 'connected'),
     // The integration persists this live value even when optional localStorage fails.
     getDraftSelection: () => dirty ? {providerAccountId:draft.providerAccountId, spaceId:draft.spaceId} : null,

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { accountState, attemptState, activeAttempt, selectable, validSelection, sameSelection,
-  officialAuthorizationUrl, publicReturnPath, publicAttemptError, quotaPresentation, errorText } from '../../frontend/accounts/state.js';
+  officialAuthorizationUrl, publicReturnPath, publicAttemptError, quotaPresentation, retainQuotaOnFailure, errorText } from '../../frontend/accounts/state.js';
 
 const now = Date.parse('2026-10-27T10:00:00Z');
 const account = { id: 'test_a', identity: { verified: true }, authorization: { state: 'connected' } };
@@ -65,6 +65,28 @@ test('confirmed zero remains zero, expired known value is labelled stale', () =>
   assert.equal(quotaPresentation({ state: 'known', remaining: 0, unit: 'credits' }, now).value, '0 积分');
   const old = quotaPresentation({ state: 'known', remaining: 123.45, unit: 'credits', expiresAt: '2026-10-27T09:00:00Z' }, now);
   assert.equal(old.state, 'stale'); assert.equal(old.label, '上次已知余额'); assert.match(old.note, /数据已过期/);
+});
+
+test('quota buckets keep separate units and never become an invented total', () => {
+  const q=quotaPresentation({state:'known',remaining:null,buckets:[
+    {name:'个人积分',remaining:0,unit:'credits'}, {name:'现金',remaining:12.5,unit:'CNY'}]},now);
+  assert.equal(q.value,'分项余额'); assert.equal(q.state,'known');
+  assert.deepEqual(q.buckets,[{name:'个人积分',value:'0 积分'},{name:'现金',value:'12.5 CNY'}]);
+});
+
+test('unsupported quota explains the missing official capability', () => {
+  const q=quotaPresentation({state:'unknown',reason:'provider_capability_unavailable'},now);
+  assert.equal(q.value,'余额未知');assert.match(q.note,/未提供余额数值/);
+});
+
+test('failed check keeps only a clearly stale balance in the same account and space', () => {
+  const previous={providerAccountId:'a',spaceId:'personal',state:'known',remaining:9,unit:'credits',observedAt:'2026-10-27T09:00:00Z'};
+  const failure={providerAccountId:'a',spaceId:'personal',state:'unavailable',checkedAt:'2026-10-27T10:00:00Z'};
+  const saved=retainQuotaOnFailure(previous,failure);
+  assert.equal(saved.state,'stale');assert.equal(saved.remaining,9);assert.equal(saved.observedAt,previous.observedAt);
+  assert.equal(saved.checkedAt,failure.checkedAt);
+  for (const next of [{...failure,providerAccountId:'b'},{...failure,spaceId:'team'},{...failure,state:'unknown'}])
+    assert.equal(retainQuotaOnFailure(previous,next),next);
 });
 
 test('never show raw transport messages or URLs in errors', () => {

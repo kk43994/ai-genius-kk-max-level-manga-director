@@ -37,6 +37,19 @@ export async function runSuite({ mount, makeFake, makeAccount, delay }) {
     assert(ref('status').getAttribute('role') === 'status' && ref('error').getAttribute('role') === 'alert', 'missing accessible live feedback');
   });
 
+  await test('余额能力未开放仍执行查询，显示原因、时间与官方入口', async () => {
+    const {model}=await setup('connected',{},({model})=>{
+      model.accounts.forEach(a=>a.capabilities.quota=false);
+      model.intercept=path=>path.endsWith('/quota')?Promise.resolve({providerAccountId:'pa_a',spaceId:'a_personal',state:'unknown',reason:'provider_capability_unavailable',checkedAt:new Date().toISOString()}):undefined;
+    });
+    assert(model.calls.some(c=>c.path.endsWith('/quota')),'capability flag skipped query');
+    assert(ref('quota-note').textContent.includes('未提供余额数值'),'missing capability explanation');
+    assert(!ref('quota-time').hidden && !ref('quota-official').hidden,'missing timestamp or official link');
+    const count=model.calls.filter(c=>c.path.endsWith('/quota')).length;
+    button('quota').click(); await until(()=>!button('quota').disabled);
+    assert(model.calls.filter(c=>c.path.endsWith('/quota')).length===count+1,'manual query did not run');
+  });
+
   await test('账号与空间分开选择；真实 0 保留；双击仅提交一次；外围输入不变', async () => {
     const { model, eventLog } = await setup();
     document.querySelector('#outside-draft').value = '剧本中尚未保存的原始输入';
