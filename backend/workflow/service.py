@@ -95,9 +95,10 @@ class WorkflowService:
         self.repository, self.tasks, self.api_base = repository, tasks, api_base.rstrip('/')
 
     def capabilities(self):
-        return {'scriptAnalysis': False, 'persistentProjects': True,
-                'localScriptExtraction': True, 'quickStart': True,
-                'videoGeneration': False, 'analysis': copy.deepcopy(ANALYSIS)}
+        analysis = self.analysis.capabilities() if getattr(self, 'analysis', None) else copy.deepcopy(ANALYSIS)
+        return {'scriptAnalysis': analysis['configured'], 'persistentProjects': True,
+                'localScriptExtraction': False, 'quickStart': True,
+                'videoGeneration': False, 'analysis': analysis}
 
     def _project(self, tx, project_id):
         if not isinstance(project_id, str):

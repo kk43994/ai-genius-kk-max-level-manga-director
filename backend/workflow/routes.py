@@ -35,6 +35,13 @@ def register_routes(router, services):
     add('POST', '/workflow/start', lambda c, p, b, q: start(workflow, c, b))
     add('POST', '/projects/{projectId}/scripts/{scriptId}/analyze', lambda c, p, b, q:
         analyze(workflow, c, p['projectId'], p['scriptId'], b))
+    if getattr(workflow, 'analysis', None):
+        ai = workflow.analysis
+        add('GET', '/projects/{projectId}/scripts/{scriptId}/analysis', lambda c, p, b, q:
+            ai.latest(c, p['projectId'], p['scriptId']))
+        add('GET', '/analyses/{analysisId}', lambda c, p, b, q: ai.get(c, p['analysisId']))
+        add('POST', '/analyses/{analysisId}/refresh', lambda c, p, b, q: ai.refresh(c, p['analysisId']))
+        add('GET', '/analyses/{analysisId}/plan', lambda c, p, b, q: ai.candidate(c, p['analysisId']))
     add('GET', '/projects', lambda c, p, b, q: workflow.list_projects(c))
     add('POST', '/projects', lambda c, p, b, q: workflow.create_project(c, b))
     add('GET', '/projects/{projectId}', lambda c, p, b, q: workflow.get_project(c, p['projectId']))

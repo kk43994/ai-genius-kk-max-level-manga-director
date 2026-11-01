@@ -15,7 +15,8 @@ MAX_FILE = 8 * 1024 * 1024
 MAX_TEXT = 250_000
 MAX_UNPACKED = 32 * 1024 * 1024
 ANALYSIS = {'configured': False, 'state': 'unavailable', 'status': 'not_configured',
-            'message': '分析模型尚未接入；剧本已保存，可手工整理资产清单。'}
+            'method': 'ai', 'localRuleFallback': False,
+            'message': '原文已保存，AI 分析尚未开始；不会使用本地规则替代。'}
 
 
 def decode_script(payload):

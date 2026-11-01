@@ -1,0 +1,692 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:asset-lab:screenplay-analysis:v1",
+  "title": "AI 剧本分析六类结构化结果 v1（设计规范）",
+  "$comment": "Schema validates structure only. Source matching, ID reference integrity, coverage and semantic review require separate checks. Not a claim that the runtime AI adapter is enabled.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceRevision": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "processedRanges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "startLine": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "endLine": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "startLine",
+              "endLine"
+            ]
+          }
+        },
+        "unprocessedRanges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "startLine": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "endLine": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "startLine",
+              "endLine",
+              "reason"
+            ]
+          }
+        }
+      },
+      "required": [
+        "processedRanges",
+        "unprocessedRanges"
+      ]
+    },
+    "characters": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/character"
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/scene"
+      }
+    },
+    "times": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/time"
+      }
+    },
+    "locations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/location"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    },
+    "dialogues": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dialogue"
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/uncertainty"
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "sourceRevision",
+    "complete",
+    "coverage",
+    "characters",
+    "scenes",
+    "times",
+    "locations",
+    "events",
+    "dialogues",
+    "uncertainties"
+  ],
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "startLine",
+        "endLine",
+        "quote"
+      ]
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "explicit",
+            "inferred",
+            "unknown"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "required": [
+        "value",
+        "status",
+        "evidence"
+      ]
+    },
+    "character": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fact"
+          }
+        },
+        "identity": {
+          "$ref": "#/$defs/fact"
+        },
+        "appearance": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fact"
+          }
+        },
+        "costume": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fact"
+          }
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "targetCharacterId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+              },
+              "description": {
+                "$ref": "#/$defs/fact"
+              }
+            },
+            "required": [
+              "targetCharacterId",
+              "description"
+            ]
+          }
+        },
+        "status": {
+          "enum": [
+            "explicit",
+            "inferred",
+            "unknown"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "aliases",
+        "identity",
+        "appearance",
+        "costume",
+        "relations",
+        "status",
+        "evidence"
+      ]
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parentLocationId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "$ref": "#/$defs/fact"
+        },
+        "status": {
+          "enum": [
+            "explicit",
+            "inferred",
+            "unknown"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "parentLocationId",
+        "description",
+        "status",
+        "evidence"
+      ]
+    },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+        },
+        "expression": {
+          "type": "string"
+        },
+        "timeOfDay": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "explicitDate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "relationToTimeId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "relativeDescription": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "narrativeLayer": {
+          "enum": [
+            "present",
+            "flashback",
+            "dream",
+            "imagined",
+            "reported",
+            "unknown"
+          ]
+        },
+        "status": {
+          "enum": [
+            "explicit",
+            "inferred",
+            "unknown"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "expression",
+        "timeOfDay",
+        "explicitDate",
+        "relationToTimeId",
+        "relativeDescription",
+        "narrativeLayer",
+        "status",
+        "evidence"
+      ]
+    },
+    "scene": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "locationIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+          }
+        },
+        "timeIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+          }
+        },
+        "presentCharacterIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+          }
+        },
+        "mentionedCharacterIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+          }
+        },
+        "summary": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "enum": [
+            "explicit",
+            "inferred",
+            "unknown"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "order",
+        "locationIds",
+        "timeIds",
+        "presentCharacterIds",
+        "mentionedCharacterIds",
+        "summary",
+        "startLine",
+        "endLine",
+        "status",
+        "evidence"
+      ]
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+        },
+        "sceneId": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "summary": {
+          "type": "string"
+        },
+        "characterIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+          }
+        },
+        "stateChange": {
+          "$ref": "#/$defs/fact"
+        },
+        "followsEventIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+          }
+        },
+        "causedByEventIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+          }
+        },
+        "narrativeLayer": {
+          "enum": [
+            "present",
+            "flashback",
+            "dream",
+            "imagined",
+            "reported",
+            "unknown"
+          ]
+        },
+        "status": {
+          "enum": [
+            "explicit",
+            "inferred",
+            "unknown"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "sceneId",
+        "order",
+        "summary",
+        "characterIds",
+        "stateChange",
+        "followsEventIds",
+        "causedByEventIds",
+        "narrativeLayer",
+        "status",
+        "evidence"
+      ]
+    },
+    "dialogue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+        },
+        "sceneId": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+        },
+        "eventId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "speakerId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "speakerLabel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "addresseeIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+          }
+        },
+        "kind": {
+          "enum": [
+            "dialogue",
+            "inner_monologue",
+            "narration",
+            "voiceover",
+            "offscreen",
+            "system_voice",
+            "unknown"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "direction": {
+          "$ref": "#/$defs/fact"
+        },
+        "startLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "enum": [
+            "explicit",
+            "inferred",
+            "unknown"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "sceneId",
+        "eventId",
+        "order",
+        "speakerId",
+        "speakerLabel",
+        "addresseeIds",
+        "kind",
+        "text",
+        "direction",
+        "startLine",
+        "endLine",
+        "status",
+        "evidence"
+      ]
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+        },
+        "recordIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,99}$"
+          }
+        },
+        "category": {
+          "enum": [
+            "identity",
+            "time",
+            "location",
+            "event",
+            "dialogue",
+            "coverage",
+            "other"
+          ]
+        },
+        "question": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "blocking": {
+          "type": "boolean"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "recordIds",
+        "category",
+        "question",
+        "reason",
+        "blocking",
+        "evidence"
+      ]
+    }
+  }
+}

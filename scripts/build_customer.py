@@ -36,7 +36,8 @@ def build(output, base, api):
         dest=server/source.relative_to(ROOT);dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,dest)
     # ToolCatalog.bundled reads this public schema at runtime; Python-only copies fail startup.
     for relative in ('backend/generation/contracts/libtv-tools-public-2026-10-27.json',
-                     'backend/generation/contracts/libtv-tools-public-2026-10-28.json'):
+                     'backend/generation/contracts/libtv-tools-public-2026-10-28.json',
+                     'backend/analysis/schema.json'):
         source=ROOT/relative
         if source.is_symlink():raise ValueError('Runtime schema cannot be a symlink')
         dest=server/relative;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,dest)

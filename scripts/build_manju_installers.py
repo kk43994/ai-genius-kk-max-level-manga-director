@@ -58,7 +58,7 @@ def mac(build,output):
     spec.write_text(f'''
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 a=Analysis([{str(ROOT/'manju_client/mac_entry.py')!r}],pathex=[{str(ROOT)!r}],binaries=[],
- datas=[({str(build/'public')!r},'frontend'),({str(ROOT/'backend/generation/contracts')!r},'backend/generation/contracts')]+collect_data_files('certifi')+collect_data_files('jsonschema_specifications'),
+ datas=[({str(build/'public')!r},'frontend'),({str(ROOT/'backend/generation/contracts')!r},'backend/generation/contracts'),({str(ROOT/'backend/analysis/schema.json')!r},'backend/analysis')]+collect_data_files('certifi')+collect_data_files('jsonschema_specifications'),
  hiddenimports=collect_submodules('backend',filter=lambda n:not n.startswith('backend.legacy'))+['scripts.customer_entry'],excludes=['backend.legacy','tkinter'],noarchive=False)
 pyz=PYZ(a.pure)
 exe=EXE(pyz,a.scripts,[],exclude_binaries=True,name='ManjuWorkbenchServer',debug=False,console=True,target_arch='arm64')

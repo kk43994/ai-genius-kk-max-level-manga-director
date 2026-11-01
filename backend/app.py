@@ -544,6 +544,12 @@ class Application:
                     outputs=WorkflowOutputStore(self.services.workflow, repository),
                     policy=module.TaskPolicy(confirmation_key=key,allow_paid_submission=config.allowPaidSubmission), clock=self.services.clock)
                 self.services.workflow.tasks = self.services.tasks
+                from .analysis.service import AnalysisService
+                from .analysis.provider import LibTVAnalysisProvider
+                self.services.analysis = AnalysisService(self.services, LibTVAnalysisProvider(self.services),
+                    enabled=config.local_client and config.allowPaidSubmission)
+                self.services.workflow.analysis = self.services.analysis
+                self.services.sessions.features['scriptAnalysis'] = self.services.analysis.enabled
                 if hasattr(self.services.providers, "on_account_removed"):
                     self.services.providers.on_account_removed = self.services.tasks.block_account
         if name == "releases" and isinstance(self.services.releases, UnavailableService):

@@ -1,3 +1,4 @@
+import {analysisPanel, sourceView} from './analysis.js';
 import {operationLabel, elapsedLabel, taskProgress, reviewProgress} from './progress.js';
 import {buildCustomerArchives} from '../asset-lab-archives.js';
 import {nextAction, prepareIdentity} from './guide.js';
@@ -31,6 +32,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }};
   let alive = true, busy = false, loading = false, requestSerial = 0, timer, flowTimer, error = '', notice = '';
   let projects = [], project = null, plan = {version:0,entities:[],stylePrompt:''}, assets = [], bundles = [], tasks = [], scripts = [];
+  let analysis = null, analysisError = '';
   let coverage = {total:0, ready:0, complete:false}, capabilities = {scriptAnalysis:false}, taskError = '';
   let selected = drafts.get('quick-start')?.text ? '' : drafts.get('selectedProject') || '', page = normalizePage(drafts.get('page') || 'plan');
   let selectedEntity = drafts.get('selectedEntity') || '', editing = false, reviewId = null, prepared = null;
@@ -45,7 +47,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const image = (assetId, revisionId, thumb = true) => esc(assetURL(apiBase,assetId,revisionId,thumb));
   const path = relative => apiBase + relative;
   const dirty = () => Object.keys(drafts.data).some(k => k.startsWith('plan:') || k.startsWith('compose:') || k.startsWith('review:') || (k==='quick-start'&&drafts.get(k)?.text));
-  const guide = () => nextAction({project, plan:{...plan,needsReview:plan.needsReview||Boolean(drafts.get(planKey()))}, assets, tasks, bundles, selection:session.selection, taskError, styleCount:session.features?.imageGeneration ? 4 : 1});
+  const guide = () => scripts.length && !plan.entities.length && !drafts.get(planKey()) ? {kind:'analysis',title:analysis?.status==='ready'?'核对 AI 分析，建立资产清单':'先完成 AI 剧本分析',detail:analysis?.message||'用 AI 理解角色、场景、时间、地点、事件与台词。'} : nextAction({project, plan:{...plan,needsReview:plan.needsReview||Boolean(drafts.get(planKey()))}, assets, tasks, bundles, selection:session.selection, taskError, styleCount:session.features?.imageGeneration ? 4 : 1});
 
   const stylesheet = doc.createElement('link');
   stylesheet.rel = 'stylesheet'; stylesheet.href = new URL('./workflow.css', import.meta.url).href;
@@ -95,15 +97,15 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(active){const node=root.querySelector('[data-wf-elapsed]');if(node)node.textContent=elapsedLabel(active.startedAt);const slow=root.querySelector('[data-wf-slow]');if(slow)slow.hidden=Date.now()-active.startedAt<30000;}
   },1000);
   pollingTimer = setInterval(() => {
-    if(alive&&!loading&&!polling&&project&&doc.visibilityState!=='hidden'&&(busy||tasks.some(t=>['preparing','submitting','queued','submitted','running','downloading'].includes(t.status))))void pollTasks();
+    if(alive&&!loading&&!polling&&project&&doc.visibilityState!=='hidden'&&(['preparing','submitting','running','reviewing'].includes(analysis?.status)||busy||tasks.some(t=>['preparing','submitting','queued','submitted','running','downloading'].includes(t.status))))void pollTasks();
   },5000);
   function createView() {
     const draft = drafts.get('new-project') || {name:'',description:''};
     const quick = drafts.get('quick-start') || {text:''};
-    return `<section class="wf-panel wf-start"><p class="wf-eyebrow">ASSET LAB / 从剧本开始</p><h3>把故事放进来，<br>接下来的步骤交给工作台。</h3><p class="wf-muted">自动建立项目、提取资产清单、填写制作要求。你在关键节点确认清单和图片。</p><form data-wf-form="quick-start" class="wf-compose"><label>剧本正文<textarea name="text" rows="10" maxlength="250000" required placeholder="粘贴你的剧本，例如：&#10;《山间来信》&#10;角色：林舟、阿宁&#10;场景：旧书店&#10;道具：信封&#10;林舟：这封信，是留给你的。">${esc(quick.text)}</textarea></label><div class="wf-actions"><button class="primary" type="submit">开始制作 →</button><label class="wf-link">或导入剧本文件<input data-wf-quick-upload type="file" accept=".txt,.md,.docx" hidden></label><span class="wf-muted">TXT / MD / DOCX · 最大 8 MiB</span></div></form><ol class="wf-roadmap"><li>拆出清单</li><li>确定风格</li><li>制作资产</li><li>精修审核</li><li>下载交付</li></ol><p class="wf-muted">当前提供本地规则拆解，适用于有角色、场景与对白标记的剧本。图片制作需要 LibTV 创作授权及生成服务就绪。</p><details><summary>手工创建项目</summary><form data-wf-form="create" class="wf-compose"><label>项目名称<input name="name" maxlength="120" required value="${esc(draft.name)}"></label><label>项目说明（可选）<textarea name="description" maxlength="4000">${esc(draft.description)}</textarea></label><div><button type="submit">创建空项目</button></div></form></details></section>`;
+    return `<section class="wf-panel wf-start"><p class="wf-eyebrow">ASSET LAB / 从剧本开始</p><h3>把故事放进来，<br>接下来的步骤交给工作台。</h3><p class="wf-muted">自动建立项目、提取资产清单、填写制作要求。你在关键节点确认清单和图片。</p><form data-wf-form="quick-start" class="wf-compose"><label>剧本正文<textarea name="text" rows="10" maxlength="250000" required placeholder="粘贴你的剧本，例如：&#10;《山间来信》&#10;角色：林舟、阿宁&#10;场景：旧书店&#10;道具：信封&#10;林舟：这封信，是留给你的。">${esc(quick.text)}</textarea></label><div class="wf-actions"><button class="primary" type="submit">开始制作 →</button><label class="wf-link">或导入剧本文件<input data-wf-quick-upload type="file" accept=".txt,.md,.docx" hidden></label><span class="wf-muted">TXT / MD / DOCX · 最大 8 MiB</span></div></form><ol class="wf-roadmap"><li>拆出清单</li><li>确定风格</li><li>制作资产</li><li>精修审核</li><li>下载交付</li></ol><p class="wf-muted">原文保存后点击 AI 分析，由 LibTV 文本模型提取六类信息并复核。分析和图片制作需要 LibTV 创作授权及可用积分。</p><details><summary>手工创建项目</summary><form data-wf-form="create" class="wf-compose"><label>项目名称<input name="name" maxlength="120" required value="${esc(draft.name)}"></label><label>项目说明（可选）<textarea name="description" maxlength="4000">${esc(draft.description)}</textarea></label><div><button type="submit">创建空项目</button></div></form></details></section>`;
   }
   function guideView() {
-    const next = guide(), labels = {plan:plan.entities.length?'确认清单并继续':'补充资产清单',connect:'连接 / 选择账号',review:'查看图片并审核',prepare:'一键继续制作',confirm:'核对并继续',recover:'查询原任务',archive:'整理交付包',download:'下载全部资产',import:'导入剧本'};
+    const next = guide(), labels = {analysis:'查看 AI 分析与下一步',plan:plan.entities.length?'确认清单并继续':'补充资产清单',connect:'连接 / 选择账号',review:'查看图片并审核',prepare:'一键继续制作',confirm:'核对并继续',recover:'查询原任务',archive:'整理交付包',download:'下载全部资产',import:'导入剧本'};
     const unavailable = ['prepare','confirm'].includes(next.kind) && session.features?.imageGeneration !== true;
     const {done,total} = reviewProgress(plan.entities,assets,session.selection,belongsToSelection);
     return `<section class="wf-panel wf-guide" aria-label="一键制作进度"><div><p class="wf-eyebrow">${unavailable?'制作服务待就绪':'接下来只需这一步'}</p><h3>${esc(next.title)}</h3><p class="wf-muted">${esc(next.detail)}</p>${total?`<p class="wf-muted">${done} / ${total} 个制作环节已审核</p><progress class="wf-overall" value="${done}" max="${total}" aria-label="制作环节审核进度"></progress>`:''}${unavailable?'<p class="wf-note">这个版本的图片生成服务尚未开放。剧本和清单已保存，服务接通后从这里继续。</p>':''}</div><div class="wf-actions">${next.kind==='download'?`<a data-wf-download class="wf-link primary" href="${esc(path(`/projects/${encodeURIComponent(selected)}/bundles/${encodeURIComponent(next.bundle.id)}/content`))}">下载全部资产 ↓</a>`:next.kind==='blocked'?'<button data-wf-nav="review">查看任务与素材</button>':`<button class="primary" data-wf-action="continue" ${busy||unavailable?'disabled':''}>${labels[next.kind]||'继续'}</button>${unavailable?'<button data-wf-action="connect">查看已连接账号</button><button data-wf-action="refresh">检查服务状态</button>':''}`}${next.kind==='recover'?`<span class="wf-muted">${['queued','running','downloading','submitting'].includes(next.task?.status)?'页面保持打开时自动查询':'点击查询原任务继续，不会重新生成'}</span>`:''}</div></section>`;
@@ -111,11 +113,12 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function planView() {
     const draft = drafts.get(planKey());
     const warnings = [...new Set(scripts.flatMap(s=>s.analysis?.warnings||[]))];
-    const header = `<section class="wf-panel"><h3>剧本与资产清单</h3><div class="wf-actions"><label class="wf-link">导入剧本<input data-wf-upload type="file" accept=".txt,.md,.docx" hidden></label><button type="button" data-wf-action="edit-plan">${plan.entities.length ? '编辑资产清单' : '手工填写清单'}</button>${scripts.length?'<button type="button" data-wf-action="analyze">重新整理清单草稿</button>':''}</div><p class="wf-muted">TXT / Markdown / DOCX · 单文件 ≤ 8 MiB。每项原文依据可以在清单中核对。</p>${warnings.length?`<div class="wf-note">${warnings.map(w=>esc(w)).join('<br>')}</div>`:''}${scripts.map(s=>`<details><summary>${esc(s.filename)} · ${s.characters.toLocaleString()} 字 · 原文已保存</summary><pre class="wf-script">${esc(s.text)}</pre></details>`).join('')}</section>`;
+    const header = `<section class="wf-panel"><h3>剧本与资产清单</h3><div class="wf-actions"><label class="wf-link">导入剧本<input data-wf-upload type="file" accept=".txt,.md,.docx" hidden></label><button type="button" data-wf-action="edit-plan">${plan.entities.length ? '编辑资产清单' : '手工填写清单'}</button></div><p class="wf-muted">TXT / Markdown / DOCX · 单文件 ≤ 8 MiB。每项原文依据可以在清单中核对。</p>${warnings.length?`<div class="wf-note">${warnings.map(w=>esc(w)).join('<br>')}</div>`:''}${scripts.map(sourceView).join('')}</section>${analysisView()}`;
     if (editing || draft) return header + planEditor(draft || {expectedVersion:plan.version, entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});
     const archives = buildCustomerArchives(assets,plan);
-    return header + (archives.length ? `<div class="wf-section-title"><h3>本项目档案</h3><span class="wf-muted">${archives.length} 项 · 未生成的条目也保留在这里</span></div><div class="wf-grid">${archives.map(a=>archiveCard(a)).join('')}</div>` : empty('先整理故事里有什么','无需等待模型分析，手工清单也可以直接进入逐步制作。'));
+    return header + (archives.length ? `<div class="wf-section-title"><h3>本项目档案</h3><span class="wf-muted">${archives.length} 项 · 未生成的条目也保留在这里</span></div><div class="wf-grid">${archives.map(a=>archiveCard(a)).join('')}</div>` : empty('等待 AI 分析结果','分析完成后核对六类信息，再建立角色与地点资产清单。'));
   }
+  function analysisView() { return analysisPanel({script:scripts.at(-1),analysis,enabled:capabilities.scriptAnalysis,connected:Boolean(session.selection?.providerAccountId&&session.selection?.spaceId),busy,error:analysisError}); }
   function archiveCard(a) {
     return `<article class="wf-entity">${a.cover ? `<div class="wf-cover"><button class="wf-image-button" data-wf-review="${esc(a.cover.id)}" aria-label="查看 ${esc(a.name)} 原图与审核"><img src="${image(a.assetId,a.cover.id)}" alt="${esc(a.name)} ${esc(stageLabels[a.cover.stage])}" loading="lazy"></button></div>` : '<div class="wf-cover"><span class="wf-muted">待制作</span></div>'}<p>${tag('',categories[a.category])}</p><h3>${esc(a.name)}</h3><p class="wf-muted">${esc(a.description || '设定待补充')}</p><div class="wf-stage-line">${stages.map(s=>`<span class="${a.stages[s] ? 'done' : ''}">${esc(stageLabels[s])} ${a.stages[s]?'✓':a.revisions.some(r=>r.stage===s&&r.status==='ready'&&r.review==='pending')?'待审核':a.revisions.some(r=>r.stage===s&&r.review==='changes_requested')?'待返修':'待制作'}</span>`).join('')}</div><div class="wf-actions"><button data-wf-entity="${esc(a.id)}" data-wf-stage="${a.stages.asset?'refine':a.stages.style?'asset':'style'}">继续制作</button><button data-wf-archive="${esc(a.id)}">版本与审核 (${a.revisions.length})</button></div></article>`;
   }
@@ -181,11 +184,11 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   async function load({initial=false}={}) {
     const serial=++requestSerial;loading=initial;error='';if(initial)render();
     try {
-      const projectResult=await api.request('/projects');if(!alive||serial!==requestSerial)return;
+      const [projectResult, caps]=await Promise.all([api.request('/projects'),api.request('/workflow/capabilities')]);capabilities=caps;if(!alive||serial!==requestSerial)return;
       projects=projectResult.items || [];
       if(!creating&&!projects.some(p=>p.id===selected))selected=projects[0]?.id || '';
       project=projects.find(p=>p.id===selected)||null;
-      if(!project){plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};return;}
+      if(!project){analysis=null;analysisError='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};return;}
       const projectId=selected;
       const replies=await Promise.all([
         api.request(`/projects/${encodeURIComponent(projectId)}/plan`),
@@ -197,7 +200,8 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       [plan]=replies;assets=replies[1].items||[];coverage=replies[1].coverage||{total:plan.entities.length,ready:0,complete:false};bundles=replies[2].items||[];
       if(replies[3].ok){tasks=replies[3].value.items||[];taskError='';lastChecked=new Date();}else{tasks=[];taskError=replies[3].error.message||'任务服务尚未就绪。';}
       const loadedScripts=await Promise.all(project.scriptIds.map(id=>api.request(`/projects/${encodeURIComponent(projectId)}/scripts/${encodeURIComponent(id)}`)));
-      if(!alive||serial!==requestSerial||projectId!==selected)return;scripts=loadedScripts;
+      if(!alive||serial!==requestSerial||projectId!==selected)return;scripts=loadedScripts;analysis=null;analysisError='';
+      if(scripts.length){try{const response=await api.request(`/projects/${encodeURIComponent(projectId)}/scripts/${encodeURIComponent(scripts.at(-1).id)}/analysis`);if(!alive||serial!==requestSerial||projectId!==selected)return;analysis=response.analysis;}catch(e){analysisError=e.message||'AI 分析状态暂不可用。';}}
       if(selectedEntity && !plan.entities.some(e=>e.id===selectedEntity))selectedEntity='';
       persist('selectedProject',selected);emitProject();
     } catch(e) {if(alive&&serial===requestSerial)error=e.message||'读取项目失败，编辑草稿已保留。';}
@@ -215,6 +219,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const projectId=selected, serial=requestSerial;
     polling=true;
     try {
+      if(analysis?.canRefresh){const updated=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/refresh`,{method:'POST',body:{}});if(!alive||serial!==requestSerial||projectId!==selected)return;analysis=updated;analysisError='';const panel=root.querySelector('[data-wf-analysis]');if(panel)panel.outerHTML=analysisView();}
       const result=await loadTasks(projectId);
       if(!alive||serial!==requestSerial||projectId!==selected)return;
       tasks=result.items;taskError='';lastChecked=new Date();
@@ -244,6 +249,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(busy||loading||!project)return;
     persist(`flow:${selected}`,true);
     const next=guide();
+    if(next.kind==='analysis')return navigate('plan');
     if(next.kind==='plan'){
       if(!plan.entities.length||drafts.get(planKey())){editing=true;if(!drafts.get(planKey()))persist(planKey(),{expectedVersion:plan.version,entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});return navigate('plan');}
       await perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/plan`,{method:'PUT',body:{expectedVersion:plan.version,entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt}});await load();});
@@ -323,7 +329,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       const bytes=new Uint8Array(await file.arrayBuffer());let binary='';
       for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode(...bytes.subarray(offset,offset+8192));
       const result=await api.request(`/projects/${encodeURIComponent(selected)}/scripts`,{method:'POST',body:{filename:file.name,contentBase64:btoa(binary)}});
-      page='plan';persist('page',page);announce(result.duplicate?'这份剧本已保存，已恢复原记录。':'剧本原文已保存。分析模型尚未接入，可以手工整理清单。');await load();
+      page='plan';persist('page',page);announce(result.duplicate?'这份剧本已保存，已恢复原记录。':'剧本原文已保存，点击“开始 AI 分析”继续。');await load();
     });
   }
   async function startFromFile(file) {
@@ -341,7 +347,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     project=result.project;selected=project.id;creating=false;page='plan';editing=false;
     if(drafts.get('quick-start')?.text===body.text)removeDraft('quick-start');
     persist('selectedProject',selected);persist('page',page);persist(`flow:${selected}`,true);
-    announce(result.duplicate?'已恢复这份剧本的项目。':'项目和剧本已保存，资产初稿已建立，请核对后继续。');await load();
+    announce(result.duplicate?'已恢复这份剧本的项目。':'项目和剧本已保存，点击“开始 AI 分析”提取六类信息。');await load();
     root.querySelector('.wf-guide')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
   function onInput(event) {
@@ -385,15 +391,25 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(button.dataset.wfRemove!==undefined){const draft=drafts.get(planKey());if(draft){draft.entities.splice(Number(button.dataset.wfRemove),1);persist(planKey(),draft);render();}return;}
     if(button.dataset.wfCancel){const task=tasks.find(t=>t.id===button.dataset.wfCancel);if(!task||task.submissionAttempted)return;return perform(async()=>{await api.request(`/tasks/${encodeURIComponent(task.id)}/cancel`,{method:'POST',body:{expectedVersion:task.version}});prepared=null;const draft=drafts.get(composeKey());if(draft)persist(composeKey(),{...draft,prepareKey:key()});announce('未提交的准备记录已取消；原记录仍保留。');await load();});}
     if(button.dataset.wfRecover){const task=tasks.find(t=>t.id===button.dataset.wfRecover);if(!task)return;return perform(async()=>{await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version}});announce('已查询原任务；没有重新发起生成。');await load();});}
+    if(button.dataset.wfAnalysisGroup){const group=root.querySelector('#analysis-'+button.dataset.wfAnalysisGroup);if(group){group.open=true;group.scrollIntoView({behavior:'smooth',block:'start'});}return;}
+    if(button.dataset.wfSource){const source=root.querySelector(`[data-wf-script="${scripts.at(-1)?.id}"]`);if(source){source.open=true;source.querySelectorAll('[data-wf-line]').forEach(line=>line.classList.toggle('wf-source-active',Number(line.dataset.wfLine)>=Number(button.dataset.wfSource)&&Number(line.dataset.wfLine)<=Number(button.dataset.wfSourceEnd)));source.querySelector('.wf-source-active')?.scrollIntoView({behavior:'smooth',block:'center'});}return;}
     const action=button.dataset.wfAction;
     if(action==='continue')return continueFlow();
-    if(action==='analyze')return perform(async()=>{
-      const candidate=await api.request(`/projects/${encodeURIComponent(selected)}/scripts/${encodeURIComponent(scripts.at(-1).id)}/analyze`,{method:'POST',body:{expectedVersion:plan.version,preview:true}});
-      persist(planKey(),{expectedVersion:candidate.expectedVersion,entities:candidate.entities,stylePrompt:candidate.stylePrompt});editing=true;page='plan';announce('已重新整理清单草稿，请核对后保存；原清单尚未更改。');
-    });
+    if(action==='analyze'){
+      if(!root.querySelector('[data-wf-analysis-spend]')?.checked){announce('请先确认本次两步 AI 分析使用当前账号积分。');return;}
+      const script=scripts.at(-1);if(!script)return;
+      const requestName=`analysis:${script.id}:${session.selection.revision}:${analysis?.id||'first'}`;
+      const idempotencyKey=drafts.get(requestName)||key();persist(requestName,idempotencyKey);
+      return perform(async()=>{analysis=await api.request(`/projects/${encodeURIComponent(selected)}/scripts/${encodeURIComponent(script.id)}/analyze`,{method:'POST',body:{idempotencyKey,expectedSelectionRevision:session.selection.revision,confirmSpend:true,reanalyze:Boolean(analysis)}});analysisError='';announce('AI 分析请求已保存，状态将在这里持续更新。');});
+    }
+    if(action==='analysis-refresh'&&analysis)return perform(async()=>{analysis=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/refresh`,{method:'POST',body:{}});analysisError='';});
+    if(action==='analysis-plan'&&analysis?.status==='ready'){
+      if(!root.querySelector('[data-wf-analysis-reviewed]')?.checked){announce('请先对照原文核对分析结果和待确认问题。');return;}
+      return perform(async()=>{const candidate=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/plan`);persist(planKey(),{expectedVersion:candidate.expectedVersion,entities:candidate.entities,stylePrompt:candidate.stylePrompt});editing=true;page='plan';announce(candidate.hasExistingPlan?'AI 草稿已打开；保存时将更新当前资产清单，请核对原有条目是否需要保留。':'AI 角色与地点草稿已打开，请核对设定和视觉风格后保存。');});
+    }
     if(action==='connect'){events.dispatchEvent(new CustomEvent('workflow:connect'));return;}
     if(action==='refresh')return perform(()=>load());
-    if(action==='new-project'){creating=true;project=null;selected='';selectedEntity='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};reviewId=null;prepared=null;render();root.querySelector('input[name=name]')?.focus();return;}
+    if(action==='new-project'){analysis=null;analysisError='';creating=true;project=null;selected='';selectedEntity='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};reviewId=null;prepared=null;render();root.querySelector('input[name=name]')?.focus();return;}
     if(action==='edit-plan'){editing=true;if(!drafts.get(planKey()))persist(planKey(),{expectedVersion:plan.version,entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});render();return;}
     if(action==='add-entity'){const draft=drafts.get(planKey())||{expectedVersion:plan.version,entities:[],stylePrompt:plan.stylePrompt};if(draft.entities.length>=300){announce('一个项目最多 300 项资产。');return;}draft.entities.push({id:'ent_'+key().replaceAll('-',''),category:'character',name:'',description:'',variant:'',origin:'manual',quote:'',scriptId:''});persist(planKey(),draft);render();root.querySelector('[data-wf-row]:last-of-type input[data-field=name]')?.focus();return;}
     if(action==='close-review'){reviewId=null;render();focusedBeforeReview?.isConnected&&focusedBeforeReview.focus();return;}

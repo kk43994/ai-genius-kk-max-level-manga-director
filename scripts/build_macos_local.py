@@ -33,7 +33,7 @@ from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 hidden = collect_submodules('backend', filter=lambda name: not name.startswith('backend.legacy'))
 a = Analysis([{str(ROOT/'local_client/mac_entry.py')!r}], pathex=[{str(ROOT)!r}],
     binaries=[], datas=[({str(ROOT/'.build/public')!r},'frontend'),
-    ({str(ROOT/'backend/generation/contracts')!r},'backend/generation/contracts')]
+    ({str(ROOT/'backend/generation/contracts')!r},'backend/generation/contracts'),({str(ROOT/'backend/analysis/schema.json')!r},'backend/analysis')]
     + collect_data_files('certifi') + collect_data_files('jsonschema_specifications'),
     hiddenimports=hidden+['scripts.customer_entry'], excludes=['backend.legacy','tkinter'], noarchive=False)
 pyz = PYZ(a.pure)

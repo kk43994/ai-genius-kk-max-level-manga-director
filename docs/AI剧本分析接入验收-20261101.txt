@@ -1,0 +1,45 @@
+AI 剧本分析接入与验收（2026-11-01）
+
+用户流程
+导入 TXT / Markdown / DOCX 或粘贴原文，先创建项目和空清单。
+点击“开始 AI 分析”前确认当前账号积分用于两次文本调用。
+AI 第一次通读并提取六类信息；第二次对照原文复核遗漏和错误。
+页面持续显示阶段、已完成调用数、更新时间、原账号空间，以及不确定进度条。
+展开角色、场景、时间、地点、事件、台词，点击证据可定位原文行。
+核对疑点后点击“用分析结果建立资产草稿”，编辑角色与地点说明和风格，确认保存后进入原有图片制作与人工审核流程。
+
+持久化与失败行为
+analysis.jobs 保存原账号、空间、projectId、scriptId、sourceRevision、提示词版本与每次 provider task_id。
+原文和提取草稿保存在本地；每次提交前保存意图、模型参数及 promptSha256。正常刷新只查询原回执。
+跨账号选择不改变旧分析归属。后台使用短事务领取持久化执行租约，避免并发页面同时提交。
+GET 不调用模型。提交是否成功无法确认时禁止自动重发；必须核对原记录。
+返回内容必须符合 JSON Schema，所有事实证据和台词逐字落在原文对应行范围，关联 ID 必须存在，处理范围覆盖所有非空行。
+校验属于格式、引用及关联核验，不能证明 AI 语义没有遗漏；第二次模型复核和用户核对都保留。
+原文不明的字段用 unknown / null，AI 推断单独标记。AI 不可用时不使用本地语义规则替代。
+
+接口（位于现有 /asset-lab/api/v1）
+POST /projects/{projectId}/scripts/{scriptId}/analyze
+  body: idempotencyKey, expectedSelectionRevision, confirmSpend:true, reanalyze:false
+GET /projects/{projectId}/scripts/{scriptId}/analysis
+GET /analyses/{analysisId}
+POST /analyses/{analysisId}/refresh
+GET /analyses/{analysisId}/plan
+所有数据按当前本站工作区隔离，写入仍需要既有 CSRF 与会话绑定。
+
+真实验证证据
+模型：GVLM 3.1，官方 modelId=aurora-3-prime。
+调用：当前授权账号的官方 create_node(nodeType=text,run=true)，接收真实 generation task_id。
+第一次 task_id：20261101122603537811366。
+第二次 task_id：20261101123003287411366。
+两次均从 task_status 的 SUCCEEDED / TERMINAL_READY / structured / result.texts 获取结果；没有使用画布 loading 标记判断完成。
+测试三行散文没有“角色：”“场景：”标签。第一次返回 1 个事件，AI 复核补充为 2 个事件。
+最终：2 角色、1 场景、1 时间、1 地点、2 事件、2 台词，生成 3 个本地角色/地点档案。无图片生成。
+回执和真实结果跨 Python 进程重建后仍可读取；HTTP 本地服务重启后会话保持、scriptAnalysis=true、localScriptExtraction=false。
+未选择账号时 HTTP 返回 409 SELECTION_REQUIRED；不返回含糊的 500 或建立收费请求。
+
+当前边界
+每次最多 16,000 字，仅个人空间；长剧本分包仍未实现，超过容量明确阻止提交而不截断。
+当前支持查看六类分析并编辑资产草稿；六类分析字段的逐项修改和版本差异尚未实现。
+真实验收是一个短散文案例，不能当成所有复杂剧本的分析准确率保证。
+Chrome 自动化被 Work 设置禁用，本次未完成浏览器点击或视觉验收。
+本次代码已接入本地开发工作台；官网 Windows/macOS 安装包未发布此 AI 版本。

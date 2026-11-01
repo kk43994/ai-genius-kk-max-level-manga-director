@@ -1,0 +1,38 @@
+import {escapeHTML as esc} from './model.js';
+
+export const analysisGroups = [['characters','角色'],['scenes','场景'],['times','时间'],['locations','地点'],['events','事件'],['dialogues','台词']];
+const states = {explicit:'原文明示',inferred:'AI 推断 · 待核对',unknown:'原文未说明'};
+const layers = {present:'现实',flashback:'闪回',dream:'梦境',imagined:'想象',reported:'转述',unknown:'待确认'};
+const kinds = {dialogue:'对白',inner_monologue:'内心独白',narration:'旁白',voiceover:'画外音',offscreen:'画外对白',system_voice:'系统音',unknown:'待确认'};
+const fact = value => value?.value ? `${esc(value.value)}${value.status==='inferred'?'（AI 推断）':''}` : '原文未说明';
+const facts = values => values.length ? values.map(fact).join('；') : '原文未说明';
+function evidence(items) {
+  return items.map(e=>`<button type="button" class="wf-evidence" data-wf-source="${e.startLine}" data-wf-source-end="${e.endLine}" title="定位原文">L${e.startLine}${e.endLine!==e.startLine?'–'+e.endLine:''} · ${esc(e.quote)}</button>`).join('');
+}
+function resultView(result) {
+  const names = new Map(analysisGroups.flatMap(([key])=>result[key].map(r=>[r.id,r.name||r.title||r.expression||r.summary||r.id])));
+  const refs = ids => ids.length ? ids.map(id=>esc(names.get(id)||id)).join('、') : '未说明';
+  const field = (name,html) => `<div><dt>${name}</dt><dd>${html}</dd></div>`;
+  function record(key,r) {
+    let title = r.name || r.title || r.expression || r.summary || `${kinds[r.kind]} · ${names.get(r.speakerId)||r.speakerLabel||'说话人待确认'}`;
+    let details = '';
+    if(key==='characters')details=field('别名',facts(r.aliases))+field('身份',fact(r.identity))+field('外貌',facts(r.appearance))+field('服装',facts(r.costume))+field('关系',r.relations.map(x=>`${refs([x.targetCharacterId])}：${fact(x.description)}`).join('；')||'未说明');
+    if(key==='scenes')details=field('场次',esc(r.order))+field('地点',refs(r.locationIds))+field('时间',refs(r.timeIds))+field('实际在场',refs(r.presentCharacterIds))+field('仅被提及',refs(r.mentionedCharacterIds))+field('场景内容',esc(r.summary));
+    if(key==='times')details=field('叙事层',layers[r.narrativeLayer])+field('时段',esc(r.timeOfDay||'未说明'))+field('日期',esc(r.explicitDate||'未说明'))+field('关联时间',r.relationToTimeId?refs([r.relationToTimeId]):'未说明')+field('先后关系',esc(r.relativeDescription||'未说明'));
+    if(key==='locations')details=field('上级地点',r.parentLocationId?refs([r.parentLocationId]):'未说明')+field('环境',fact(r.description));
+    if(key==='events')details=field('所属场景',refs([r.sceneId]))+field('事件顺序',esc(r.order))+field('相关角色',refs(r.characterIds))+field('变化',fact(r.stateChange))+field('前序事件',refs(r.followsEventIds))+field('原因事件',refs(r.causedByEventIds))+field('叙事层',layers[r.narrativeLayer]);
+    if(key==='dialogues')details=field('台词顺序',esc(r.order))+field('原文台词',`<blockquote>${esc(r.text)}</blockquote>`)+field('所属场景',refs([r.sceneId]))+field('相关事件',r.eventId?refs([r.eventId]):'未说明')+field('对谁说',refs(r.addresseeIds))+field('动作 / 语气',fact(r.direction));
+    return `<article class="wf-analysis-record"><header><h4>${esc(title)}</h4><span class="wf-tag">${states[r.status]}</span></header><dl>${details}</dl><div class="wf-evidence-list">${evidence(r.evidence)}</div></article>`;
+  }
+  return `<div class="wf-analysis-counts">${analysisGroups.map(([key,name])=>`<button type="button" data-wf-analysis-group="${key}"><b>${result[key].length}</b><span>${name}</span></button>`).join('')}</div>${result.uncertainties.length?`<details class="wf-analysis-questions" open><summary>需要核对的疑点 · ${result.uncertainties.length}</summary>${result.uncertainties.map(r=>`<article><b>${esc(r.question)}</b>${r.blocking?' <span class="wf-tag">制作前确认</span>':''}<p>${esc(r.reason)}</p>${evidence(r.evidence)}</article>`).join('')}</details>`:'<p class="wf-muted">AI 未列出待确认问题，仍请对照原文检查人物和台词。</p>'}${analysisGroups.map(([key,name])=>`<details class="wf-analysis-group" id="analysis-${key}" ${key==='characters'?'open':''}><summary>${name} · ${result[key].length}</summary>${result[key].length?[...result[key]].sort((a,b)=>(a.order??0)-(b.order??0)).map(r=>record(key,r)).join(''):'<p class="wf-muted">原文未提取到此类信息。</p>'}</details>`).join('')}`;
+}
+export function analysisPanel({script,analysis,enabled,connected,busy=false,error=''}) {
+  if(!script)return '';
+  const processing=['preparing','submitting','running','reviewing'].includes(analysis?.status);
+  const active=analysis?.canRefresh, ready=analysis?.status==='ready';
+  const startable=!analysis||analysis.canRetry||ready;
+  return `<section class="wf-panel wf-analysis" data-wf-analysis aria-label="AI 剧本分析"><div class="wf-section-title"><div><p class="wf-eyebrow">SCREENPLAY / AI ANALYSIS</p><h3>先读懂故事，再建立资产</h3></div><span class="wf-tag">LibTV · GVLM 3.1</span></div><p class="wf-muted">${esc(script.filename)} · 全文提取与独立复核，输出角色、场景、时间、地点、事件和原文台词。</p>${error?`<p class="wf-note wf-error">${esc(error)}</p>`:''}${analysis?`<div class="wf-analysis-status" role="status" aria-live="polite"><b>${esc(analysis.message)}</b><p>${analysis.completedCalls} / 2 次 AI 调用已完成${analysis.updatedAt?' · 更新于 '+esc(new Date(analysis.updatedAt).toLocaleTimeString()):''}</p>${processing?'<progress aria-label="AI 分析处理中，尚无准确百分比"></progress>':''}<p class="wf-muted">${esc(analysis.ownership?.accountLabelAtCreation||'原授权账号')} · ${esc(analysis.ownership?.spaceNameAtCreation||'原空间')} · ${esc(analysis.id.slice(-8))}</p></div>`:''}${ready?resultView(analysis.result)+`<label class="wf-analysis-check"><input type="checkbox" data-wf-analysis-reviewed> 我已核对原文和疑点，继续整理角色与地点资产</label><button class="primary" data-wf-action="analysis-plan" ${busy?'disabled':''}>用分析结果建立资产草稿 →</button><p class="wf-muted">草稿可编辑；点击“确认并保存清单”后才更新项目，已有素材与审核记录会保留。</p>`:''}${!enabled?'<p class="wf-note">此版本尚未启用 AI 分析。原文已保存。</p>':!connected?'<p class="wf-note">请先连接 LibTV 并选择自己的个人空间。</p><button data-wf-action="connect">连接 / 检查 LibTV</button>':''}${active?`<div class="wf-actions"><button data-wf-action="analysis-refresh" ${busy?'disabled':''}>${analysis.status==='unknown_submission'?'刷新保存的任务状态':'继续查询原任务'}</button><button data-wf-action="connect">检查原账号授权</button></div><p class="wf-muted">${processing?'页面打开时每 5 秒检查状态；重新打开后从原任务继续。':'处理已暂停；核对提示后可刷新原任务状态。'}不会重新提交同一笔分析。</p>`:''}${startable?`<details ${analysis?'':'open'}><summary>${analysis?'重新进行 AI 分析':'开始分析'}</summary><p class="wf-muted">将把当前剧本发送给已授权的 LibTV 文本模型。提取与复核共 2 次调用，使用该账号积分，金额以官方记录为准。每次支持 16,000 字，更长剧本请按集导入。</p><label class="wf-analysis-check"><input type="checkbox" data-wf-analysis-spend> 允许本次两步 AI 分析使用当前账号积分</label><button class="primary" data-wf-action="analyze" ${busy||!enabled||!connected||script.text.length>16000?'disabled':''}>${analysis?'重新分析剧本':'开始 AI 分析'} →</button>${script.text.length>16000?'<p class="wf-note">原文超过本次分析容量，已完整保存。请按剧集拆分导入后开始。</p>':''}</details>`:''}</section>`;
+}
+export function sourceView(script) {
+  return `<details data-wf-script="${esc(script.id)}"><summary>${esc(script.filename)} · ${script.characters.toLocaleString()} 字 · 原文已保存</summary><pre class="wf-script wf-source">${script.text.length>16000?esc(script.text):script.text.split(/\r?\n/).map((line,i)=>`<span data-wf-line="${i+1}"><small>${i+1}</small>${esc(line)||' '}</span>`).join('\n')}</pre></details>`;
+}

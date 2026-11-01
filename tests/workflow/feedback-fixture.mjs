@@ -16,12 +16,14 @@ drafts.set('page','style');drafts.set('selectedProject',project.id);drafts.set('
 let reads=0, recoveries=0, progressObserved=false;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const api={request:async(path)=>{
+  if(path==='/workflow/capabilities')return {scriptAnalysis:false,localScriptExtraction:false};
+  if(path.endsWith('/analysis'))return {analysis:null};
   if(path==='/projects')return {items:[project]};
   if(path.endsWith('/plan'))return plan;
   if(path.endsWith('/assets'))return {items:[],coverage:{total:1,ready:0,complete:false}};
   if(path.endsWith('/bundles'))return {items:[]};
   if(path.startsWith('/tasks?')){reads++;return {items:[structuredClone(task)]};}
-  if(path.endsWith('/scripts/fixture-script'))return {filename:'测试.txt',characters:8,text:'角色：测试旅人'};
+  if(path.endsWith('/scripts/fixture-script'))return {id:'fixture-script',filename:'测试.txt',characters:8,text:'角色：测试旅人'};
   if(path==='/tasks/fixture-task/recover'){
     recoveries++;progressObserved=Boolean(root.querySelector('[data-wf-operation] progress'));
     await delay(2000);task.updatedAt=new Date().toISOString();task.version++;return {task:structuredClone(task)};

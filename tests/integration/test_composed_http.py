@@ -74,8 +74,17 @@ class ComposedHTTPTests(unittest.TestCase):
         status, _, response = self.request('/workflow/start','POST',cookie=cookie,csrf=session['csrfToken'],body=payload)
         self.assertEqual(status,200,response)
         pid = response['data']['project']['id']
+        sid = response['data']['script']['id']
+        analysis_path = '/projects/'+pid+'/scripts/'+sid
+        self.assertIsNone(self.request(analysis_path+'/analysis',cookie=cookie)[2]['data']['analysis'])
+        self.assertEqual(self.request(analysis_path+'/analyze','POST',cookie=cookie,body={})[0],403)
+        blocked=self.request(analysis_path+'/analyze','POST',cookie=cookie,csrf=session['csrfToken'],body={})
+        self.assertEqual(blocked[0],503)
+        self.assertEqual(blocked[2]['error']['code'],'ANALYSIS_UNAVAILABLE')
+        caps=self.request('/workflow/capabilities',cookie=cookie)[2]['data']
+        self.assertFalse(caps['localScriptExtraction'])
         self.assertTrue(response['data']['plan']['needsReview'])
-        self.assertEqual(len(response['data']['plan']['entities']),3)
+        self.assertEqual(len(response['data']['plan']['entities']),0)
         port = self.server.server_port;self.close();self.start(port=port)
         status, _, repeated = self.request('/workflow/start','POST',cookie=cookie,csrf=session['csrfToken'],body=payload)
         self.assertEqual(status,200,repeated)
@@ -92,6 +101,18 @@ class ComposedHTTPTests(unittest.TestCase):
         self.assertEqual(status,200,body)
         port = self.server.server_port;self.close();self.start(port=port)
         self.assertEqual(self.request('/drafts/browser',cookie=cookie)[2]['data']['content'],content)
+
+    def test_enabled_ai_without_selected_account_returns_actionable_error(self):
+        self.app.services.analysis.enabled = True
+        cookie, session = self.session()
+        _, _, imported = self.request('/workflow/start','POST',cookie=cookie,csrf=session['csrfToken'],
+            body={'text':'无账号的 AI 分析路由验收。','idempotencyKey':'no-account-analysis-import'})
+        project, script = imported['data']['project'], imported['data']['script']
+        path='/projects/'+project['id']+'/scripts/'+script['id']+'/analyze'
+        status, _, error = self.request(path,'POST',cookie=cookie,csrf=session['csrfToken'],
+            body={'idempotencyKey':'no-account-ai-request','confirmSpend':True,'expectedSelectionRevision':0})
+        self.assertEqual(status,409,error)
+        self.assertEqual(error['error']['code'],'SELECTION_REQUIRED')
 
     def test_server_drafts_version_isolation_and_restart(self):
         cookie,session=self.session();content={'workflow':{'new-project':{'name':'尚未创建的项目','description':'刷新仍保留'},'review:synthetic':{'note':'人工审核备注'}},'accountSelection':None}

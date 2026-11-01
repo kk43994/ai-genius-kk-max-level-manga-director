@@ -36,18 +36,12 @@ class QuickStartTests(unittest.TestCase):
         self.workflow = WorkflowService(WorkflowRepository(self.store))
         self.payload = {'text': SCRIPT, 'idempotencyKey': 'quickstart-synthetic-001'}
 
-    def test_one_input_creates_project_source_and_deduplicated_assets_atomically(self):
+    def test_one_input_saves_source_and_empty_plan_before_ai(self):
         result = start(self.workflow, self.ctx, self.payload)
-        self.assertEqual(result['project']['name'], '山间来信')
-        entities = result['plan']['entities']
-        self.assertEqual([(e['category'], e['name']) for e in entities],
-                         [('character', '林舟'), ('character', '阿宁'), ('scene', '旧书店'), ('prop', '信封')])
-        self.assertTrue(result['plan']['needsReview'])
-        self.assertTrue(all(e['quote'] in SCRIPT and e['scriptId'] == result['script']['id'] for e in entities))
-        assets = self.workflow.list_assets(self.ctx, result['project']['id'])
-        self.assertEqual(len(assets['items']), 4)
-        self.assertFalse(assets['coverage']['complete'])
-        self.assertTrue(all(not a['revisions'] for a in assets['items']))
+        self.assertEqual(result['project']['name'], '我的剧本')
+        self.assertEqual(result['plan']['entities'], [])
+        self.assertEqual(result['script']['analysisStatus'], 'not_started')
+        self.assertEqual(self.workflow.list_assets(self.ctx, result['project']['id'])['items'], [])
 
     def test_lost_response_and_restart_resume_same_project(self):
         result = start(self.workflow, self.ctx, self.payload)
@@ -90,12 +84,13 @@ class QuickStartTests(unittest.TestCase):
             self.assertEqual(entities[0]['description'],definition)
             self.assertIn(entities[0]['quote'],script)
 
-    def test_reanalysis_preview_never_overwrites_existing_plan(self):
+    def test_unavailable_ai_does_not_overwrite_existing_plan(self):
         result=start(self.workflow,self.ctx,self.payload)
         pid,sid=result['project']['id'],result['script']['id']
         before=self.workflow.get_plan(self.ctx,pid)
-        preview=analyze(self.workflow,self.ctx,pid,sid,{'preview':True})
-        self.assertEqual(preview['expectedVersion'],before['version'])
+        with self.assertRaises(WorkflowError) as raised:
+            analyze(self.workflow,self.ctx,pid,sid,{'preview':True})
+        self.assertEqual(raised.exception.code, 'ANALYSIS_UNAVAILABLE')
         self.assertEqual(self.workflow.get_plan(self.ctx,pid),before)
 
     def test_manual_confirmation_is_persisted_and_retry_does_not_reset_it(self):
@@ -111,7 +106,7 @@ class QuickStartTests(unittest.TestCase):
     def test_file_start_and_invalid_input_leave_no_partial_project(self):
         result = start(self.workflow, self.ctx, {'filename': '中文剧本.txt',
             'contentBase64': base64.b64encode(SCRIPT.encode()).decode(), 'idempotencyKey':'file-start-001'})
-        self.assertEqual(len(result['plan']['entities']), 4)
+        self.assertEqual(len(result['plan']['entities']), 0)
         for body in ({'text':'', 'idempotencyKey':'bad-start-001'},
                      {'text':SCRIPT, 'filename':'../剧本.txt', 'idempotencyKey':'bad-start-002'},
                      {'text':SCRIPT, 'idempotencyKey':'bad-start-003', 'contentBase64':'eA=='}):
@@ -123,6 +118,9 @@ class QuickStartTests(unittest.TestCase):
         import test_workflow as fixtures
         result = start(self.workflow, self.ctx, self.payload)
         pid, plan = result['project']['id'], result['plan']
+        # Explicit test fixture plan, never semantic fallback in the product.
+        plan=self.workflow.save_plan(self.ctx,pid,{'expectedVersion':plan['version'],'stylePrompt':'测试风格',
+            'entities':[{'id':'synthetic-'+str(i),'name':name,'category':category,'origin':'manual'} for i,(name,category) in enumerate([('林舟','character'),('阿宁','character'),('书店','scene'),('信封','prop')])]},needs_review=True)
         owner = {'tenantId': self.ctx.tenantId, 'provider':'libtv', 'providerAccountId':'synthetic-account',
                  'providerSubject':'synthetic-subject', 'spaceId':'synthetic-space', 'spaceKind':'personal'}
         sample_spec = {'projectId':pid, 'entityId':plan['entities'][0]['id'], 'recipe':'mj_style',
@@ -131,7 +129,7 @@ class QuickStartTests(unittest.TestCase):
             self.workflow.build_spec(self.ctx, sample_spec, owner)
         self.assertEqual(raised.exception.code, 'PLAN_REVIEW_REQUIRED')
         clean = [{k:v for k,v in e.items() if k!='sourceRevision'} for e in plan['entities']]
-        self.workflow.save_plan(self.ctx, pid, {'expectedVersion':1, 'entities':clean, 'stylePrompt':plan['stylePrompt']})
+        self.workflow.save_plan(self.ctx, pid, {'expectedVersion':plan['version'], 'entities':clean, 'stylePrompt':plan['stylePrompt']})
         for entity in clean:
             source = None
             for stage in ('mj_style','image2_asset','nano_refine'):
@@ -148,17 +146,16 @@ class QuickStartTests(unittest.TestCase):
         project = self.workflow.get_project(self.ctx,pid)
         bundle = self.workflow.archive(self.ctx,pid,{'expectedVersion':project['version']})
         self.assertEqual(len(bundle['revisionIds']),12)
-        self.assertEqual(bundle['planVersion'],2)
+        self.assertEqual(bundle['planVersion'],3)
         raw = self.workflow.bundle_content(self.ctx,pid,bundle['id'])
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             self.assertEqual(len([n for n in archive.namelist() if n.endswith('.png')]),12)
 
-    def test_existing_project_analysis_requires_review_and_never_overwrites_plan(self):
-        project = self.workflow.create_project(self.ctx, {'name':'已有项目'})
-        imported = self.workflow.import_script(self.ctx, project['id'], {'filename':'剧本.txt',
-            'contentBase64':base64.b64encode(SCRIPT.encode()).decode()})
-        plan = analyze(self.workflow, self.ctx, project['id'], imported['script']['id'], {'expectedVersion':0})
-        self.assertTrue(plan['needsReview'])
-        with self.assertRaises(WorkflowError) as raised:
-            analyze(self.workflow, self.ctx, project['id'], imported['script']['id'], {'expectedVersion':1})
-        self.assertEqual(raised.exception.code, 'PLAN_EXISTS')
+    def test_legacy_analyze_endpoint_delegates_to_ai_service(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        handler=Mock(return_value={'status':'preparing'})
+        self.workflow.analysis=SimpleNamespace(start=handler)
+        result=analyze(self.workflow,self.ctx,'project','script',{'confirmSpend':True})
+        handler.assert_called_once_with(self.ctx,'project','script',{'confirmSpend':True})
+        self.assertEqual(result['status'],'preparing')
