@@ -123,7 +123,7 @@ class UploadContractTests(unittest.TestCase):
         import hashlib
         raw=png();sha=hashlib.sha256(raw).hexdigest()
         ref=VerifiedReference('revision',OWNER,raw,'image/png',sha,'style',True)
-        calls=[];stored=[];sent=[];signed='signed.'+'A'*1100
+        calls=[];stored=[];sent=[];names=[];signed='signed.'+'A'*1100
         a=SimpleNamespace(bridge=SimpleNamespace(check=lambda *a:None),media=SimpleNamespace(put=lambda u,b:sent.append((u,b))))
         c=LiveImageClient(a,OWNER,None)
         c._claim=lambda *a:None;c._observe=lambda *a:None;c._authorize_scopes=lambda *a:None
@@ -133,12 +133,17 @@ class UploadContractTests(unittest.TestCase):
             if name=='upload_ticket':return {'uploadId':'upload','path':'upload-images/path','parts':[{'partNumber':1,'method':'PUT','url':'https://media.example/upload'}]}
             if name=='upload_complete':return {'file_ref':signed,'url':'https://media.example/image.png'}
             self.assertEqual(args['fileRef'],signed)
+            names.append(args['name'])
             return {'projectId':'project','status':'completed','nodeId':'source-node'}
         c._call=call
         result=c._upload('local','project',ref,'original-key','h'*64)
         self.assertEqual(result['nodeId'],'source-node')
         self.assertNotIn(signed,str(stored));self.assertEqual(len(sent),1)
         self.assertEqual(calls,['upload_ticket','upload_complete','upload_media'])
+        c._upload('another-task','project',ref,'another-key','h'*64)
+        c._upload('local','project',ref,'original-key','h'*64)
+        self.assertNotEqual(names[0],names[1])
+        self.assertEqual(names[0],names[2])
 
 class UploadRecoveryTests(unittest.TestCase):
     def client(self, state):

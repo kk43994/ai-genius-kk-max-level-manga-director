@@ -6,6 +6,7 @@ opaque output schemas require explicit evidence-backed response contracts.
 import copy
 import hashlib
 import math
+import logging
 import re
 
 from backend.tasks.ports import DownloadArtifact
@@ -77,6 +78,11 @@ class BoundImageClient:
             raise
         except Exception as exc:
             code = getattr(exc, 'code', None)
+            known = {'PROVIDER_PROTOCOL_ERROR','PROVIDER_UNAVAILABLE','PROVIDER_RESPONSE_TOO_LARGE',
+                     'PROVIDER_SCOPE_UNAVAILABLE','PROVIDER_AUTHORIZATION_REQUIRED','PROVIDER_SCOPE_REQUIRED',
+                     'OWNERSHIP_MISMATCH','PROVIDER_NODE_NAME_CONFLICT'}
+            logging.getLogger(__name__).error('Official tool failed: tool=%s code=%s',
+                name, code if code in known else 'UNCLASSIFIED')
             if code == 'PROVIDER_SCOPE_UNAVAILABLE':
                 raise GenerationError('PROVIDER_SCOPE_REQUIRED', required_scopes=self.a.catalog.scopes(name)) from None
             if code in {'PROVIDER_AUTHORIZATION_REQUIRED', 'PROVIDER_SCOPE_REQUIRED', 'OWNERSHIP_MISMATCH'}:

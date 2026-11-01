@@ -167,7 +167,7 @@ class OfficialHTTP:
             # Never log URLs, exception messages, request bodies or credentials.
             cause = getattr(exc, 'reason', exc)
             kind = 'timeout' if isinstance(cause, (TimeoutError, socket.timeout)) else 'transport'
-            logging.getLogger(__name__).warning('Official request failed: endpoint=%s kind=%s',
+            logging.getLogger(__name__).error('Official request failed: endpoint=%s kind=%s',
                                                 'mcp' if url == RESOURCE else 'oauth', kind)
             raise AuthError('PROVIDER_UNAVAILABLE') from None
         except (ValueError, UnicodeError, RecursionError):

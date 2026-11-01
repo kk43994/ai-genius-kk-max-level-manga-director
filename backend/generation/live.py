@@ -143,7 +143,10 @@ class LiveImageClient(BoundImageClient):
         if not isinstance(file_ref,str) or not re.fullmatch(r'[A-Za-z0-9._~:-]{1,16384}',file_ref):
             raise GenerationError('PROVIDER_PROTOCOL_ERROR')
         self.a.bridge.check(task_id, self._owner, request_hash, key)
-        attach = self._call('upload_media', {'name':name,'idempotencyKey':key+':'+ref.sha256[:32],
+        # The same reference can feed many generated assets. Canvas names must
+        # distinguish the consuming task, while this task's retry stays stable.
+        attach_name = 'ref_' + task_id + '_' + ref.sha256[:16]
+        attach = self._call('upload_media', {'name':attach_name,'idempotencyKey':key+':'+ref.sha256[:32],
                          'projectId':project_id,'fileRef':file_ref,'mediaType':'image'})
         self._observe(task_id, 'upload_media', attach)
         if attach.get('projectId') != project_id: raise GenerationError('PROVIDER_RECEIPT_MISMATCH')
