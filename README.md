@@ -1,6 +1,6 @@
-# 创作流程候选版 0.3.0-preview.1
+# 创作流程候选版 0.3.0-preview.2
 
-本分支当前范围与验收见 [版本记录](docs/versions/0.3.0-preview.1.md)，产品规则与检索入口见 [项目 RAG](docs/rag/README.md)，每批变化见 [CHANGELOG](CHANGELOG.md)。下面的旧运行与发布记录按其记录日期理解，不能作为本分支已经部署或更新安装包的证据。
+本分支当前范围与验收见 [版本记录](docs/versions/0.3.0-preview.2.md)，产品规则与检索入口见 [项目 RAG](docs/rag/README.md)，每批变化见 [CHANGELOG](CHANGELOG.md)。下面的旧运行与发布记录按其记录日期理解，不能作为本分支已经部署或更新安装包的证据。
 
 # 资产实验室 · 本地 LibTV 连接预览
 
