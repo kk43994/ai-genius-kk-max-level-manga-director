@@ -87,9 +87,10 @@ async function refreshTasks() {
     root.append(note);
     for (const task of tasks.slice(-20).reverse()) {
       const item=document.createElement('div'); item.className='integration-task';
-      const label=document.createElement('strong'); label.textContent=({mj_style:'MJ 风格',image2_asset:'Image2 资产',nano_refine:'Nano 精修'}[task.recipe]||task.recipe)+' · '+({draft:'待确认',preparing:'准备中',submitting:'正在提交',submitted:'已提交，等待生成',queued:'排队中',running:'生成中',downloading:'收取中',completed:'文件已收取',needs_attention:'待处理',blocked_authorization:'需原账号授权',failed:'失败',cancelled:'已取消',unknown_submission:'提交状态待核验'}[task.status] || task.status);
+      const label=document.createElement('strong'); label.textContent=({mj_style:'MJ 风格',image2_asset:'Image2 资产',nano_refine:'Nano 精修',storyboard_image:'分镜图'}[task.recipe]||task.recipe)+' · '+({draft:'待确认',preparing:'准备中',submitting:'正在提交',submitted:'已提交，等待生成',queued:'排队中',running:'生成中',downloading:'收取中',completed:'文件已收取',needs_attention:'待处理',blocked_authorization:'需原账号授权',failed:'失败',cancelled:'已取消',unknown_submission:'提交状态待核验'}[task.status] || task.status);
       const owner=document.createElement('small'); owner.textContent=(task.ownership.accountLabelAtCreation || task.ownership.providerAccountId)+' / '+(task.ownership.spaceNameAtCreation || task.ownership.spaceId);
       item.append(label,owner);
+      const open=document.createElement('button');open.textContent=task.status==='completed'?'查看返回图片':'定位任务档案';open.addEventListener('click',()=>{shell.closePanel('activity');events.dispatchEvent(new CustomEvent('workflow:open-task',{detail:{task}}));});item.append(open);
       if(running.has(task.status)){const bar=document.createElement('progress');bar.setAttribute('aria-label','任务处理中，等待实际结果');bar.style.width='100%';item.append(bar);}
       const time=document.createElement('small');time.textContent='最近状态：'+new Date(task.updatedAt).toLocaleTimeString();item.append(time);
       if(task.error?.message){const error=document.createElement('p');error.textContent=task.error.message;item.append(error);}
@@ -122,9 +123,9 @@ events.addEventListener('shell:action',event=>{
     event.preventDefault();const dialog=document.getElementById('shell-info-dialog');
     document.getElementById('shell-info-title').textContent='使用资产实验室';
     const body=document.getElementById('shell-info-body');body.replaceChildren();
-    for(const text of ['粘贴剧本或导入 TXT、Markdown、DOCX，点击开始制作。工作台按剧本标记建立项目和资产初稿，核对清单后继续。',
+    for(const text of ['粘贴剧本或导入 TXT、Markdown、DOCX，点击开始制作。原文保存后由 AI 分析人物、场景、时间、地点、事件和台词，核对后整理制作清单。',
       '工作区主所有者用于找回本站资料；创作账号与个人、团队空间用于明确新任务归属。切换选择不会改动历史任务。',
-      '制作顺序是 MJ 风格 → Image2 资产 → Nano 精修。每一步先审核，再使用已确认版本继续；返修始终追溯原始 Image2。',
+      '制作顺序是剧本分析 → MJ 风格探索与确认 → Image2 规范资产 → 导演编排 → 审核交付。Nano 是资产内的可选精修；返修始终追溯原始 Image2。',
       '下载只包含已审核的成果。更新页面会先保存草稿，处理中的任务或下载会阻止刷新。',
       config.mode==='local-client'
         ? session?.features?.imageGeneration

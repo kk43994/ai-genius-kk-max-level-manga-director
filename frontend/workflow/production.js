@@ -40,7 +40,7 @@ export function previewFrame(job,index,{assets=[],selection,apiBase='/api/v1'}={
   const cards=referenceCards(job,shot,assets,selection,apiBase);
   return `<div class="wf-production-screen" data-ratio="${esc(returnedResult(job).aspectRatio)}"><p class="wf-eyebrow">镜头 ${String(index+1).padStart(3,'0')} · ${esc(shot.framing)}</p><h4>${esc(shot.purpose)}</h4>${cardsHtml(cards)}<p class="wf-production-action">${linkedText(shot.beat,returnedResult(job),shot)}</p><p>${esc(shot.performance)}</p>${lines.map(d=>`<p class="wf-production-dialogue"><small>${esc(d.label)}</small><br>${esc(d.text)}</p>`).join('')}<p class="wf-muted">${cards.some(c=>c.src)?'已审核资产示意 · 尚非最终分镜画面':'文字图板预演 · 分镜图片尚未生成'}</p></div><p class="wf-muted">镜头：${esc(shot.camera)}<br>声音设计：${esc(shot.sound)}</p>`;
 }
-export function productionPanel({script,analysis,job,enabled,connected,busy,error='',models=[],modelId,assets=[],selection,apiBase,draft=null,review=null,view={},tasks=[],generationDraft={}}) {
+export function productionPanel({script,analysis,job,enabled,connected,busy,error='',models=[],modelId,assets=[],selection,apiBase,draft=null,review=null,view={},tasks=[],generationDraft={},phase,project}) {
   if(!script)return '<section class="wf-panel"><h3>先导入剧本</h3><button data-wf-nav="plan">返回剧本</button></section>';
   const ready=job?.status==='ready',running=productionRunning(job),canStart=!job||ready||job.canRetry;
   const result=review?.result||(draft&&returnedResult(job)?reviewDraft(job,draft).result:returnedResult(job));
@@ -53,7 +53,7 @@ export function productionPanel({script,analysis,job,enabled,connected,busy,erro
     if(job?.canRevalidate)html+='<button data-wf-action="production-revalidate">重新读取原返回结果</button>';
     return html+'</section>';
   }
-  return productionBoard({script,analysis,job,enabled,connected,busy,error,models,modelId,assets,selection,apiBase,draft,review,result,startControls,view,tasks,generationDraft},{referenceCards,cardsHtml,dialogueText,previewFrame});
+  return productionBoard({script,analysis,job,enabled,connected,busy,error,models,modelId,assets,selection,apiBase,draft,review,result,startControls,view,tasks,generationDraft,phase,project},{referenceCards,cardsHtml,dialogueText,previewFrame});
 }
 
 export function createPreview({root,getContext,onStatus=()=>{}}) {

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "version": "0.3.0-preview.1",
+  "updatedAt": "2026-11-01",
+  "scope": "project-knowledge-source",
+  "entries": [
+    {"id":"creator-flow","file":"docs/rag/creator-flow.md","keywords":["流程","页面","按钮","剧本","人工确认","四视图","风格"],"status":"implemented-preview"},
+    {"id":"asset-lineage","file":"docs/rag/asset-lineage.md","keywords":["关联","旧图","历史","资产","状态","规范","artDirection","bindings","版本"],"status":"implemented-preview"},
+    {"id":"director-interaction","file":"docs/rag/director-and-interaction.md","keywords":["导演","拖拽","引用","镜头","草稿","任务中心","精修","交付"],"status":"implemented-preview"},
+    {"id":"versioning","file":"docs/rag/versioning.md","keywords":["GitHub","分支","提交","回滚","基线","版本","恢复"],"status":"active-convention"},
+    {"id":"release-0.3.0-preview.1","file":"docs/versions/0.3.0-preview.1.md","keywords":["验收","测试","版本","限制","未完成","发布"],"status":"candidate"}
+  ]
+}

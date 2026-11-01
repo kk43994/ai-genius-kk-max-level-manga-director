@@ -20,6 +20,8 @@ const api={request:async(path)=>{
   if(path.endsWith('/prompts'))return {items:[]};
   if(path.endsWith('/analysis'))return {analysis:null};
   if(path==='/projects')return {items:[project]};
+  if(path==='/projects/'+project.id)return project;
+  if(path.endsWith('/production'))return {analysis:null};
   if(path.endsWith('/plan'))return plan;
   if(path.endsWith('/assets'))return {items:[],coverage:{total:1,ready:0,complete:false}};
   if(path.endsWith('/bundles'))return {items:[]};
@@ -35,6 +37,7 @@ const results=[];
 function check(ok,name){results.push({ok,name});output.textContent=results.map(r=>`${r.ok?'PASS':'FAIL'} ${r.name}`).join('\n');}
 const app=mount({root,api,storage,session:{tenant:{id:'fixture-tenant'},selection:{...owner,revision:1},features:{imageGeneration:false}}});
 await app.ready;
+root.querySelector('details').open=true;
 const input=root.querySelector('textarea[name="prompt"]');input.value='正在编辑的剧本设定';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();input.setSelectionRange(3,5);
 await delay(5500);
 check(reads>=2,'运行中的任务在 5 秒后读取新状态');
