@@ -70,6 +70,7 @@ def register_routes(router, services):
     add('GET', '/projects', lambda c, p, b, q: workflow.list_projects(c))
     add('POST', '/projects', lambda c, p, b, q: workflow.create_project(c, b))
     add('GET', '/projects/{projectId}', lambda c, p, b, q: workflow.get_project(c, p['projectId']))
+    add('PUT', '/projects/{projectId}/art-direction', lambda c,p,b,q: workflow.confirm_art_direction(c,p['projectId'],b))
     add('PATCH', '/projects/{projectId}', lambda c, p, b, q: workflow.update_project(c, p['projectId'], b))
     add('POST', '/projects/{projectId}/scripts', lambda c, p, b, q: workflow.import_script(c, p['projectId'], b))
     add('GET', '/projects/{projectId}/scripts/{scriptId}', lambda c, p, b, q: workflow.get_script(c, p['projectId'], p['scriptId']))

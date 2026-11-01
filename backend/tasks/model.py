@@ -163,7 +163,7 @@ def safe_prepared(value, request_hash, max_outputs):
 
 def workflow_snapshot(value, sources):
     required = {"entityVersion", "styleVersion", "sourceHashes"}
-    if not isinstance(value, dict) or not required <= value.keys() or set(value) - (required | {"planVersion"}):
+    if not isinstance(value, dict) or not required <= value.keys() or set(value) - (required | {"planVersion", "artDirectionVersion"}):
         raise TaskError("WORKFLOW_SNAPSHOT_MISSING", "任务缺少服务端资产版本快照，已停止处理。", 409)
     if any(type(value[k]) is not int or value[k] < 0 for k in value if k != "sourceHashes"):
         raise TaskError("WORKFLOW_SNAPSHOT_MISSING", "资产版本快照格式无效。", 409)

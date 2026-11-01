@@ -58,3 +58,19 @@ class BindingTests(unittest.TestCase):
         self.assertFalse(confirmed['bindings'][0]['changed'])
         history = self.workflow.get_project(self.ctx, self.project['id'])['productionLinkHistory']
         self.assertEqual(len(history), 2)
+
+    def test_link_keeps_pending_image_bytes_ids_and_review_history(self):
+        import io
+        from PIL import Image
+        self.legacy(); job=self.finish()
+        raw=io.BytesIO();Image.new('RGB',(32,32),'blue').save(raw,format='PNG')
+        spec=self.workflow.build_spec(self.ctx,{'projectId':self.project['id'],'entityId':'legacy_lin',
+            'recipe':'mj_style','prompt':'合成历史候选','sourceRevisionIds':[],'settings':{}},self.owner)
+        revision=self.workflow.record_output(self.ctx,{**spec,'id':'legacy-test-task','ownership':self.owner,'status':'downloading'},raw.getvalue())
+        before=self.workflow.list_assets(self.ctx,self.project['id'])
+        job=self.production.get(self.ctx,job['id'])
+        self.assertEqual(job['bindings'][0]['legacyCandidates'][0]['pendingCount'],1)
+        self.production.save_binding(self.ctx,job['id'],self.link_body(job))
+        self.assertEqual(self.workflow.list_assets(self.ctx,self.project['id']),before)
+        content,_=self.workflow.content(self.ctx,revision['assetId'],revision['id'])
+        self.assertEqual(content,raw.getvalue())

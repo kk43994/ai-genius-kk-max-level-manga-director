@@ -355,7 +355,7 @@ class ProductionService(AnalysisService):
         from backend.workflow.service import owner_key
         public_input(body, {'assetId','stateId','shotId','recipe','prompt','sourceRevisionIds','settings',
                             'expectedReviewVersion','expectedEditVersion','expectedPlanVersion',
-                            'expectedSelectionRevision','idempotencyKey'})
+                            'expectedSelectionRevision','idempotencyKey','expectedArtDirectionVersion'})
         job = self.get(ctx, identity)
         if job['status'] != 'ready' or job['stale']:
             raise WorkflowError('PRODUCTION_NOT_READY', '当前方案有未核对内容，请先保存修改。', 409)
@@ -414,6 +414,13 @@ class ProductionService(AnalysisService):
             entities = [{k:copy.deepcopy(v) for k,v in e.items() if k in allowed} for e in plan['entities'] if e['id']!=candidate['id']]+[candidate]
             self.services.workflow.save_plan(ctx,job['projectId'],{'expectedVersion':plan['version'],
                 'stylePrompt':plan['stylePrompt'],'entities':entities})
+        from backend.workflow.art_direction import apply
+        workflow = self.services.workflow
+        with workflow.repository.transaction(ctx) as tx:
+            project = workflow._project(tx, job['projectId'])
+            if body.get('expectedArtDirectionVersion', 0) != (project.get('artDirection') or {}).get('version', 0):
+                raise WorkflowError('VERSION_CONFLICT', '本剧风格已变化，请刷新并核对新的制作要求。', 409)
+            prompt, _ = apply(workflow, tx, project, prompt, owner, recipe)
         return self.services.tasks.prepare(ctx,{'projectId':job['projectId'],'entityId':candidate['id'],
             'recipe':recipe,'prompt':prompt,'sourceRevisionIds':refs,'settings':body.get('settings',{})},
             body.get('expectedSelectionRevision'),body.get('idempotencyKey'))

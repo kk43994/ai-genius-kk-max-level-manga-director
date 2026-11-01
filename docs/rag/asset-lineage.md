@@ -17,3 +17,11 @@
 图片跨阶段规则保持：MJ 选用后才可作为 Image2 来源；Nano 追溯原 Image2；导演引用只接受有效且已审核的 Image2 / Nano 固定版本。未审核、旧依据、跨账号图片不自动成为可用参考。
 
 代码：`backend/analysis/production_bindings.py`、`production.py`、`backend/workflow/service.py`；界面：`frontend/workflow/production-bindings.js`；回归：`tests/analysis/test_production_bindings.py`。
+
+## 全剧风格与生成快照
+
+`PUT /projects/{id}/art-direction` 接受已选 MJ revisionId、sha256、notes、expectedVersion、confirmStyle=true。保存独立 artDirection / artDirectionHistory，不改剧本、plan.stylePrompt 或既有图片。规范确认不是一笔 AI 调用。
+
+新任务工作流快照包含 artDirectionVersion；生成前和提交前校验当前规范版本、来源有效性及原账号空间。规范文本被明确加入本次实际发送提示词，用户能在费用确认页核对。更新风格后，新规范下制作的图片与旧规范快照不匹配时标为失效，历史文件保留。既有未记录美术规范版本的图片不追溯伪造快照，其适用性须由人核对。
+
+对应代码：`backend/workflow/art_direction.py`、`backend/tasks/model.py`。测试：`tests/workflow/test_art_direction.py`。
