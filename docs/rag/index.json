@@ -5,6 +5,12 @@
   "scope": "project-knowledge-source",
   "entries": [
     {
+      "id": "image-prompt-standards",
+      "file": "docs/rag/image-prompt-standards.md",
+      "keywords": ["提示词", "规范", "稳定", "场景", "四视图", "反打", "俯视", "主图", "道具", "失败修正"],
+      "status": "under-live-validation"
+    },
+    {
       "id": "creator-flow",
       "file": "docs/rag/creator-flow.md",
       "keywords": [
