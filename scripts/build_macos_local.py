@@ -14,13 +14,14 @@ from build_customer import build
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from local_client import APP_VERSION
+from local_client import APP_VERSION, APP_SHORT_VERSION, APP_BUNDLE_VERSION
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    args.output = args.output.resolve()
     if sys.platform != 'darwin' or os.uname().machine != 'arm64':
         raise RuntimeError('Build on an Apple Silicon Mac')
     build(ROOT/'.build', '/asset-lab/', '/asset-lab/api/v1')
@@ -32,7 +33,7 @@ from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 hidden = collect_submodules('backend', filter=lambda name: not name.startswith('backend.legacy'))
 a = Analysis([{str(ROOT/'local_client/mac_entry.py')!r}], pathex=[{str(ROOT)!r}],
     binaries=[], datas=[({str(ROOT/'.build/public')!r},'frontend'),
-    ({str(ROOT/'backend/generation/contracts/libtv-tools-public-2026-10-27.json')!r},'backend/generation/contracts')]
+    ({str(ROOT/'backend/generation/contracts')!r},'backend/generation/contracts')]
     + collect_data_files('certifi') + collect_data_files('jsonschema_specifications'),
     hiddenimports=hidden+['scripts.customer_entry'], excludes=['backend.legacy','tkinter'], noarchive=False)
 pyz = PYZ(a.pure)
@@ -54,9 +55,12 @@ coll = COLLECT(exe,a.binaries,a.datas,strip=False,upx=False,name='AssetLabServer
                     str(ROOT/'local_client/mac_launcher.m'),'-o',str(contents/'MacOS/AssetLab')],check=True)
     info={'CFBundleName':'资产实验室','CFBundleDisplayName':'资产实验室','CFBundleExecutable':'AssetLab',
           'CFBundleIdentifier':'best.kk666.assetlab','CFBundleIconFile':'AssetLab.icns','CFBundlePackageType':'APPL',
-          'CFBundleShortVersionString':'0.2.1','CFBundleVersion':'0.2.1.1','LSMinimumSystemVersion':'11.0',
+          'CFBundleShortVersionString':APP_SHORT_VERSION,'CFBundleVersion':APP_BUNDLE_VERSION,'LSMinimumSystemVersion':'11.0',
           'LSUIElement':True,'NSHighResolutionCapable':True,'NSHumanReadableCopyright':'温州氪客科技有限公司'}
     (contents/'Info.plist').write_bytes(plistlib.dumps(info))
+    (contents/'Resources/build-provenance.json').write_text(json.dumps({'product':'AssetLab','version':APP_VERSION,
+        'sourceCommit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+        'customerDataIncluded':False,'uiTheme':'studio-neutral-dark','generationEnabledByDefault':False},indent=2),encoding='utf-8')
     license_root=Path(sys.base_prefix)/'licenses'
     if license_root.is_dir():shutil.copytree(license_root,contents/'Resources/licenses')
     subprocess.run(['codesign','--force','--deep','--sign','-',str(app)],check=True)
@@ -75,7 +79,7 @@ coll = COLLECT(exe,a.binaries,a.datas,strip=False,upx=False,name='AssetLabServer
     args.output.mkdir(parents=True,exist_ok=True)
     target=args.output/f'AssetLab-Setup-{APP_VERSION}-macOS-arm64.pkg'
     subprocess.run(['pkgbuild','--root',str(payload),'--component-plist',str(component),'--scripts',str(scripts),
-                    '--identifier','best.kk666.assetlab','--version','0.2.1','--install-location','/',
+                    '--identifier','best.kk666.assetlab','--version',APP_BUNDLE_VERSION,'--install-location','/',
                     '--ownership','recommended',str(target)],check=True)
     digest=hashlib.sha256(target.read_bytes()).hexdigest()
     target.with_suffix('.pkg.sha256').write_text(digest+'  '+target.name+'\n')

@@ -12,7 +12,7 @@ from build_manju_public import prepare
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from manju_client import APP_VERSION, APP_NAME
+from manju_client import APP_VERSION, APP_NAME, APP_SHORT_VERSION, APP_BUNDLE_VERSION
 
 def record(target,platform):
     digest=hashlib.sha256(target.read_bytes()).hexdigest()
@@ -38,7 +38,7 @@ def windows(build,output):
     manifest={p.relative_to(stage).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in stage.rglob('*') if p.is_file()}
     (stage/'files-sha256.json').write_text(json.dumps(manifest,indent=2))
     nsi=(ROOT/'local_client/installer.nsi').read_text()
-    nsi=nsi.replace('资产实验室',APP_NAME).replace('AssetLab','ManjuWorkbenchDev').replace('0.2.1.1','0.1.0.1')
+    nsi=nsi.replace('资产实验室',APP_NAME).replace('AssetLab','ManjuWorkbenchDev')
     nsi=nsi.replace('Local\\ManjuWorkbenchDev.Workbench','Local\\ManjuWorkbench.Dev')
     nsi=nsi.replace('server/local_client/asset-lab.ico','server/manju_client/manju.ico')
     nsi=nsi.replace('server\\local_client\\launch.py','server\\manju_client\\launch.py')
@@ -48,7 +48,7 @@ def windows(build,output):
     nsi=nsi.replace('连接自己的账号','试用现有功能').replace('开始连接你的账号','开始试用工作台')
     script=stage.parent/'installer.nsi';script.write_text(nsi)
     target=output/f'ManjuWorkbench-Setup-{APP_VERSION}-x64.exe'
-    subprocess.run(['makensis','-V2',f'-DSTAGEDIR={stage}',f'-DOUTFILE={target}',f'-DAPPVERSION={APP_VERSION}',str(script)],check=True)
+    subprocess.run(['makensis','-V2',f'-DSTAGEDIR={stage}',f'-DOUTFILE={target}',f'-DAPPVERSION={APP_VERSION}',f'-DBUNDLEVERSION={APP_BUNDLE_VERSION}',str(script)],check=True)
     return record(target,'windows-x64')
 
 def mac(build,output):
@@ -58,7 +58,7 @@ def mac(build,output):
     spec.write_text(f'''
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 a=Analysis([{str(ROOT/'manju_client/mac_entry.py')!r}],pathex=[{str(ROOT)!r}],binaries=[],
- datas=[({str(build/'public')!r},'frontend'),({str(ROOT/'backend/generation/contracts/libtv-tools-public-2026-10-27.json')!r},'backend/generation/contracts')]+collect_data_files('certifi')+collect_data_files('jsonschema_specifications'),
+ datas=[({str(build/'public')!r},'frontend'),({str(ROOT/'backend/generation/contracts')!r},'backend/generation/contracts')]+collect_data_files('certifi')+collect_data_files('jsonschema_specifications'),
  hiddenimports=collect_submodules('backend',filter=lambda n:not n.startswith('backend.legacy'))+['scripts.customer_entry'],excludes=['backend.legacy','tkinter'],noarchive=False)
 pyz=PYZ(a.pure)
 exe=EXE(pyz,a.scripts,[],exclude_binaries=True,name='ManjuWorkbenchServer',debug=False,console=True,target_arch='arm64')
@@ -75,9 +75,12 @@ coll=COLLECT(exe,a.binaries,a.datas,name='ManjuWorkbenchServer')
     subprocess.run(['clang','-fobjc-arc','-arch','arm64','-mmacosx-version-min=11.0','-framework','Cocoa',str(native),'-o',str(contents/'MacOS/ManjuWorkbench')],check=True)
     info={'CFBundleName':APP_NAME,'CFBundleDisplayName':APP_NAME,'CFBundleExecutable':'ManjuWorkbench',
           'CFBundleIdentifier':'best.kk666.manju.dev','CFBundleIconFile':'ManjuWorkbench.icns','CFBundlePackageType':'APPL',
-          'CFBundleShortVersionString':'0.1.0','CFBundleVersion':'0.1.0.1','LSMinimumSystemVersion':'11.0',
+          'CFBundleShortVersionString':APP_SHORT_VERSION,'CFBundleVersion':APP_BUNDLE_VERSION,'LSMinimumSystemVersion':'11.0',
           'LSUIElement':True,'NSHighResolutionCapable':True,'NSHumanReadableCopyright':'温州氪客科技有限公司'}
     (contents/'Info.plist').write_bytes(plistlib.dumps(info))
+    (contents/'Resources/build-provenance.json').write_text(json.dumps({'product':'ManjuWorkbench','version':APP_VERSION,
+        'sourceCommit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+        'customerDataIncluded':False,'uiTheme':'studio-neutral-dark','generationEnabledByDefault':False},indent=2),encoding='utf-8')
     licenses=Path(sys.base_prefix)/'licenses'
     if licenses.exists():shutil.copytree(licenses,contents/'Resources/licenses')
     subprocess.run(['codesign','--force','--deep','--sign','-',str(app)],check=True)
@@ -90,14 +93,14 @@ coll=COLLECT(exe,a.binaries,a.datas,name='ManjuWorkbenchServer')
     component.write_bytes(plistlib.dumps(rows))
     target=output/f'ManjuWorkbench-Setup-{APP_VERSION}-macOS-arm64.pkg'
     subprocess.run(['pkgbuild','--root',str(payload),'--component-plist',str(component),'--scripts',str(scripts),
-        '--identifier','best.kk666.manju.dev','--version','0.1.0','--install-location','/','--ownership','recommended',str(target)],check=True)
+        '--identifier','best.kk666.manju.dev','--version',APP_BUNDLE_VERSION,'--install-location','/','--ownership','recommended',str(target)],check=True)
     return record(target,'macos-arm64')
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--platform',choices=['windows','mac','both'],default='both')
-    args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
+    args=parser.parse_args();args.output=args.output.resolve();args.output.mkdir(parents=True,exist_ok=True)
     build=prepare();results=[]
     if args.platform in ('windows','both'):results.append(windows(build,args.output))
     if args.platform in ('mac','both'):results.append(mac(build,args.output))

@@ -9,13 +9,14 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from local_client import APP_VERSION
+from local_client import APP_VERSION, APP_BUNDLE_VERSION
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    args.output = args.output.resolve()
     stage = ROOT / "work/windows-package/AssetLab"
     inventory = json.loads((stage / "files-sha256.json").read_text())
     actual = {p.relative_to(stage).as_posix() for p in stage.rglob("*") if p.is_file()}
@@ -35,7 +36,8 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     target = args.output / f"AssetLab-Setup-{APP_VERSION}-x64.exe"
     subprocess.run(["makensis", "-V2", f"-DSTAGEDIR={stage}", f"-DOUTFILE={target}",
-                    f"-DAPPVERSION={APP_VERSION}", str(ROOT / "local_client/installer.nsi")], check=True)
+                    f"-DAPPVERSION={APP_VERSION}", f"-DBUNDLEVERSION={APP_BUNDLE_VERSION}",
+                    str(ROOT / "local_client/installer.nsi")], check=True)
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     target.with_suffix(".exe.sha256").write_text(digest + "  " + target.name + "\n")
     print(json.dumps({"installer": str(target), "version": APP_VERSION, "bytes": target.stat().st_size,

@@ -60,7 +60,7 @@ def main():
     (out/'assets').mkdir(exist_ok=True)
     (out/'downloads').mkdir(exist_ok=True)
     fields = {'VERSION': APP_VERSION, 'FILE': name, 'SIZE': f'{args.installer.stat().st_size / 1_000_000:.1f}',
-              'DATE': '2026.10.27', 'SHA': digest, 'MAC_FILE': mac_name, 'MAC_SHA': mac_digest,
+              'DATE': '2026.11.01', 'SHA': digest, 'MAC_FILE': mac_name, 'MAC_SHA': mac_digest,
               'MAC_SIZE': f'{args.mac_installer.stat().st_size / 1_000_000:.1f}',
               'MAC_STATUS': 'Mac 应用已通过独立启动与重复打开验证，系统安装流程仍待验收。'}
     fields['MANJU_VERSION'] = MANJU_VERSION
@@ -82,24 +82,24 @@ def main():
     shutil.copyfile(args.installer.with_suffix('.exe.sha256'), out/'downloads'/(name+'.sha256'))
     shutil.copyfile(args.mac_installer, out/'downloads'/mac_name)
     shutil.copyfile(args.mac_installer.with_suffix('.pkg.sha256'), out/'downloads'/(mac_name+'.sha256'))
-    manifest = {'product':'AssetLab', 'version':APP_VERSION, 'channel':'preview', 'publishedDate':'2026-10-27',
+    manifest = {'product':'AssetLab', 'version':APP_VERSION, 'channel':'preview', 'publishedDate':'2026-11-01',
                 'installers':[{'url':'downloads/'+name, 'bytes':args.installer.stat().st_size, 'sha256':digest,
                                'platform':'windows-x64', 'signed':False},
                               {'url':'downloads/'+mac_name, 'bytes':args.mac_installer.stat().st_size,
                                'sha256':mac_digest, 'platform':'macos-arm64',
                                'developerIDSigned':False, 'notarized':False}],
                 'macPackagedLaunchVerified':True, 'macInstallerExecuted':False,
-                'windowsInstallVerified':False, 'automaticUpdates':False}
+                'windowsInstallVerified':False, 'automaticUpdates':False, 'uiTheme':'studio-neutral-dark', 'windowsEncodingFix':True}
     manifest['developmentEdition'] = {'product': 'ManjuWorkbench', 'version': MANJU_VERSION,
                                       'url': 'manju-release.json', 'section': '#manju-preview'}
-    public_manju = dict(manju, macPackagedLaunchVerified=True, windowsRunVerified=False)
+    public_manju = dict(manju, macPackagedLaunchVerified=True, windowsRunVerified=False, uiTheme='studio-neutral-dark', windowsEncodingFix=True)
     (out/'manju-release.json').write_text(json.dumps(public_manju, ensure_ascii=False, indent=2)+'\n')
     manju_notes = (ROOT/'manju_client/studio/TEST-NOTES.txt').read_text()
-    manju_notes += f'''\n安装与版本\n版本：{MANJU_VERSION} · 开发中 · 测试版\nWindows 10 / 11 x64；Mac Apple 芯片，macOS 11 及以上。\n安装后自动创建“漫剧工作台（测试版）”桌面入口，双击自动打开本地网页。\n独立的程序、端口与本地数据目录，可与资产实验室同时安装。\nMac 打包应用独立启动、重复打开和重启保存检查通过。\nWindows 运行及两端系统安装流程尚未实机验收。\nWindows 未签名；Mac 未完成 Developer ID 签名与 Apple 公证。\n若系统阻止安装，请联系交付人员核对来源，不要关闭系统安全防护。\n更新地址：https://kk666.best/asset-lab/#manju-preview\n'''
+    manju_notes += f'''\n本次更新\n统一黑灰工作台界面、首页导航、资产卡片与审核组件，并修复 Windows 启动编码错误。\n\n安装与版本\n版本：{MANJU_VERSION} · 开发中 · 测试版\nWindows 10 / 11 x64；Mac Apple 芯片，macOS 11 及以上。\n安装后自动创建“漫剧工作台（测试版）”桌面入口，双击自动打开本地网页。\n独立的程序、端口与本地数据目录，可与资产实验室同时安装。\nMac 打包应用独立启动、重复打开和重启保存检查通过。\nWindows 运行及两端系统安装流程尚未实机验收。\nWindows 未签名；Mac 未完成 Developer ID 签名与 Apple 公证。\n若系统阻止安装，请联系交付人员核对来源，不要关闭系统安全防护。\n更新地址：https://kk666.best/asset-lab/#manju-preview\n'''
     (out/'manju-notes.txt').write_text(manju_notes, encoding='utf-8-sig')
     (out/'release.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
     notes = f'''资产实验室 {APP_VERSION} · 连接体验版
-发布日期：2026 年 10 月 27 日
+发布日期：2026 年 11 月 1 日
 
 提供 Mac（Apple 芯片）与 Windows（x64）安装程序，安装时自动创建桌面快捷方式。
 Mac 安装到“应用程序”；Windows 另提供开始菜单入口。
@@ -113,7 +113,8 @@ Mac 安装到“应用程序”；Windows 另提供开始菜单入口。
 3. 以后双击桌面图标即可使用。首次使用请连接自己的 LibTV 账号。
 
 当前版本范围
-仅开放账号连接与空间选择，图像、视频生成和自动安装更新暂未开放。
+新版黑灰工作台界面；支持剧本与资产清单整理、账号连接与空间选择。图像、视频生成和自动安装更新暂未开放。
+已修复部分 Windows 区域设置下的启动编码错误。
 真实官方只读授权与重启恢复已在开发机验证；Mac 独立应用启动、重复打开和资料保留已验证。
 Mac 系统安装流程及 Windows 安装、快捷方式和权限保护仍待实机验收。
 Mac 版适用于 Apple 芯片（M 系列）和 macOS 11 及以上，暂不提供 Intel Mac 版。

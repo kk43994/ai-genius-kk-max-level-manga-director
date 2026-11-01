@@ -7,7 +7,7 @@ Unicode true
 !define REGKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\AssetLab"
 Name "${APPNAME}"
 OutFile "${OUTFILE}"
-VIProductVersion "0.2.1.1"
+VIProductVersion "${BUNDLEVERSION}"
 VIAddVersionKey /LANG=2052 "ProductName" "${APPNAME}"
 VIAddVersionKey /LANG=2052 "FileDescription" "${APPNAME} Windows 安装程序"
 VIAddVersionKey /LANG=2052 "FileVersion" "${APPVERSION}"
