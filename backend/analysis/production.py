@@ -381,10 +381,8 @@ class ProductionService(AnalysisService):
                 mapping={r['assetId']:r['name'] for r in packet['references']}
                 prompt=MENTION.sub(lambda m:mapping.get(m.group(1),'未绑定物料'),prompt)
                 prompt='\n'.join(r['name']+'='+ '{{reference:'+r['revisionId']+'}}' for r in packet['references'])+'\n'+prompt
-            candidate = {'id':shot_entity_id(job['scriptId'],shot['id']), 'category':'shot',
-                         'name':f"分镜 {job['result']['shots'].index(shot)+1:03d} · {shot['purpose']}"[:120],
-                         'description':('方案签名：'+hashlib.sha256(json.dumps({'shot':shot,'refs':refs},ensure_ascii=False,sort_keys=True).encode()).hexdigest()+'\n'+shot['purpose'])[:4000],
-                         'origin':'manual','quote':'','variant':'分镜静帧'}
+            from backend.workflow.production_coverage import shot_candidate
+            candidate = shot_candidate(job['scriptId'], shot, refs, job['result']['shots'].index(shot)+1)
         elif recipe in ('mj_style','image2_asset','nano_refine'):
             target = entity_id(job['scriptId'], str(body.get('assetId')), str(body.get('stateId')))
             candidate = next((e for e in candidates(job['result'],script) if e['id']==target), None)

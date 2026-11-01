@@ -26,7 +26,13 @@ def main():
         if score:hits.append({'id':entry['id'],'source':entry['file'],'version':index['version'],
             'status':entry['status'],'score':score,'content':content[:7000]})
     if args.check:
-        print(json.dumps({'valid':True,'version':index['version'],'sources':len(index['entries'])}));return
+        application=(ROOT/'local_client/__init__.py').read_text()
+        version=re.search(r'^APP_VERSION\s*=\s*[\"\']([^\"\']+)',application,re.M)
+        if not version or version[1]!=index['version']:
+            raise SystemExit('Knowledge version does not match APP_VERSION')
+        if index['version'] not in (ROOT/'CHANGELOG.md').read_text() or not (ROOT/'docs/versions'/f"{index['version']}.md").is_file():
+            raise SystemExit('Missing matching changelog or version record')
+        print(json.dumps({'valid':True,'version':index['version'],'sources':len(index['entries']),'applicationVersionMatches':True}));return
     hits.sort(key=lambda hit:(-hit['score'],hit['id']))
     print(json.dumps({'query':args.query,'retrieval':'local-keyword','matches':hits[:max(1,min(args.limit,5))]},ensure_ascii=False,indent=2))
 

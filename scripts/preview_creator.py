@@ -69,7 +69,10 @@ class Handler(SimpleHTTPRequestHandler):
                 kind=parts[-1]
                 if kind=='plan':return self.answer(w.save_plan(ctx,pid,body) if method=='PUT' else w.get_plan(ctx,pid))
                 if kind=='assets':return self.answer(w.list_assets(ctx,pid))
-                if kind in ('bundles','prompts'):return self.answer({'items':[]})
+                if kind=='prompts':return self.answer({'items':[]})
+                if kind=='bundles':return self.answer(w.archive(ctx,pid,body) if method=='POST' else w.list_bundles(ctx,pid))
+                if kind=='export':return self.answer(w.export(ctx,pid)[0],mime='application/zip')
+                if len(parts)==5 and parts[2]=='bundles' and kind=='content':return self.answer(w.bundle_content(ctx,pid,parts[3]),mime='application/zip')
                 if kind=='art-direction':return self.answer(w.confirm_art_direction(ctx,pid,body))
                 if kind=='analysis':return self.answer({'analysis':fixture.analysis})
                 if kind=='production':return self.answer({'analysis':fixture.production.get(ctx,job['id'])})

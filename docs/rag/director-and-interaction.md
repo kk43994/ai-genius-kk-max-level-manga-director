@@ -18,6 +18,6 @@ Image2 默认制作要求按物料类别生成：角色正面全身、侧面全�
 
 boardgen 与 art-direction 草稿已加入服务端白名单，和 production 草稿一起参与服务器确认与升级保护。后台刷新仅替换候选图与任务反馈，不替换正在编辑的表单。任务中心新增返回图片与档案定位入口；恢复仍查询原任务。
 
-规范资产经人工审核即可交付；Nano 精修可选。最终视频仍暂停，图板预演只展示参考和台词。
+规范资产经人工审核即可下载；Nano 精修可选。当前方案的全部物料与分镜通过审核后才能确认完成并归档，详见 [交付范围](delivery-scope.md)。最终视频仍暂停，图板预演只展示参考和台词。
 
 代码：`frontend/workflow/creator-desk.js`、`production-generation.js`、`production-board.js`、`controller.js`、`scripts/browser/bootstrap.mjs`、`backend/integration_drafts.py`。

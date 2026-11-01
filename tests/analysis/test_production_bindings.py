@@ -71,6 +71,6 @@ class BindingTests(unittest.TestCase):
         job=self.production.get(self.ctx,job['id'])
         self.assertEqual(job['bindings'][0]['legacyCandidates'][0]['pendingCount'],1)
         self.production.save_binding(self.ctx,job['id'],self.link_body(job))
-        self.assertEqual(self.workflow.list_assets(self.ctx,self.project['id']),before)
+        self.assertEqual(self.workflow.list_assets(self.ctx,self.project['id'])['items'],before['items'])
         content,_=self.workflow.content(self.ctx,revision['assetId'],revision['id'])
         self.assertEqual(content,raw.getvalue())

@@ -514,6 +514,10 @@ class WorkflowService:
 
     def _coverage(self, tx, project_id):
         project = self._project(tx, project_id)
+        from .production_coverage import coverage
+        production = coverage(self, tx, project)
+        if production is not None:
+            return production
         rows = []
         for entity in project['plan']['entities']:
             revisions = [r for r in tx.state['revisions'].values() if r['projectId'] == project_id
@@ -548,15 +552,18 @@ class WorkflowService:
         """Read-only ZIP snapshot; current approved revisions only; no raw source script, secrets or paths."""
         with self.repository.transaction(ctx) as tx:
             project = self._project(tx, project_id)
+            coverage = self._coverage(tx, project_id)
+            allowed = set(coverage['exportRevisionIds']) if coverage.get('scope') == 'production' else None
             chosen = [r for r in tx.state['revisions'].values()
-                      if r['projectId'] == project_id and self._valid(tx, r, True)]
+                      if r['projectId'] == project_id and self._valid(tx, r, True)
+                      and (allowed is None or r['id'] in allowed)]
             if not chosen:
                 conflict('当前项目还没有人工审核通过的有效资产。')
             # Bound memory and prevent a tenant export from exhausting the web process.
             if len(chosen) > 900 or sum(r['bytes'] for r in chosen) > 60 * 1024 * 1024:
                 invalid('资产包过大，请将项目拆分后下载。')
             manifest = dict(schemaVersion=1, projectId=project_id, projectName=project['name'], exportedAt=now(),
-                            planVersion=project['plan']['version'], coverage=self._coverage(tx, project_id), assets=[])
+                            planVersion=project['plan']['version'], coverage=coverage, assets=[])
             buffer = io.BytesIO()
             with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
                 for i, revision in enumerate(sorted(chosen, key=lambda r: (r['entityId'], r['stage'], r['id'])), 1):
@@ -616,8 +623,12 @@ class WorkflowService:
                 conflict('尚有未完成审核的档案，请完成所有阶段后确认归档。可先下载已通过的部分资产。')
             if manifest['planVersion'] != project['plan']['version']:
                 conflict('资产清单已变化，请重新确认归档。')
+            if manifest['coverage'].get('scopeVersion') != current.get('scopeVersion'):
+                conflict('制作方案已变化，请重新核对交付范围。')
+            allowed = set(current['exportRevisionIds']) if current.get('scope') == 'production' else None
             current_ids = sorted(r['id'] for r in tx.state['revisions'].values()
-                                 if r['projectId'] == project_id and self._valid(tx, r, True))
+                                 if r['projectId'] == project_id and self._valid(tx, r, True)
+                                 and (allowed is None or r['id'] in allowed))
             if current_ids != sorted(r['revisionId'] for r in manifest['assets']):
                 conflict('审核结果已变化，请重新确认归档。')
             record = dict(id=new_id('bundle'), projectId=project_id, createdAt=now(),
