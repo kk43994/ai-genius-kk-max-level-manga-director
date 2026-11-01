@@ -24,6 +24,13 @@ test('existing images require explicit linking and unsafe names are escaped',()=
  const html=bindingPicker({job,asset:{id:'a',name:'A'},state:{id:'s',name:'Base'},assets:[],apiBase:'/api/v1'});
  assert.match(html,/确认适用，关联此档案/);assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>/);
 });
+test('asset defaults lead with the current subject and do not duplicate the confirmed show bible',()=>{
+ const options={result:{assets:[{id:'room',name:'空庭院',category:'scene',design:'石墙与木门',states:[{id:'day',imagePrompt:'无人物的白天空庭院'}]}],styleBible:'旧风格人物说明'},job:{bindings:[]},view:{kind:'assets',index:0,stage:'style'},project:{artDirection:{notes:'其他角色穿白衣'}}};
+ const c=generationContext(options);
+ assert.match(c.prompt,/^本次制作对象：空庭院/);
+ assert.match(c.prompt,/无人物的白天空庭院/);
+ assert.doesNotMatch(c.prompt,/其他角色穿白衣|旧风格人物说明/);
+});
 test('state assets require the same character approved master, while style exploration has no state selector',()=>{
  const result={assets:[{id:'hero',category:'character',states:[{id:'rain',name:'雨中'}]}]};
  const job={status:'ready',ownership:owner,bindings:[{assetId:'hero',stateId:MASTER_STATE_ID,entityId:'master',saved:true},

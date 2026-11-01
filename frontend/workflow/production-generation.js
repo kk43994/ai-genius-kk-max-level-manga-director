@@ -28,7 +28,8 @@ export function generationContext(options){
  if(stage==='asset'&&assetFormats[asset?.category])mode.label=character?(master?'生成人物主多视图':'生成此状态多视图'):assetFormats[asset.category].label;
  if(character&&stage==='style')mode.label='生成角色形象候选';
  const identityRules=character&&!master&&stage==='asset'?'严格参考已确认的人物主多视图，保留同一张脸、发际线和身形；只修改当前剧情状态要求的服装、湿度、伤情等，不重新设计人物。状态描述仅用于提取外观变化，不照搬其中的场景、镜头、坐卧姿势或戏剧动作。仍制作规范四视图，简洁中性背景，完整展示身体与服装，不绘制多人剧情画面。':character&&stage==='style'?'仅探索基础人物形象，不表现被绑、受伤或具体剧情状态。':'';
- const prompt=shot?readableText(shot.imagePrompt,result,shot):`${options.project?.artDirection?.notes||result.styleBible}\n${asset?.design||''}\n${stage==='style'&&character?'基础人物形象，中性站姿，五官清楚，简洁背景。':state?.imagePrompt||''}\n${identityRules}${stage==='asset'?'\n'+(assetFormats[asset?.category]?.prompt||''):''}`;
+ const visualContext=!options.project?.artDirection&&result.styleBible?`\n画风参考（只继承适用画风，不引入其他主体）：${result.styleBible}`:'';
+ const prompt=shot?readableText(shot.imagePrompt,result,shot):`本次制作对象：${asset?.name||''}。\n${asset?.design||''}\n${stage==='style'&&character?'基础人物形象，中性站姿，五官清楚，简洁背景。':state?.imagePrompt||''}\n${identityRules}${stage==='asset'?'\n'+(assetFormats[asset?.category]?.prompt||''):''}${visualContext}`;
  return {shot,asset,state,binding,library,versions,sources,mode,prompt,character,master,masterBinding};
 }
 export function generationGallery(versions,apiBase,{stage,category,direction=false,busy=false,master=false}={}){
