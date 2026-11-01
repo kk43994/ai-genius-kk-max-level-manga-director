@@ -105,11 +105,16 @@ def run(instance, *, port=18874, open_browser=True, frontend=None, version=APP_V
     app.build_info.update(version=version, channel="preview", dataSchemaVersion=SCHEMA_VERSION)
     runtime = {"mode": "local-client", "instanceId": identity, "version": version,
                "accountAuthorization": True, "scopes": ["libtv:account:read"],
-               "automaticUpdates": False}
+               "automaticUpdates": configure_app is None}
     app.router.add("GET", "/api/v1/local-runtime", lambda ctx, params: Response(body=runtime), public=True)
     server = CustomerHTTPServer(app)
-    # Existing web version UI expects release metadata; a local auth preview has
-    # no live update feed. It must never present a page refresh as an installation.
+    updater = None
+    if configure_app is None:
+        from local_client.updater import DesktopUpdater, register_update_routes
+        packaged = bool(getattr(sys, 'frozen', False) or (SERVER.parent / 'runtime/pythonw.exe').is_file())
+        updater = DesktopUpdater(instance, version, packaged=packaged)
+        register_update_routes(app, updater, server.shutdown)
+        updater.start()
     def stop(ctx, params):
         threading.Thread(target=server.shutdown, daemon=True).start()
         return Response(body={"stopping": True})
@@ -128,16 +133,23 @@ def run(instance, *, port=18874, open_browser=True, frontend=None, version=APP_V
     try:
         server.serve_forever(poll_interval=0.2)
     finally:
+        if updater:
+            updater.stop_event.set()
         server.server_close()
     return 0
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == '--install-update-helper':
+        from local_client.install_update import main as install
+        return install(sys.argv[2:])
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--instance", type=Path)
     parser.add_argument("--port", type=int, default=18874)
     parser.add_argument("--no-browser", action="store_true")
-    parser.add_argument("--enable-image-generation", action="store_true", help="Enable authorized local LibTV image submissions")
+    parser.add_argument("--enable-image-generation", action="store_true",
+        default=bool(getattr(sys, "frozen", False) or (SERVER.parent / "runtime/pythonw.exe").is_file()),
+        help="Enable authorized local LibTV image submissions")
     parser.add_argument("--frontend", type=Path)
     args = parser.parse_args()
     instance = (args.instance or default_instance()).absolute()

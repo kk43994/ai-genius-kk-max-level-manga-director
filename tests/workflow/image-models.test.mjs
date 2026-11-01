@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {selectedImageModel,collectImageSettings,imageModelPicker} from '../../frontend/workflow/image-models.js';
-import {batchSize,parallelGroups} from '../../frontend/workflow/generation-batch.js';
+import {batchSize,parallelGroups,missingStoryboardShots} from '../../frontend/workflow/generation-batch.js';
 
 const catalog={items:[{id:'official-pro',name:'Lib Image 2.5 Pro'},{id:'mj-real',name:'Style Image V8.1'}]};
 const contract={verified:true,schema:{properties:{count:{type:'integer',enum:[1,2,4]},ratio:{enum:['16:9','1:1']},seed:{type:'integer'},style:{enum:['raw','default']}}}};
@@ -29,4 +29,19 @@ test('nullable official controls use ordinary typed fields',()=>{
  const html=imageModelPicker({catalog,contracts:{'official-pro':nullable}});
  assert.match(html,/name="param:seed"[^>]*type="number"/);assert.doesNotMatch(html,/placeholder="JSON"/);
  assert.deepEqual(collectImageSettings({'param:seed':'5','param:style':'raw'},nullable),{seed:5,style:'raw',count:1});
+});
+
+test('missing-shot batches exclude uncertain tasks, returned images and unpinned references',()=>{
+ const owner={providerAccountId:'account',spaceId:'space'};
+ const shots=Array.from({length:16},(_,i)=>({id:'shot-'+i}));
+ const job={status:'ready',ownership:owner,shotBindings:shots.map((s,i)=>({shotId:s.id,entityId:'entity-'+i}))};
+ const tasks=[{entityId:'entity-0',status:'needs_attention'},{entityId:'entity-1',status:'failed'},
+   {entityId:'entity-2',status:'prepared'},{entityId:'entity-3',status:'completed'},
+   {entityId:'entity-4',status:'cancelled'}];
+ const assets=[{active:true,entityId:'entity-5',revisions:[{stage:'storyboard',ownership:owner,review:'pending'}]}];
+ const refs=(_job,shot)=>[{pinned:shot.id!=='shot-6',src:shot.id==='shot-7'?null:'image',changed:shot.id==='shot-8'}];
+ const options={job,result:{shots},assets,tasks,selection:owner};
+ assert.deepEqual(missingStoryboardShots(options,refs).map(r=>r.index),[4,9,10,11,12,13,14,15]);
+ assert.deepEqual(missingStoryboardShots({...options,job:{...job,stale:true}},refs),[]);
+ assert.equal(missingStoryboardShots({...options,tasks:[],assets:[]},()=>[{pinned:true,src:'image'}]).length,8);
 });

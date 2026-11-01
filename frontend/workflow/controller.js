@@ -1,11 +1,11 @@
 import {canAutoCollect, nextCollection, collectionDelay, collectionOwnerKey, needsAssetRefresh} from './collection.js';
 import {promptPanel, promptProcessing, usablePrompt, promptIssue} from './prompts.js';
-import {productionPanel, productionRunning, createPreview} from './production.js';
+import {productionPanel, productionRunning, createPreview, referenceCards} from './production.js';
 import {returnedResult, reviewDraft, setReviewValue, valueAt, textLines} from './production-editor.js';
 import {assetToken,referenceLabel,readableText,storedText,linkedText,referencePicker,bindReference,removeReference,appendManualProp} from './production-references.js';
 import {generationContext,generationGallery} from './production-generation.js';
 import {extraReferences,referencePrompt,libraryPanel} from './image-references.js';
-import {batchSize,parallelGroups} from './generation-batch.js';
+import {batchSize,parallelGroups,missingStoryboardShots} from './generation-batch.js';
 import {selectedImageModel,collectImageSettings} from './image-models.js';
 import {creatorDesk} from './creator-desk.js';
 import {mountCanvas} from './production-canvas.js';
@@ -62,7 +62,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const collectionAttempts = new Map();
   let coverage = {total:0, ready:0, complete:false}, capabilities = {scriptAnalysis:false}, taskError = '';
   let selected = drafts.get('quick-start')?.text ? '' : drafts.get('selectedProject') || '', page = normalizePage(drafts.get('page') || 'plan');
-  let selectedEntity = drafts.get('selectedEntity') || '', editing = false, reviewId = null, prepared = null;
+  let selectedEntity = drafts.get('selectedEntity') || '', editing = false, reviewId = null, prepared = null, submittingBatch = false;
   let filter = 'all', search = '', saveError = '', creating = Boolean(drafts.get('quick-start')?.text), focusedBeforeReview;
   const status = () => root.querySelector('[data-wf-status]');
   const listen = (target, event, handler) => { if (!target) return; target.addEventListener(event,handler); listeners.push(() => target.removeEventListener(event,handler)); };
@@ -226,7 +226,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const targetName=['mj_style','image25_style'].includes(task.recipe)?archiveName.replace(/ · 人物主多视图$/,''):archiveName;
     const purpose={mj_style:'基础形象与风格候选',image25_style:'基础形象与风格候选',image2_asset:'规范资产图',image25_asset:'Image2.5 规范资产图',nano_refine:'资产精修图',storyboard_image:'分镜图',image25_storyboard:'Image2.5 分镜图'}[task.recipe]||'候选图';
     const references=(task.sourceRevisionIds||[]).map(id=>{const a=assets.find(a=>a.revisions.some(r=>r.id===id));return a?`${a.name} · ${id.slice(-6)}`:`图片版本 ${id.slice(-6)}`;});
-    return `<section class="wf-panel" data-confirmation tabindex="-1"><h3>${busy?'正在提交这批图片':'核对这次任务'}</h3>${busy?'<p role="status">正在上传参考并等待各组回执，请勿重复提交。</p><progress aria-label="正在提交图片任务"></progress>':''}<p><b>${batch.length} 组 · 共 ${total} 张</b> · 确认后并发生成</p>${batch.length>1?`<ol>${batch.map((r,i)=>`<li>第 ${i+1} 组 · ${esc(r.confirmation.summary.modelKey)} · ${r.confirmation.summary.count} 张 · ${esc(r.task.id.slice(-6))}</li>`).join('')}</ol>`:''}<p><strong>制作对象：${esc(targetName)}</strong> · ${esc(purpose)}</p>${references.length?`<p>已固定参考：${references.map(esc).join('；')}</p>`:''}<details><summary>本次实际发送的完整提示词</summary><pre class="wf-prompt-text">${esc((prepared.confirmation?.summary?.prompt||'提示词暂不可读，请保留任务后刷新核对。').replace(/\{\{reference:[^}]+\}\}/g,'（已绑定参考图片）'))}</pre></details><p>模型：${esc(prepared.confirmation?.summary?.modelKey||recipeLabels[task.recipe]||task.recipe)}</p><p>每组生成 ${esc(prepared.confirmation?.summary?.count || task.spec?.settings?.count || 1)} 张候选图</p><p class="wf-note">任务账号：${esc(task.ownership?.accountLabelAtCreation||task.ownership?.providerAccountId)}<br>工作空间：${esc(task.ownership?.spaceNameAtCreation||task.ownership?.spaceId)}<br>费用：${cost.state==='known'?esc(`${cost.amount} ${cost.unit}`):'未知 · 不能视为免费'}</p><p class="wf-muted">切换页面上的账号不会改变这个任务的归属。${!enabled?'当前版本未启用图片提交；准备记录已保存。':''}</p><div class="wf-actions"><button data-wf-action="close-confirmation">${busy?'收起并查看任务进度':'保留准备记录'}</button><button data-wf-action="submit-task" class="primary" ${!enabled||busy?'disabled':''}>${batch.length>1?'确认并提交这 '+batch.length+' 组':'确认并提交生成'}</button></div></section>`;
+    return `<section class="wf-panel" data-confirmation tabindex="-1"><h3>${submittingBatch?'正在提交这批图片':'核对这次任务'}</h3>${submittingBatch?'<p role="status">正在上传参考并等待各组回执，请勿重复提交。</p><progress aria-label="正在提交图片任务"></progress>':''}<p><b>${batch.length} 组 · 共 ${total} 张</b> · 确认后并发生成</p>${batch.length>1?`<ol>${batch.map((r,i)=>`<li>${esc(r.targetName||`第 ${i+1} 组`)} · ${esc(r.confirmation.summary.modelKey)} · ${r.confirmation.summary.count} 张 · ${esc(r.task.id.slice(-6))}</li>`).join('')}</ol>`:''}<p><strong>制作对象：${esc(prepared.multipleShots?'本批清单中的分镜':targetName)}</strong> · ${esc(purpose)}</p>${prepared.multipleShots?batch.map(r=>`<details><summary>${esc(r.targetName)} · 参考与提示词</summary><p>${(r.task.sourceRevisionIds||[]).map(id=>{const a=assets.find(a=>a.revisions.some(v=>v.id===id));return esc((a?.name||'图片版本')+' · '+id.slice(-6));}).join('；')}</p><pre class="wf-prompt-text">${esc((r.confirmation.summary.prompt||'').replace(/\{\{reference:[^}]+\}\}/g,'（已绑定参考图片）'))}</pre></details>`).join(''):references.length?`<p>已固定参考：${references.map(esc).join('；')}</p>`:''}<details><summary>${prepared.multipleShots?'首镜完整提示词（其他镜头见上方）':'本次实际发送的完整提示词'}</summary><pre class="wf-prompt-text">${esc((prepared.confirmation?.summary?.prompt||'提示词暂不可读，请保留任务后刷新核对。').replace(/\{\{reference:[^}]+\}\}/g,'（已绑定参考图片）'))}</pre></details><p>模型：${esc(prepared.confirmation?.summary?.modelKey||recipeLabels[task.recipe]||task.recipe)}</p><p>每组生成 ${esc(prepared.confirmation?.summary?.count || task.spec?.settings?.count || 1)} 张候选图</p><p class="wf-note">任务账号：${esc(task.ownership?.accountLabelAtCreation||task.ownership?.providerAccountId)}<br>工作空间：${esc(task.ownership?.spaceNameAtCreation||task.ownership?.spaceId)}<br>费用：${cost.state==='known'?esc(`${cost.amount} ${cost.unit}`):'未知 · 不能视为免费'}</p><p class="wf-muted">切换页面上的账号不会改变这个任务的归属。${!enabled?'当前版本未启用图片提交；准备记录已保存。':''}</p><div class="wf-actions"><button data-wf-action="close-confirmation">${submittingBatch?'收起并查看任务进度':'保留准备记录'}</button><button data-wf-action="submit-task" class="primary" ${!enabled||busy?'disabled':''}>${batch.length>1?'确认并提交这 '+batch.length+' 组':'确认并提交生成'}</button></div></section>`;
   }
   function deliveryView() {
     const allowed=coverage.scope==='production'?new Set(coverage.exportRevisionIds||[]):null;
@@ -584,6 +584,32 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     }
     if(form.dataset.wfForm==='board-generation'){
       const view={...boardView()},inputs=Object.fromEntries(new FormData(form)),name=boardGenerationKey();
+      if(event.submitter?.hasAttribute('data-generation-missing-shots'))return perform(async()=>{
+        if(drafts.get(`production:review:${production?.id}`)||drafts.get(`production:edits:${production?.id}`))throw new Error('请先保存镜头编排，再批量准备分镜。');
+        tasks=(await loadTasks(selected)).items;taskError='';
+        const result=returnedResult(production),targets=missingStoryboardShots({job:production,result,assets,tasks,selection:session.selection},referenceCards);
+        if(!targets.length)throw new Error('没有可批量准备的镜头。请先固定参考；已有图片或任务请逐镜查看，避免重复生成。');
+        const chosen=selectedImageModel(inputs,imageCatalog),settings=collectImageSettings(inputs,imageContracts[chosen.id]);
+        const batchKey=key(),ready=[],failed=[];
+        // Establish each shot archive with the latest plan version. Paid submits
+        // remain concurrent only after the user reviews this complete batch.
+        for(const {shot,index} of targets){
+          announce(`正在准备镜头 ${String(index+1).padStart(3,'0')} · 本批 ${ready.length+failed.length+1}/${targets.length}，尚未提交收费生成。`);
+          try{
+            const currentPlan=await api.request(`/projects/${encodeURIComponent(selected)}/plan`);
+            const c=generationContext({result,job:production,view:{kind:'shots',index,stage:'storyboard'},assets,selection:session.selection});
+            const response=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/images/prepare`,{method:'POST',body:{
+              recipe:'image25_storyboard',modelId:chosen.id,prompt:c.prompt,settings,shotId:shot.id,
+              expectedReviewVersion:production.reviewVersion,expectedEditVersion:production.editVersion,expectedPlanVersion:currentPlan.version,
+              expectedSelectionRevision:session.selection.revision,expectedArtDirectionVersion:project.artDirection?.version||0,
+              idempotencyKey:batchKey+':shot:'+shot.id}});
+            if(!response.confirmation)throw new Error(response.task?.error?.message||'准备未完成');
+            ready.push({...response,targetName:`镜头 ${String(index+1).padStart(3,'0')} · ${shot.purpose}`});
+          }catch(e){failed.push(`镜头 ${String(index+1).padStart(3,'0')}：${e.message}`);}
+        }
+        prepared=ready.length?{...ready[0],batch:ready,multipleShots:true}:null;
+        await load();announce(`已准备 ${ready.length} 个镜头，使用各镜已保存提示词与固定参考。${failed.length?failed.join('；'):'核对清单后一起提交生成。'}`);
+      });
       const groups=batchSize(inputs.groups);
       const draft={...inputs,prepareKey:event.submitter?.hasAttribute('data-generation-reroll')?key():drafts.get(name)?.prepareKey||key()};persist(name,draft);
       return perform(async()=>{
@@ -849,11 +875,12 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(action==='approve')return decide('approved');
     if(action==='reject')return decide('changes_requested');
     if(action==='close-confirmation'){prepared=null;render();return;}
-    if(action==='submit-task'&&prepared&&session.features?.imageGeneration===true){const targets=prepared.batch||[prepared];return perform(async()=>{
+    if(action==='submit-task'&&prepared&&!busy&&session.features?.imageGeneration===true){const targets=prepared.batch||[prepared];submittingBatch=true;return perform(async()=>{try{
       const results=await parallelGroups(targets,target=>api.request(`/tasks/${encodeURIComponent(target.task.id)}/submit`,{method:'POST',body:{expectedVersion:target.task.version,confirmationToken:target.confirmation.token},idempotencyKey:target.submitKey||(target.submitKey='ui-submit:'+target.task.id),quietProgress:true}));
       prepared=null;persist(`flow:${selected}`,true);await load();
       const unresolved=results.filter(r=>r.status==='rejected'||r.value?.task?.error).length;
       announce(`已处理 ${targets.length} 组提交，最终状态见任务记录。${unresolved?'其中 '+unresolved+' 组需要查询原任务；不会自动重抽。':'生成过程中可以继续准备其他组。'}`);
+      }finally{submittingBatch=false;}
     });}
     if(action==='archive')return perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/bundles`,{method:'POST',body:{expectedVersion:project.version}});announce('本次确认的交付包已归档。');await load();});
   }

@@ -79,3 +79,11 @@ test('only a verified upload-only failure offers a fresh preparation key',()=>{
   {entityId:'master',status:'submitting',createdAt:'2026-01-02T00:00:00Z'}];
  assert.doesNotMatch(generationInspector(options),/old-upload-error|重新准备本次生成/);
 });
+
+test('storyboard generation carries source start state and continuity without jumping to the end state',()=>{
+ const shot={id:'s1',imagePrompt:'单幅人物近景，角色抬眼。',framing:'脸部近景，另一人物在画外右侧。',startState:'人物仍在地面，手脚被绑。',endState:'镜末被救起站立。',continuity:['没有椅子，不能变成坐椅。','保持湿发和同一衬衫。'],references:[]};
+ const context=generationContext({result:{shots:[shot],assets:[]},job:{},view:{kind:'shots',index:0,stage:'storyboard'}});
+ assert.match(context.prompt,/单幅人物近景/);assert.match(context.prompt,/脸部近景/);
+ assert.match(context.prompt,/人物仍在地面，手脚被绑/);assert.match(context.prompt,/没有椅子/);
+ assert.doesNotMatch(context.prompt,/镜末被救起站立/);
+});

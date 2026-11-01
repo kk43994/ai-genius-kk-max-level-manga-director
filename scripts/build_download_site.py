@@ -89,7 +89,7 @@ def main():
                                'sha256':mac_digest, 'platform':'macos-arm64',
                                'developerIDSigned':False, 'notarized':False}],
                 'macPackagedLaunchVerified':True, 'macInstallerExecuted':False,
-                'windowsInstallVerified':False, 'automaticUpdates':False, 'uiTheme':'studio-neutral-dark', 'windowsEncodingFix':True}
+                'windowsInstallVerified':False, 'automaticUpdates':True, 'updaterVersion':1, 'uiTheme':'studio-neutral-dark', 'windowsEncodingFix':True}
     manifest['developmentEdition'] = {'product': 'ManjuWorkbench', 'version': MANJU_VERSION,
                                       'url': 'manju-release.json', 'section': '#manju-preview'}
     public_manju = dict(manju, macPackagedLaunchVerified=True, windowsRunVerified=False, uiTheme='studio-neutral-dark', windowsEncodingFix=True)
@@ -98,7 +98,7 @@ def main():
     manju_notes += f'''\n本次更新\n统一黑灰工作台界面、首页导航、资产卡片与审核组件，并修复 Windows 启动编码错误。\n\n安装与版本\n版本：{MANJU_VERSION} · 开发中 · 测试版\nWindows 10 / 11 x64；Mac Apple 芯片，macOS 11 及以上。\n安装后自动创建“漫剧工作台（测试版）”桌面入口，双击自动打开本地网页。\n独立的程序、端口与本地数据目录，可与资产实验室同时安装。\nMac 打包应用独立启动、重复打开和重启保存检查通过。\nWindows 运行及两端系统安装流程尚未实机验收。\nWindows 未签名；Mac 未完成 Developer ID 签名与 Apple 公证。\n若系统阻止安装，请联系交付人员核对来源，不要关闭系统安全防护。\n更新地址：https://kk666.best/asset-lab/#manju-preview\n'''
     (out/'manju-notes.txt').write_text(manju_notes, encoding='utf-8-sig')
     (out/'release.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
-    notes = f'''资产实验室 {APP_VERSION} · 连接体验版
+    notes = f'''资产实验室 {APP_VERSION} · 图片创作预览版
 发布日期：2026 年 11 月 1 日
 
 提供 Mac（Apple 芯片）与 Windows（x64）安装程序，安装时自动创建桌面快捷方式。
@@ -113,7 +113,7 @@ Mac 安装到“应用程序”；Windows 另提供开始菜单入口。
 3. 以后双击桌面图标即可使用。首次使用请连接自己的 LibTV 账号。
 
 当前版本范围
-新版黑灰工作台界面；支持剧本与资产清单整理、账号连接与空间选择。图像、视频生成和自动安装更新暂未开放。
+新版黑灰工作台界面；支持剧本与资产清单整理、账号连接与空间选择。支持剧本分析、图片创作与图文分镜。首次制作需要创作授权，逐任务确认后才扣积分。自动检查并下载更新，保存并完成运行任务后安装；视频与音频后续接入。
 已修复部分 Windows 区域设置下的启动编码错误。
 真实官方只读授权与重启恢复已在开发机验证；Mac 独立应用启动、重复打开和资料保留已验证。
 Mac 系统安装流程及 Windows 安装、快捷方式和权限保护仍待实机验收。

@@ -5,6 +5,20 @@
   "scope": "project-knowledge-source",
   "entries": [
     {
+      "id": "desktop-updates",
+      "file": "docs/rag/desktop-updates.md",
+      "keywords": [
+        "自动更新",
+        "桌面",
+        "安装",
+        "升级",
+        "下载",
+        "校验",
+        "旧版本"
+      ],
+      "status": "under-live-validation"
+    },
+    {
       "id": "image-creation",
       "file": "docs/rag/image-creation.md",
       "keywords": [

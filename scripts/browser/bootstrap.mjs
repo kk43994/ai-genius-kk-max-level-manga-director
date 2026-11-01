@@ -5,6 +5,7 @@ import {mount as mountWorkflow} from '../asset-lab.js';
 import {mount as mountUpdates} from '../updates/index.js';
 import {DraftCoordinator} from './drafts.mjs';
 import {mountLocalWorkspace} from './local-workspace.mjs';
+import {mountLocalUpdates} from './local-updates.mjs';
 import {createSessionBoundary,inspectWorkspaceDrafts,saveWorkspaceDrafts} from './workspace-context.mjs';
 
 const config = JSON.parse(document.getElementById('asset-lab-config').textContent);
@@ -239,6 +240,11 @@ try {
       } catch(error){display(error.message);stop.disabled=false;}
     });
     root.append(note,stop);
+    const runtime=await api.request('/local-runtime');
+    if(runtime.automaticUpdates)updates=mountLocalUpdates({root,api,saveDraft,getSafetyState:safety,onInstalling:message=>{
+      switchingWorkspace=true;drafts.destroy();workflow.unmount();accounts.unmount();freezeEditing(true);
+      root.inert=false;note.textContent=message;display(message);stop.disabled=true;
+    }});
   } else {
     updates=mountUpdates({root:document.getElementById('update-root'),api,events,session,currentBuild,getSafetyState:safety,saveDraft,publicBasePath:config.publicBasePath});
   }

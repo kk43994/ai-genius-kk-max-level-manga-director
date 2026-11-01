@@ -26,8 +26,8 @@ ShowUninstDetails show
 
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TITLE "把资产实验室放到你的桌面"
-!define MUI_WELCOMEPAGE_TEXT "安装完成后，桌面会自动出现“资产实验室”快捷方式。$\r$\n$\r$\n双击图标，就会在浏览器中打开你的工作台。首次使用，点击“授权 LibTV”连接自己的账号。$\r$\n$\r$\n当前为连接体验版，图像和视频生成暂未开放。"
-!define MUI_FINISHPAGE_TITLE "安装完成，开始连接你的账号"
+!define MUI_WELCOMEPAGE_TEXT "安装完成后，桌面会自动出现“资产实验室”快捷方式。$\r$\n$\r$\n双击图标，就会在浏览器中打开你的工作台。首次使用，点击“授权 LibTV”连接自己的账号。$\r$\n$\r$\n支持剧本分析与图片创作，生成前需要创作授权并确认任务。自动检查并下载更新，安装前先保存草稿并完成任务。"
+!define MUI_FINISHPAGE_TITLE "安装完成，开始创作"
 !define MUI_FINISHPAGE_TEXT "桌面的“资产实验室”图标已经准备好。$\r$\n$\r$\n之后每次使用，只需双击图标。"
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "立即打开资产实验室"
