@@ -50,7 +50,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const currentProduction=()=>drafts.get(`production:review:${production?.id}`)?.result||returnedResult(production);
   const boardGenerationKey=()=>`boardgen:identity-v2:${boardView().characterLayer||'master'}:${production?.id}:${boardView().kind}:${boardView().index}:${boardView().state||0}:${boardView().stage}`;
   const boardView=()=>{const v=boardViews.get(production?.id)||{};return stages.includes(page)?{...v,kind:'assets',index:v.kind==='shots'?0:(v.index||0),state:v.state||0,stage:page==='style'?'style':page==='refine'?'refine':v.stage==='refine'?'refine':'asset'}:v;};
-  function updateBoard(patch){if(!production)return;boardViews.set(production.id,{...boardView(),...patch});render();}
+  function updateBoard(patch){if(!production)return;const previous=boardView();if(['kind','index','state','characterLayer','stage'].some(k=>Object.hasOwn(patch,k)&&patch[k]!==previous[k]))reviewId=null;boardViews.set(production.id,{...previous,...patch});render();}
   const preview = createPreview({root,getContext:()=>({job:production,assets,selection:session.selection,apiBase}),onStatus:message=>announce(message)});
   let collecting = false;
   const collectionAttempts = new Map();
