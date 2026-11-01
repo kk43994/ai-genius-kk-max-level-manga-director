@@ -252,7 +252,9 @@ class ProductionService(AnalysisService):
         data = self._get(ctx, identity)['data']
         plan = self.services.workflow.get_plan(ctx, result['projectId'])
         project = self.services.workflow.get_project(ctx, result['projectId'])
-        result['stale'] = (project['scriptIds'][-1] != result['scriptId'] or plan['stylePrompt'] != data['context']['stylePrompt'])
+        current_analysis = self.services.analysis.get(ctx, data['context']['analysisId'])
+        result['stale'] = (project['scriptIds'][-1] != result['scriptId'] or plan['stylePrompt'] != data['context']['stylePrompt']
+            or current_analysis.get('result') != data['context']['analysis'])
         # Exact source dialogue remains separate from AI-authored production prose.
         result['dialogues'] = copy.deepcopy(data['context']['analysis']['dialogues'])
         result['characters'] = [{'id': c['id'], 'name': c['name']} for c in data['context']['analysis']['characters']]

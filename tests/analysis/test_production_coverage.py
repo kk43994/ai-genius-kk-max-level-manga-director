@@ -132,3 +132,13 @@ class CoverageTests(unittest.TestCase):
                 self.workflow._coverage(tx, self.project['id'])
                 result = copy.deepcopy(job['result']); result['uncertainties'].append('并发改动')
                 self.production.save_review(self.ctx, job['id'], {'expectedVersion': 0, 'expectedEditVersion': 0, 'result': result})
+
+    def test_analysis_manual_changes_invalidate_current_production_and_delivery(self):
+        job = self.complete()
+        analysis = self.ai.get(self.ctx, self.analysis['id'])
+        result = copy.deepcopy(analysis['result']); result['characters'][0]['name'] = '人物名称修正'
+        self.ai.save_review(self.ctx, analysis['id'], {'expectedVersion': analysis['reviewVersion'],
+            'expectedResultHash': analysis['resultHash'], 'result': result})
+        self.assertTrue(self.production.get(self.ctx, job['id'])['stale'])
+        self.assertFalse(self.coverage()['complete'])
+        self.assertIn('分析已修改', self.coverage()['message'])

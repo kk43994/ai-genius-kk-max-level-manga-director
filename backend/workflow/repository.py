@@ -85,6 +85,9 @@ class WorkflowRepository:
                     snapshot.update(current=True, job=read('production.jobs', identity),
                                     review=read('production.reviews', identity),
                                     edit=read('production.edits', identity))
+                    if snapshot['job']:
+                        analysis_id = snapshot['job']['data']['context']['analysisId']
+                        snapshot['analysisReview'] = read('analysis.reviews', analysis_id)
                     break
                 production[project['id']], production_reads[project['id']] = snapshot, reads
         view = _View(state, self.storage, ctx, write)

@@ -75,7 +75,26 @@ class AnalysisService:
         return result
 
     def get(self, ctx, identity):
-        return self._public(self._get(ctx, identity))
+        row = self._get(ctx, identity)
+        result = self._public(row)
+        if self.collection == 'analysis.jobs':
+            from .review import present
+            return present(self, ctx, row, result)
+        return result
+
+    def save_review(self, ctx, identity, body):
+        from .review import save
+        return save(self, ctx, identity, body)
+
+    def read_original(self, ctx, identity):
+        if not self.get(ctx, identity).get('canReadOriginal'):
+            raise WorkflowError('ANALYSIS_REVIEW_UNAVAILABLE', '此记录无需重新读取，请查看已返回内容。', 409)
+        with self.store.transaction(ctx) as tx:
+            row = tx.get(self.collection, identity)
+            data = row['data']; data.update(status='interrupted', error=None, updatedAt=now())
+            tx.update(self.collection, identity, data, expected_version=row['version'])
+        self._schedule(ctx, identity)
+        return self.get(ctx, identity)
 
     def latest(self, ctx, project_id, script_id):
         self.services.workflow.get_script(ctx, project_id, script_id)
@@ -248,6 +267,8 @@ class AnalysisService:
             # A returned model call still consumed a step if its content fails
             # validation; never hide that call from customer progress/cost review.
             save({'completedCalls': max(data.get('completedCalls',0), {'extract':1,'review':2,'repair':3,'repair2':4}[data['phase']])})
+            if self.collection == 'analysis.jobs' and isinstance(text, str) and len(text) <= 2_000_000:
+                save({'analysisDraft': text})
             save(self.result_updates(data, text, script))
         except Exception as error:
             data = self._get(ctx, identity)['data']
@@ -333,7 +354,7 @@ class AnalysisService:
         return self.get(ctx,identity)
 
     def candidate(self, ctx, identity):
-        data = self._get(ctx, identity)['data']
+        data = self.get(ctx, identity)
         if data['status'] != 'ready':
             raise WorkflowError('ANALYSIS_NOT_READY', 'AI 分析尚未完整返回，请先核对状态。', 409)
         script = self.services.workflow.get_script(ctx, data['projectId'], data['scriptId'])

@@ -39,6 +39,8 @@ def coverage(workflow, tx, project):
     if (data['scriptId'] != script['id'] or data['sourceRevision'] != script['sourceRevision']
             or data['context']['stylePrompt'] != project['plan']['stylePrompt']):
         return {**base, 'message': '制作方案依据已变化，请先核对当前剧本和方案。'}
+    if snapshot.get('analysisReview') and snapshot['analysisReview']['data']['result'] != data['context']['analysis']:
+        return {**base, 'message': '剧本分析已修改，请先更新制作方案。'}
     if data['status'] in ACTIVE:
         return {**base, 'message': '制作方案正在处理，完成后才能核对交付范围。'}
     result = copy.deepcopy(data.get('result') or decode(data.get('productionDraft')))

@@ -6,6 +6,7 @@ import {assetToken,referenceLabel,readableText,storedText,linkedText,referencePi
 import {generationContext,generationGallery} from './production-generation.js';
 import {creatorDesk} from './creator-desk.js';
 import {mountCanvas} from './production-canvas.js';
+import {analysisDraft} from './analysis-edit.js';
 import {analysisPanel, sourceView} from './analysis.js';
 import {operationLabel, elapsedLabel, taskProgress, reviewProgress} from './progress.js';
 import {buildCustomerArchives} from '../asset-lab-archives.js';
@@ -65,7 +66,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const composeKey = () => `compose:${selected}:${selectedEntity}:${page}`;
   const image = (assetId, revisionId, thumb = true) => esc(assetURL(apiBase,assetId,revisionId,thumb));
   const path = relative => apiBase + relative;
-  const dirty = () => Object.keys(drafts.data).some(k => k.startsWith('plan:') || k.startsWith('compose:') || k.startsWith('review:') || k.startsWith('production:edits:') || k.startsWith('production:review:') || k.startsWith('boardgen:') || k.startsWith('art-direction:') || (k==='quick-start'&&drafts.get(k)?.text));
+  const dirty = () => Object.keys(drafts.data).some(k => k.startsWith('plan:') || k.startsWith('compose:') || k.startsWith('review:') || k.startsWith('production:edits:') || k.startsWith('production:review:') || k.startsWith('analysis:review:') || k.startsWith('boardgen:') || k.startsWith('art-direction:') || (k==='quick-start'&&drafts.get(k)?.text));
   const guide = () => scripts.length && !plan.entities.length && !drafts.get(planKey()) ? {kind:'analysis',title:analysis?.status==='ready'?'核对 AI 分析，建立资产清单':'先完成 AI 剧本分析',detail:analysis?.message||'用 AI 理解角色、场景、时间、地点、事件与台词。'} : nextAction({project, plan:{...plan,needsReview:plan.needsReview||Boolean(drafts.get(planKey()))}, assets, tasks, bundles, selection:session.selection, taskError, styleCount:session.features?.imageGeneration ? 4 : 1});
 
 
@@ -149,7 +150,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     return creatorDesk({page:page==='refine'?'asset':page,project,result:currentProduction(),job:production,assets,selection:session.selection,view:boardView(),apiBase,busy,tasks,
       review:drafts.get(`production:review:${production.id}`),draft:drafts.get(`production:edits:${production.id}`),generationDraft:drafts.get(boardGenerationKey())||{},directionDraft:drafts.get(`art-direction:${selected}`)});
   }
-  function analysisView() { return analysisPanel({script:scripts.at(-1),analysis,enabled:capabilities.scriptAnalysis,connected:Boolean(session.selection?.providerAccountId&&session.selection?.spaceId),busy,error:analysisError,models:capabilities.analysis?.models||[],modelId:drafts.get('text-model')||capabilities.analysis?.defaultModelId}); }
+  function analysisView() { return analysisPanel({script:scripts.at(-1),analysis,draft:drafts.get(`analysis:review:${analysis?.id}`),enabled:capabilities.scriptAnalysis,connected:Boolean(session.selection?.providerAccountId&&session.selection?.spaceId),busy,error:analysisError,models:capabilities.analysis?.models||[],modelId:drafts.get('text-model')||capabilities.analysis?.defaultModelId}); }
   function archiveCard(a) {
     return `<article class="wf-entity">${a.cover ? `<div class="wf-cover"><button class="wf-image-button" data-wf-review="${esc(a.cover.id)}" aria-label="查看 ${esc(a.name)} 原图与审核"><img src="${image(a.assetId,a.cover.id)}" alt="${esc(a.name)} ${esc(stageLabels[a.cover.stage])}" loading="lazy"></button></div>` : '<div class="wf-cover"><span class="wf-muted">待制作</span></div>'}<p>${tag('',categories[a.category])}</p><h3>${esc(a.name)}</h3><p class="wf-muted">${esc(a.description || '设定待补充')}</p><div class="wf-stage-line">${stages.map(s=>`<span class="${a.stages[s] ? 'done' : ''}">${esc(stageLabels[s])} ${a.stages[s]?'✓':a.revisions.some(r=>r.stage===s&&r.status==='ready'&&r.review==='pending')?'待审核':a.revisions.some(r=>r.stage===s&&r.review==='changes_requested')?'待返修':'待制作'}</span>`).join('')}</div><div class="wf-actions"><button data-wf-entity="${esc(a.id)}" data-wf-stage="${a.stages.asset?'refine':a.stages.style?'asset':'style'}">继续制作</button><button data-wf-archive="${esc(a.id)}">版本与审核 (${a.revisions.length})</button></div></article>`;
   }
@@ -265,7 +266,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const projectId=selected, serial=requestSerial;
     polling=true;let mediaChanged=false;
     try {
-      if(analysis?.canRefresh){const updated=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/refresh`,{method:'POST',body:{}});if(!alive||serial!==requestSerial||projectId!==selected)return;analysis=updated;analysisError='';const panel=root.querySelector('[data-wf-analysis]');if(panel)panel.outerHTML=analysisView();}
+      if(analysis?.canRefresh){const updated=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/refresh`,{method:'POST',body:{}});if(!alive||serial!==requestSerial||projectId!==selected)return;analysis=updated;analysisError='';const panel=root.querySelector('[data-wf-analysis]');if(panel&&!drafts.get(`analysis:review:${analysis.id}`))panel.outerHTML=analysisView();}
       // Prompt polling updates only its own panel, preserving an edited composer.
       if(production?.canRefresh){const updated=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/refresh`,{method:'POST',body:{}});if(!alive||serial!==requestSerial||projectId!==selected)return;production=updated;productionError='';const panel=root.querySelector('[data-wf-production]');if(panel&&!busy){panel.outerHTML=productionView();canvas.refresh();}}
       let promptsChanged=false;
@@ -443,6 +444,14 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     announce(result.duplicate?'已恢复这份剧本的项目。':'项目和剧本已保存，点击“开始 AI 分析”提取六类信息。');await load();
     root.querySelector('.wf-guide')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
+  function changeAnalysisField(path,value,target=null){
+    const name=`analysis:review:${analysis.id}`,draft=drafts.get(name)||analysisDraft(analysis);
+    if(!setReviewValue(draft.result,path,value))return;
+    persist(name,draft);
+    root.querySelectorAll('[data-wf-analysis-field]').forEach(input=>{if(input!==target&&input.dataset.wfAnalysisField===path){if(input.type==='checkbox')input.checked=value;else input.value=value??'';}});
+    root.querySelectorAll('[data-analysis-draft-status]').forEach(el=>el.textContent='有未保存修改，请保存并核对');
+    const next=root.querySelector('[data-wf-action="open-production-plan"]');if(next)next.disabled=true;
+  }
   function changeProductionField(path,value,target=null) {
     const name=`production:review:${production.id}`;
     const draft=drafts.get(name)||reviewDraft(production,drafts.get(`production:edits:${production.id}`));
@@ -479,6 +488,8 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function onInput(event) {
     const target=event.target;
+    if(target.hasAttribute('data-wf-analysis-field')&&analysis){changeAnalysisField(target.dataset.wfAnalysisField,target.multiple?Array.from(target.selectedOptions,o=>o.value):target.type==='number'?Number(target.value):target.type==='checkbox'?target.checked:(target.tagName==='SELECT'&&!target.value)||target.hasAttribute('data-analysis-null')&&!target.value?null:target.value,target);return;}
+    if(target.hasAttribute('data-wf-analysis-json')&&analysis){persist(`analysis:review:${analysis.id}`,{...(drafts.get(`analysis:review:${analysis.id}`)||analysisDraft(analysis)),raw:target.value});return;}
     if(target.hasAttribute('data-director-filter')){const q=target.value.toLocaleLowerCase();root.querySelectorAll('[data-director-asset-row]').forEach(row=>row.hidden=!row.textContent.toLocaleLowerCase().includes(q));return;}
     if(target.hasAttribute('data-creator-filter')){const q=target.value.toLocaleLowerCase();root.querySelectorAll('[data-creator-catalog] > button').forEach(b=>b.hidden=!b.textContent.toLocaleLowerCase().includes(q));return;}
     if(target.hasAttribute('data-board-generation-state')){updateBoard({state:Number(target.value)});return;}
@@ -651,6 +662,14 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(button.dataset.wfSource){if(page==='production')navigate('plan');const source=root.querySelector(`[data-wf-script="${scripts.at(-1)?.id}"]`);if(source){source.open=true;source.querySelectorAll('[data-wf-line]').forEach(line=>line.classList.toggle('wf-source-active',Number(line.dataset.wfLine)>=Number(button.dataset.wfSource)&&Number(line.dataset.wfLine)<=Number(button.dataset.wfSourceEnd)));source.querySelector('.wf-source-active')?.scrollIntoView({behavior:'smooth',block:'center'});}return;}
     const action=button.dataset.wfAction;
     if(['production-preview-open','production-shots-open','production-assets-open','production-issues-open'].includes(action)){const section=action.split('-')[1],panel=root.querySelector(`[data-wf-production-${section}]`);if(panel){panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'start'});}return;}
+    if(action==='analysis-read-original'&&analysis)return perform(async()=>{analysis=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/read-original`,{method:'POST',body:{}});announce('正在读取原任务内容，没有重新生成。');});
+    if(action==='analysis-use-source'&&analysis){const issue=analysis.validationIssues[Number(button.dataset.analysisIssue)];if(issue?.sourceText){changeAnalysisField(issue.path,issue.sourceText);button.textContent='已填入，保存后核对';}return;}
+    if(action==='analysis-review-discard'&&analysis){removeDraft(`analysis:review:${analysis.id}`);render();return;}
+    if(action==='analysis-review-save'&&analysis){
+      const name=`analysis:review:${analysis.id}`,draft=drafts.get(name)||analysisDraft(analysis),body={...draft};
+      if(body.raw!==undefined){try{body.result=JSON.parse(body.raw);}catch{announce('内容尚不是完整 JSON，修改仍保留，请补齐后保存。');return;}delete body.raw;}
+      return perform(async()=>{analysis=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/review`,{method:'PUT',body});removeDraft(name);analysisError='';announce(analysis.validationIssues.length?`修改已保存，仍有 ${analysis.validationIssues.length} 处标红待核对。`:'修改已保存，原文核对通过，可以继续制作。');});
+    }
     if(action==='production-play')return preview.play();
     if(action==='production-pause')return preview.stop();
     if(action==='production-prev')return preview.jump(-1);
@@ -658,6 +677,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(action==='production-rewind')return preview.rewind();
     if(action==='open-production-plan'){if(production&&returnedResult(production))return navigate('style');const node=root.querySelector('[data-wf-production]');node?.scrollIntoView({block:'start',behavior:'smooth'});return;}
     if(action==='production-start'){
+      if(drafts.get(`analysis:review:${analysis?.id}`)){announce('请先保存分析修改，再整理制作清单。');return;}
       if(!root.querySelector('[data-wf-production-spend]')?.checked){announce('请先确认本次 AI 制作设计使用账号积分。');return;}
       const script=scripts.at(-1);if(!script||analysis?.status!=='ready')return;
       const ratio=root.querySelector('[data-wf-production-ratio]')?.value||'9:16',modelId=drafts.get('text-model')||capabilities.analysis?.defaultModelId;

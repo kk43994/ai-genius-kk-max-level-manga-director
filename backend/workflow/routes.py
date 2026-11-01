@@ -40,6 +40,8 @@ def register_routes(router, services):
         add('GET', '/projects/{projectId}/scripts/{scriptId}/analysis', lambda c, p, b, q:
             ai.latest(c, p['projectId'], p['scriptId']))
         add('GET', '/analyses/{analysisId}', lambda c, p, b, q: ai.get(c, p['analysisId']))
+        add('PUT', '/analyses/{analysisId}/review', lambda c,p,b,q: ai.save_review(c,p['analysisId'],b))
+        add('POST', '/analyses/{analysisId}/read-original', lambda c,p,b,q: ai.read_original(c,p['analysisId']))
         add('POST', '/analyses/{analysisId}/refresh', lambda c, p, b, q: ai.refresh(c, p['analysisId']))
         add('POST', '/analyses/{analysisId}/review-original', lambda c, p, b, q: ai.resume_review(c, p['analysisId']))
         add('POST', '/analyses/{analysisId}/repair', lambda c, p, b, q: ai.repair_result(c, p['analysisId'], b))

@@ -91,6 +91,8 @@ class ComposedHTTPTests(unittest.TestCase):
         other,_=self.session()
         self.assertEqual(self.request(path,cookie=other)[0],404)
         self.assertEqual(self.request('/production-jobs/prd_unknown/edits','PUT',cookie=cookie,body={})[0],403)
+        self.assertEqual(self.request('/analyses/ana_unknown/review','PUT',cookie=cookie,body={})[0],403)
+        self.assertEqual(self.request('/analyses/ana_unknown/read-original','POST',cookie=cookie,body={})[0],403)
         for operation in ('revalidate', 'repair'):
             self.assertEqual(self.request('/production-jobs/prd_unknown/'+operation,'POST',cookie=cookie,body={})[0],403)
         self.assertEqual(self.request('/production-jobs/prd_unknown',cookie=other)[0],404)

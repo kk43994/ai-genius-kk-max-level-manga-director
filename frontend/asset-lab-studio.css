@@ -158,3 +158,10 @@
   .customer-shell .save-status { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
 }
 @media (prefers-reduced-motion: reduce) { .customer-shell *, .customer-shell *::before { transition: none !important; } }
+
+.customer-shell .analysis-flagged{background:#281c1c!important;border-color:#e18383!important}
+.customer-shell .analysis-issue{background:#281c1c;color:#f6e5e5;border-color:#e18383}
+.customer-shell .analysis-issue :is(p,b,label){color:#f6e5e5}
+.customer-shell .analysis-issue :is(strong,blockquote){color:#ffabab}
+.customer-shell .analysis-compare pre{background:#181818;color:#eee}
+.customer-shell .wf .analysis-issue textarea{border-color:#d17c7c;color:#ffbaba}
