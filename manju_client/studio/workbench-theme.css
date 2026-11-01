@@ -1,0 +1,52 @@
+@import url("../studio-tokens.css");
+/* Shared components only. Canvas materials, character colours and camera guides retain their meaning. */
+:root { --bg: var(--ui-bg); --panel: var(--ui-panel); --line: var(--ui-line); --text: var(--ui-text); --muted: var(--ui-muted); --accent: #dedede; --orange: var(--ui-warning); }
+body.studio-ui { background: var(--ui-bg); color: var(--ui-text); font-family: var(--ui-font); -webkit-font-smoothing: antialiased; }
+.studio-ui :where(button, a, summary, input, select):focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
+.studio-ui :where(button, input, select) { border-radius: 8px; }
+.studio-ui button, .studio-ui select { color: var(--ui-text); background: var(--ui-raised); border-color: var(--ui-line); transition: background-color .15s, border-color .15s; }
+.studio-ui button:hover:not(:disabled) { background: var(--ui-hover); border-color: var(--ui-line-hover); }
+.studio-ui button:disabled { cursor: not-allowed; opacity: .45; }
+.studio-ui input:not([type=checkbox]):not([type=range]) { background: var(--ui-input); color: var(--ui-text); border-color: var(--ui-line); }
+.studio-ui input[type=checkbox], .studio-ui input[type=range] { accent-color: #ddd; }
+.studio-ui button.primary, .studio-ui .preset-actions .preset-primary, .studio-ui button.play { color: var(--ui-on-primary); background: var(--ui-primary); border-color: var(--ui-primary); }
+.studio-ui button.primary:hover, .studio-ui .preset-actions .preset-primary:hover { background: #ddd; }
+.studio-ui > header { background: var(--ui-panel); border-color: var(--ui-line); min-height: 64px; height: auto; padding-block: 12px; gap: 12px; flex-wrap: wrap; }
+.studio-ui :is(.logo, .brand-symbol) { color: var(--ui-on-primary); background: #e3e3e3; border-radius: 9px; }
+.studio-ui :is(.brand b, .project-label, .local-status, .project-name small, .pill, .revision, .preset-count) { color: var(--ui-muted); border-color: var(--ui-line); background: transparent; }
+.studio-ui :is(.library, .inspector, .shot-sidebar, .monitor-section, .editor, .timeline, .joint-panel) { background: var(--ui-panel); border-color: var(--ui-line); }
+.studio-ui :is(.scene-item, .shot-card) { background: transparent; border-color: transparent; border-radius: 9px; }
+.studio-ui :is(.scene-item, .shot-card):hover { background: var(--ui-hover); }
+.studio-ui :is(.scene-item.active, .shot-card.active) { background: #303030; border-color: #525252; }
+.studio-ui :is(.scene-item, .shot-card) :is(strong, h3) { color: var(--ui-text); }
+.studio-ui :is(.scene-item, .shot-card) :is(small, p), .studio-ui :is(.eyebrow, .help, .scene-summary, .library-footer, .bottom-note, .object-help, .telemetry, .view-hint, .hint, .foot, .timeline-footer) { color: var(--ui-muted); }
+.studio-ui :is(.ref-image, .frame, .viewport, .world-view, .monitor, .viewport-wrap, .preset-panel, .filming-guide, .joint-panel, .timeline) { border-radius: 12px; border-color: var(--ui-line); }
+.studio-ui :is(.viewport, .frame, .world-view, .monitor, .viewport-wrap) { background: #101010; }
+.studio-ui :is(.segmented, .seg, .mode-tabs, .inspector-tabs, .take-switch) button.active,
+.studio-ui :is(.seg, .take-switch, .cards) button[aria-pressed=true] { background: #363636; color: var(--ui-text); border-color: #777; }
+.studio-ui .inspector-tabs .active { color: var(--ui-text); border-color: #ddd; }
+.studio-ui :is(.inference, .delivery-note, .shot-description, .filming-guide, .preset-panel) { background: var(--ui-panel); border-color: var(--ui-line); }
+.studio-ui :is(.inference, .delivery-note) { color: var(--ui-muted); }
+.studio-ui .preset-panel { padding: 16px; }
+.studio-ui .preset-fields select, .studio-ui .motion-strip select { background: var(--ui-input); border-color: var(--ui-line-hover); color: var(--ui-text); }
+.studio-ui .preset-preview { background: var(--ui-bg); border-color: var(--ui-line); border-radius: 8px; }
+.studio-ui :is(.preset-symbol, .preset-details > span, .preset-preview > span, .filming-body > strong, .filming-guide > summary, .motion-strip, .motion-strip a) { color: var(--ui-text); }
+.studio-ui :is(.preset-fields label, .preset-options label, .preset-options summary, .preset-details p, .preset-preview small, #presetScope, #presetApplied, .filming-body p, .resource-links summary, .resource-links a, .reference-link) { color: var(--ui-muted); }
+.studio-ui :is(.resource-links, .camera-bar, .monitor-bottom, .editor-actions, .library-footer) { border-color: var(--ui-line); }
+.studio-ui :is(.pane-label, .view-label, .world-toolbar, .viewport-tools .glass, .labels b) { color: var(--ui-text); border-color: #484848; background: #222e; border-radius: 8px; }
+.studio-ui :is(.cards button, .key-list button) { background: var(--ui-raised); color: var(--ui-text); border-color: var(--ui-line); }
+.studio-ui .shot-clip { background: #282828; color: #d0d0d0; }
+.studio-ui .shot-clip.active { background: #3b3b3b; color: white; box-shadow: inset 0 0 0 1px #aaa6; }
+.studio-ui .shot-clip small { color: #aaa; }
+.studio-ui #toast, .studio-ui dialog { color: var(--ui-text); background: var(--ui-raised); border-color: var(--ui-line-hover); border-radius: 12px; box-shadow: var(--ui-shadow); }
+.studio-ui dialog::backdrop { background: #0009; backdrop-filter: blur(4px); }
+.studio-ui a.director { color: var(--ui-text); }
+project-navigation { display: block; flex-shrink: 0; }
+project-navigation details { position: relative; }
+project-navigation summary { list-style: none; cursor: pointer; font-size: 12px; padding: 8px 11px; color: var(--ui-text); border: 1px solid var(--ui-line); border-radius: 8px; background: var(--ui-raised); }
+project-navigation summary::-webkit-details-marker { display: none; }
+project-navigation nav { position: absolute; top: calc(100% + 8px); left: 0; width: 192px; padding: 6px; border: 1px solid var(--ui-line-hover); border-radius: 10px; background: var(--ui-raised); box-shadow: var(--ui-shadow); z-index: 100; }
+project-navigation nav a { display: block; padding: 9px 12px; color: var(--ui-muted); border-radius: 6px; font-size: 12px; }
+project-navigation nav a:hover, project-navigation nav a[aria-current=page] { background: #383838; color: var(--ui-text); }
+@media (max-width: 600px) { .studio-ui > header { gap: 8px; padding: 10px 12px; } .studio-ui .toolbar, .studio-ui .motion-strip, .studio-ui .transport { flex-wrap: wrap; } .studio-ui .toolbar { gap: 10px; } .studio-ui .preset-panel { padding: 12px; } project-navigation summary { padding: 7px 9px; font-size: 11px; } }
+@media (prefers-reduced-motion: reduce) { .studio-ui * { transition: none !important; } }

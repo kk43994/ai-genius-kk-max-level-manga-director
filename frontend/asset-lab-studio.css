@@ -1,0 +1,153 @@
+/* Component theme; selectors stay scoped so the workflow and its state remain intact. */
+.customer-shell { -webkit-font-smoothing: antialiased; }
+.customer-shell ::selection { background: #f7f7f7; color: #141414; }
+.customer-shell :where(button, a, input, select, textarea, summary) { transition: background-color .15s, border-color .15s, color .15s; }
+.customer-shell :where(input, select, textarea) { background: var(--ui-input); color: var(--ui-text); border-color: var(--ui-line); accent-color: #ddd; }
+.customer-shell :where(input, textarea)::placeholder { color: var(--ui-subtle); }
+.customer-shell :where(input, textarea):focus { border-color: var(--ui-line-hover); }
+.customer-shell :where(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
+.customer-shell :where(button):disabled { color: #929292; border-color: var(--ui-line); background: #202020; cursor: not-allowed; }
+.customer-shell .topbar { min-height: 68px; padding: 10px 22px; background: var(--ui-bg); gap: 18px; }
+.customer-shell .brand-mark { filter: grayscale(1) brightness(0) invert(1); width: 32px; height: 32px; }
+.customer-shell .workspace-brand b { font-size: 16px; letter-spacing: .02em; }
+.customer-shell .workspace-brand small { letter-spacing: .12em; color: var(--ui-subtle); }
+.customer-shell .context-dot { background: #aaa; }
+.customer-shell .warehouse, .customer-shell .warehouse-footer, .customer-shell .activity-panel,
+.customer-shell .drawer-heading, .customer-shell .update-mount { background: var(--ui-panel); }
+.customer-shell .warehouse { padding: 22px 16px 0; }
+.customer-shell .warehouse-heading { margin-bottom: 20px; }
+.customer-shell .warehouse-heading h2, .customer-shell .activity-heading h2 { font-size: 15px; font-weight: 600; }
+.customer-shell .caption { color: var(--ui-subtle); letter-spacing: .1em; }
+.customer-shell .project-switch { margin-bottom: 24px; }
+.customer-shell .project-switch select, .customer-shell .warehouse-search input { background: var(--ui-input); border-radius: 8px; }
+.customer-shell .warehouse-filters { padding: 3px; background: var(--ui-bg); border-radius: 8px; gap: 2px; }
+.customer-shell .warehouse-filters button { flex: 1; padding: 6px 4px; }
+.customer-shell .warehouse-filters button.active { background: var(--ui-hover); color: var(--ui-text); }
+.customer-shell .empty-line-icon { color: #aaa; border-style: solid; background: var(--ui-raised); }
+.customer-shell .lab-button, .customer-shell .lab-button.secondary { background: var(--ui-raised); color: var(--ui-text); border-color: var(--ui-line); box-shadow: none; }
+.customer-shell .lab-button:hover:not(:disabled) { background: var(--ui-hover); border-color: var(--ui-line-hover); }
+.customer-shell .lab-button.primary { background: var(--ui-primary); color: var(--ui-on-primary); border-color: var(--ui-primary); }
+.customer-shell .lab-button.primary:hover:not(:disabled) { background: #dedede; border-color: #dedede; }
+.customer-shell .lab-button.text-button { background: transparent; border-color: transparent; }
+.customer-shell .workspace-toolbar { margin-inline: 24px; height: 56px; }
+.customer-shell .workspace-breadcrumb { font-size: 12px; }
+.customer-shell .save-status { font-size: 11px; }
+.customer-shell .welcome { padding: 32px 24px; }
+.customer-shell .welcome h1 { font-size: clamp(26px, 2.5vw, 38px); line-height: 1.4; }
+.customer-shell .accent-period, .customer-shell .start-number, .customer-shell .footer-flower { color: var(--ui-text); }
+.customer-shell .welcome-art { background: #202020; border: 1px solid var(--ui-line); border-radius: 14px; filter: grayscale(1); }
+.customer-shell .getting-started { margin-inline: 24px; }
+.customer-shell .start-grid { gap: 12px; }
+.customer-shell .start-grid > li { padding: 18px; background: var(--ui-panel); border: 1px solid var(--ui-line); border-radius: 12px; }
+.customer-shell .start-grid h3 { color: var(--ui-text); }
+.customer-shell .review-reminder { background: var(--ui-raised); border-color: var(--ui-line); }
+.customer-shell .review-reminder-icon, .customer-shell .activity-heading > svg { color: var(--ui-muted); }
+.customer-shell .activity-panel { padding: 22px 18px; gap: 18px; }
+.customer-shell .activity-panel .task-empty { border: 1px dashed var(--ui-line); border-radius: 12px; padding: 24px 10px; }
+.customer-shell .update-mount { font-size: 11px; }
+.customer-shell .workflow-index { background: #141414f5; }
+.customer-shell dialog { color: var(--ui-text); background: var(--ui-panel); border: 1px solid var(--ui-line); box-shadow: var(--ui-shadow); }
+.customer-shell dialog::backdrop { background: #0009; backdrop-filter: blur(5px); }
+.customer-shell .shell-drawer { border-radius: 16px 0 0 16px; background: var(--ui-panel); }
+.customer-shell .library-drawer { border-radius: 0 16px 16px 0; }
+.customer-shell #toast { background: var(--ui-raised); color: var(--ui-text); border: 1px solid var(--ui-line-hover); box-shadow: var(--ui-shadow); }
+
+/* Workflow forms, active steps and real result thumbnails. */
+.customer-shell .wf { --wf-ink: var(--ui-text); --wf-muted: var(--ui-muted); --wf-line: var(--ui-line); --wf-accent: var(--ui-primary); }
+.customer-shell #workflow-root > .wf { padding: 24px; }
+.customer-shell .wf-toolbar { margin-bottom: 20px; gap: 16px; }
+.customer-shell .wf-toolbar h2 { font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
+.customer-shell .wf button, .customer-shell .wf-link { background: var(--ui-raised); color: var(--ui-text); border-color: var(--ui-line); border-radius: 8px; }
+.customer-shell .wf button:hover:not(:disabled), .customer-shell .wf-link:hover { background: var(--ui-hover); border-color: var(--ui-line-hover); }
+.customer-shell .wf button.primary, .customer-shell .wf-start .primary, .customer-shell .wf-guide .primary { background: var(--ui-primary); color: var(--ui-on-primary); border-color: var(--ui-primary); }
+.customer-shell .wf button.primary:hover:not(:disabled) { background: #dedede; }
+.customer-shell .wf button:disabled { background: #202020; color: #929292; border-color: var(--ui-line); opacity: .7; }
+.customer-shell .wf input:not([type=checkbox]), .customer-shell .wf select, .customer-shell .wf textarea { background: var(--ui-input); color: var(--ui-text); border-color: var(--ui-line); border-radius: 8px; }
+.customer-shell .wf textarea { padding: 14px; line-height: 1.85; }
+.customer-shell .wf-tabs { background: var(--ui-panel); border: 1px solid var(--ui-line); padding: 5px; border-radius: 10px; gap: 4px; scrollbar-width: thin; scrollbar-color: #525252 transparent; }
+.customer-shell .wf-tabs button { background: transparent; border-color: transparent; color: var(--ui-muted); }
+.customer-shell .wf-tabs button[aria-current=step] { background: #363636; color: var(--ui-text); border-color: #525252; }
+.customer-shell :is(.wf-panel, .wf-entity, .wf-revision, .wf-edit-row) { background: var(--ui-panel); border-color: var(--ui-line); border-radius: 12px; }
+.customer-shell .wf-start { max-width: 940px; padding: 28px; background: var(--ui-panel); color: var(--ui-text); margin-top: 4px; }
+.customer-shell .wf-start h3 { font-size: clamp(24px, 2.5vw, 32px); font-weight: 600; letter-spacing: -.02em; }
+.customer-shell .wf-start textarea { min-height: 240px; background: var(--ui-bg); }
+.customer-shell .wf-eyebrow { color: var(--ui-subtle); }
+.customer-shell .wf-start details, .customer-shell .wf-task-list li { border-color: var(--ui-line); }
+.customer-shell .wf-roadmap { gap: 10px 20px; }
+.customer-shell .wf-roadmap li { color: var(--ui-muted); }
+.customer-shell .wf-roadmap li::before { color: var(--ui-text); }
+.customer-shell .wf-guide { background: var(--ui-raised); border-color: var(--ui-line-hover); gap: 20px; }
+.customer-shell .wf-guide h3 { font-size: 19px; }
+.customer-shell .wf-note, .customer-shell .wf-guide .wf-note { background: #292929; color: var(--ui-muted); border-radius: 8px; }
+.customer-shell .wf-error { background: var(--ui-danger-bg); border-color: #694141; color: var(--ui-danger); }
+.customer-shell .wf-empty { background: var(--ui-panel); border-color: var(--ui-line-hover); }
+.customer-shell .wf-tag { background: #303030; color: var(--ui-muted); border-radius: 6px; }
+.customer-shell .wf-tag.pending { color: var(--ui-warning); background: var(--ui-warning-bg); }
+.customer-shell .wf-tag.approved, .customer-shell .wf-stage-line .done { color: var(--ui-success); background: var(--ui-success-bg); }
+.customer-shell .wf-tag.stale, .customer-shell .wf-tag.changes_requested { color: var(--ui-danger); background: var(--ui-danger-bg); }
+.customer-shell .wf-tag.superseded { background: #292929; color: var(--ui-subtle); }
+.customer-shell .wf-stage-line span { border-color: var(--ui-line); }
+.customer-shell .wf-grid { gap: 16px; }
+.customer-shell .wf-entity, .customer-shell .wf-revision { padding: 14px; transition: border-color .15s; }
+.customer-shell .wf-entity:hover, .customer-shell .wf-revision:hover { border-color: var(--ui-line-hover); }
+.customer-shell .wf-cover { background: #101010; border: 1px solid #303030; border-radius: 8px; }
+.customer-shell .wf .wf-image-button { padding: 0; border: 0; border-radius: 0; background: transparent; min-height: 0; }
+.customer-shell .wf-reference img, .customer-shell .wf-comparison img { background: #101010; }
+.customer-shell .wf-comparison figcaption, .customer-shell .wf-image-error-note { color: var(--ui-muted); }
+.customer-shell .wf-library-button { padding: 9px; text-align: left; background: transparent; }
+.customer-shell .wf-library-placeholder { background: #303030; color: var(--ui-muted); }
+.customer-shell .wf-live { background: var(--ui-raised); border-color: var(--ui-line-hover); color: var(--ui-text); border-radius: 10px; }
+.customer-shell .wf-live p { color: var(--ui-muted); }
+.customer-shell .wf progress { accent-color: #dedede; background: #363636; height: 6px; }
+.customer-shell .wf progress::-webkit-progress-bar { background: #363636; }
+.customer-shell .wf progress::-webkit-progress-value { background: #dedede; }
+.customer-shell .wf progress:not([value]) { background: linear-gradient(90deg, #363636, #dedede 45%, #363636 75%); background-size: 220% 100%; }
+.customer-shell .wf progress:not([value])::-webkit-progress-bar { background: transparent; }
+.customer-shell .wf-progress { background: #363636; }
+.customer-shell .wf-progress span { background: #dedede; }
+
+/* Account components also mount asynchronously; scope gives this theme precedence. */
+.customer-shell .al-accounts { --aa-ink: var(--ui-text); --aa-muted: var(--ui-muted); --aa-line: var(--ui-line); --aa-accent: var(--ui-primary); --aa-light: var(--ui-raised); }
+.customer-shell .al-accounts :is(.al-accounts__panel, .al-accounts__card, .al-accounts__selection, .al-accounts__dialog, .al-accounts__owner-confirmation) { background: var(--ui-panel); border-color: var(--ui-line); border-radius: 12px; }
+.customer-shell .al-accounts :is(.al-accounts__owner, .al-accounts__attempt, .al-accounts__owner-drafts, .al-accounts__empty) { background: var(--ui-raised); border-color: var(--ui-line); }
+.customer-shell .al-accounts :is(.al-accounts__brand, .al-accounts__avatar) { color: var(--ui-text); background: #303030; border-color: var(--ui-line-hover); }
+.customer-shell .al-accounts :is(label, .al-accounts__owner-source, .al-accounts__status) { color: var(--ui-muted); }
+.customer-shell .al-accounts :is(select, input, .al-accounts__owner-label input) { background: var(--ui-input); color: var(--ui-text); border-color: var(--ui-line); }
+.customer-shell .al-accounts .al-accounts__button { background: var(--ui-raised); color: var(--ui-text); border-color: var(--ui-line); border-radius: 8px; }
+.customer-shell .al-accounts .al-accounts__button:hover:not(:disabled) { background: var(--ui-hover); }
+.customer-shell .al-accounts .al-accounts__button--primary { color: var(--ui-on-primary); background: var(--ui-primary); border-color: var(--ui-primary); }
+.customer-shell .al-accounts .al-accounts__button--primary:hover:not(:disabled) { background: #dedede; }
+.customer-shell .al-accounts .al-accounts__button--danger { color: var(--ui-danger); background: var(--ui-danger-bg); border-color: #694141; }
+.customer-shell .al-accounts .al-accounts__notice, .customer-shell .al-accounts .al-accounts__badge { color: var(--ui-warning); background: var(--ui-warning-bg); border-color: #655239; }
+.customer-shell .al-accounts .al-accounts__error, .customer-shell .al-accounts .al-accounts__badge:is([data-state=error], [data-state=failed], [data-state=revoked]) { color: var(--ui-danger); background: var(--ui-danger-bg); border-color: #694141; }
+.customer-shell .al-accounts .al-accounts__badge[data-state=connected] { color: var(--ui-success); background: var(--ui-success-bg); }
+.customer-shell .al-accounts .al-accounts__card--selected { border-color: #777; background: var(--ui-raised); }
+.customer-shell .al-accounts :is(.al-accounts__quota, .al-accounts__selection-footer, .al-accounts__owner-attempt) { border-color: var(--ui-line); }
+.customer-shell .al-accounts [data-view=activity] { background: var(--ui-raised); color: var(--ui-muted); }
+.customer-shell .al-accounts [data-view=activity] progress { accent-color: #ddd; }
+.customer-shell .al-accounts .al-accounts__empty > span { color: var(--ui-muted); }
+.customer-shell .manju-home-link { position: fixed; right: 18px; bottom: 50px; z-index: 30; border: 1px solid var(--ui-line-hover); border-radius: 8px; padding: 10px 14px; background: var(--ui-raised); color: var(--ui-text); font-size: 12px; box-shadow: var(--ui-shadow); }
+.customer-shell .integration-notice { background: var(--ui-raised); color: var(--ui-muted); border-color: var(--ui-line); }
+.customer-shell .integration-task { border-color: var(--ui-line); }
+.customer-shell .integration-task small, .customer-shell .integration-task-note { color: var(--ui-muted); }
+.customer-shell :is(.integration-notice, .integration-task, .asset-version-notice) button { background: var(--ui-raised); border-color: var(--ui-line); color: var(--ui-text); border-radius: 8px; }
+.customer-shell .integration-account-dialog { background: var(--ui-panel); color: var(--ui-text); border-color: var(--ui-line); }
+.customer-shell[data-read-only=true] .integration-notice { background: var(--ui-warning-bg); color: var(--ui-warning); border-color: #655239; }
+
+@media (max-width: 1199px) { .customer-shell .topbar { padding-inline: 18px; } }
+@media (max-width: 819px) {
+  :root { --lab-header: 118px; }
+  .customer-shell .topbar { min-height: 118px; gap: 10px; }
+  .customer-shell .workspace-toolbar { margin-inline: 18px; }
+  .customer-shell #workflow-root > .wf { padding: 18px; }
+}
+@media (max-width: 540px) {
+  .customer-shell .welcome { padding-inline: 18px; }
+  .customer-shell .getting-started { margin-inline: 18px; }
+  .customer-shell .wf-start { padding: 20px; }
+  .customer-shell .wf-start textarea { min-height: 220px; }
+  .customer-shell .start-grid { grid-template-columns: 1fr; }
+  .customer-shell .wf-review-list { grid-template-columns: 1fr; }
+  .customer-shell .save-status { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+}
+@media (prefers-reduced-motion: reduce) { .customer-shell *, .customer-shell *::before { transition: none !important; } }
