@@ -62,7 +62,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const collectionAttempts = new Map();
   let coverage = {total:0, ready:0, complete:false}, capabilities = {scriptAnalysis:false}, taskError = '';
   let selected = drafts.get('quick-start')?.text ? '' : drafts.get('selectedProject') || '', page = normalizePage(drafts.get('page') || 'plan');
-  let selectedEntity = drafts.get('selectedEntity') || '', editing = false, reviewId = null, prepared = null, submittingBatch = false;
+  let selectedEntity = drafts.get('selectedEntity') || '', editing = false, reviewId = null, prepared = null, submittingBatch = false, reviewing = false;
   let filter = 'all', search = '', saveError = '', creating = Boolean(drafts.get('quick-start')?.text), focusedBeforeReview;
   const status = () => root.querySelector('[data-wf-status]');
   const listen = (target, event, handler) => { if (!target) return; target.addEventListener(event,handler); listeners.push(() => target.removeEventListener(event,handler)); };
@@ -88,7 +88,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function removeDraft(name) { try { drafts.delete(name); saveError = ''; } catch { saveError = '本机草稿更新失败。'; } }
   async function flushDrafts() {
-    if (busy) throw new Error('正在保存、导入或审核，请等待当前操作完成再刷新。');
+    if (busy||reviewing) throw new Error('正在保存、导入或审核，请等待当前操作完成再刷新。');
     drafts.flush(); saveError = ''; return {saved:true, dirty:dirty(), scope:'local-tenant-drafts'};
   }
   function emitProject() { events.dispatchEvent(new CustomEvent('project:changed',{detail:{projectId:selected, project, coverage}})); events.dispatchEvent(new CustomEvent('shell:view',{detail:{workspaceState:project?'ready':'empty',projectName:project?.name||'开始创作'}})); }
@@ -129,7 +129,8 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const saveStatus = doc.getElementById('saveStatus'); if (saveStatus) saveStatus.textContent = saveError ? '草稿保存失败' : busy ? '处理中' : dirty() ? '编辑草稿已在本机保存' : '项目已同步';
     const titleNode = doc.getElementById('workspace-title'); if (titleNode) titleNode.textContent = project?.name || '开始创作';
     const countNode = doc.getElementById('reviewCount'); if (countNode) countNode.textContent = assets.flatMap(a=>a.revisions).filter(r=>r.review==='pending' && r.status==='ready').length;
-    if (busy) root.querySelectorAll('form button, [data-wf-action="approve"], [data-wf-action="reject"]').forEach(b=>b.disabled=true);
+    if (busy) root.querySelectorAll('form button').forEach(b=>b.disabled=true);
+    if (reviewing || (busy && !submittingBatch)) root.querySelectorAll('[data-wf-action="approve"], [data-wf-action="reject"]').forEach(b=>b.disabled=true);
   }
   function renderProgress() {
     const target = root.querySelector('[data-wf-operation]'); if (!target) return;
@@ -298,7 +299,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       const loadedScripts=await Promise.all(project.scriptIds.map(id=>api.request(`/projects/${encodeURIComponent(projectId)}/scripts/${encodeURIComponent(id)}`)));
       if(!alive||serial!==requestSerial||projectId!==selected)return;scripts=loadedScripts;analysis=null;analysisError='';
       if(scripts.length){try{const response=await api.request(`/projects/${encodeURIComponent(projectId)}/scripts/${encodeURIComponent(scripts.at(-1).id)}/analysis`);if(!alive||serial!==requestSerial||projectId!==selected)return;analysis=response.analysis;}catch(e){analysisError=e.message||'AI 分析状态暂不可用。';}}
-      production=null;productionError='';
+      if(!scripts.length)production=null;productionError='';
       if(scripts.length){try{const response=await api.request(`/projects/${encodeURIComponent(projectId)}/scripts/${encodeURIComponent(scripts.at(-1).id)}/production`);if(!alive||serial!==requestSerial||projectId!==selected)return;production=response.analysis;}catch(e){productionError=e.message||'制作方案暂时无法读取。';}}
       if(selectedEntity && !plan.entities.some(e=>e.id===selectedEntity))selectedEntity='';
       persist('selectedProject',selected);emitProject();
@@ -447,14 +448,24 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     reviewId=id;focusedBeforeReview=button;render();root.querySelector('[data-review-detail]')?.focus();root.querySelector('[data-review-detail]')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
   async function decide(decision) {
+    if(reviewing)return;
+    if(busy&&!submittingBatch){announce('当前操作完成后即可保存审核；审核意见已保留。');return;}
     const asset=assets.find(a=>a.revisions.some(r=>r.id===reviewId)),r=asset?.revisions.find(r=>r.id===reviewId);if(!r)return;
     const note=drafts.get(`review:${r.id}`)?.note||'';
     if(decision==='changes_requested'&&note.trim().length<4){error='请填写至少 4 个字的具体返修意见。';render();return;}
-    await perform(async()=>{
-      await api.request(`/assets/${encodeURIComponent(asset.id)}/reviews`,{method:'POST',body:{revisionId:r.id,sha256:r.sha256,decision,note,expectedVersion:asset.version}});
-      removeDraft(`review:${r.id}`);reviewId=null;announce(decision==='approved'?'这一版已保留。你可以选用、继续调整或制作其他画面。':'返修意见已保存；尚未发起新的生成。');
-      events.dispatchEvent(new CustomEvent('workflow:reviewed',{detail:{projectId:selected,assetId:asset.id,revisionId:r.id,decision}}));await load();
-    });
+    const projectId=selected;reviewing=true;error='';render();
+    try{
+      await api.request(`/assets/${encodeURIComponent(asset.id)}/reviews`,{method:'POST',body:{revisionId:r.id,sha256:r.sha256,decision,note,expectedVersion:asset.version},background:submittingBatch});
+      removeDraft(`review:${r.id}`);
+      if(reviewId===r.id)reviewId=null;
+      // Reviews only change media selection and validity. Refresh that snapshot,
+      // leaving the active plan/view and paid submission promises intact.
+      const received=await api.request(`/projects/${encodeURIComponent(projectId)}/assets`,{background:submittingBatch});
+      if(alive&&selected===projectId){assets=received.items||[];coverage=received.coverage||coverage;
+        announce(decision==='approved'?'这一版已保留。你可以选用、继续调整或制作其他画面。':'返修意见已保存；尚未发起新的生成。');
+        events.dispatchEvent(new CustomEvent('workflow:reviewed',{detail:{projectId,assetId:asset.id,revisionId:r.id,decision}}));}
+    }catch(e){if(alive&&selected===projectId)error=e.message||'审核状态暂未更新，请刷新核对原记录。';}
+    finally{reviewing=false;render();}
     if(!error)continueAfterReview();
   }
   function repair(id) {
@@ -982,7 +993,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
   });
   listen(events,'tasks:changed',()=>{clearTimeout(timer);timer=setTimeout(()=>{if(alive&&!busy)load();},150);});
   listen(events,'workflow:flush-drafts',e=>{const pending=flushDrafts();if(typeof e.detail?.waitUntil==='function')e.detail.waitUntil(pending);else pending.catch(err=>{error=err.message;render();});});
-  listen(doc.defaultView,'beforeunload',e=>{try{drafts.flush();}catch{e.preventDefault();e.returnValue='';}if(busy){e.preventDefault();e.returnValue='';}});
+  listen(doc.defaultView,'beforeunload',e=>{try{drafts.flush();}catch{e.preventDefault();e.returnValue='';}if(busy||reviewing){e.preventDefault();e.returnValue='';}});
   function unmount(){canvas.dispose();delete doc.body.dataset.workflowPage;preview.reset();alive=false;requestSerial++;clearTimeout(timer);clearTimeout(flowTimer);clearInterval(progressTimer);clearInterval(pollingTimer);delete doc.body.dataset.workflowMounted;listeners.forEach(remove=>remove());stylesheet.remove();root.replaceChildren();for(const id of ['warehouseList','review-summary-root'])doc.getElementById(id)?.replaceChildren();const chooser=doc.getElementById('scriptSelect');if(chooser)chooser.replaceChildren();}
   const ready=load({initial:true}).then(()=>{if(stages.includes(page)||page==='production')void loadImageModels();});
   return {unmount,ready,refresh:load,flushDrafts,hasUnsavedChanges:dirty,getState:()=>({projectId:selected,page,dirty:dirty(),busy,saveError})};
