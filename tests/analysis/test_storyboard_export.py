@@ -58,6 +58,16 @@ class StoryboardExportTests(unittest.TestCase):
         self.assertIsNone(manifest['shots'][0]['image'])
         self.assertEqual(manifest['illustratedShots'], 1)
 
+    def test_scene_title_uses_analysis_contract_in_html_and_manifest(self):
+        job = self.finish()
+        raw, manifest = self.production.export_storyboard(self.ctx, job['id'])
+        scene = self.analysis['result']['scenes'][0]
+        self.assertEqual(manifest['shots'][0]['sceneTitle'], scene['title'])
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            html = archive.read('分镜脚本.html').decode()
+            self.assertIn(scene['title'], html)
+            self.assertNotIn(scene['id'], html)
+
     def test_tenant_boundary_and_snapshot_conflict_fail_closed(self):
         job = self.finish()
         with self.assertRaises((StorageError, WorkflowError)):

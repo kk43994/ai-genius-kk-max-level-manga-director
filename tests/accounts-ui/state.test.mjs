@@ -98,5 +98,6 @@ test('never show raw transport messages or URLs in errors', () => {
 test('persist only recognized public authorization error codes', () => {
   assert.equal(publicAttemptError(null), null);
   assert.deepEqual(publicAttemptError({ code: 'ACCESS_DENIED', message: 'secret' }), { code: 'ACCESS_DENIED' });
+  assert.match(errorText(publicAttemptError({ code:'PROVIDER_ACCOUNT_READ_UNAVAILABLE',message:'secret'})),/暂时无法读取原账号资料/);
   assert.deepEqual(publicAttemptError({ code: 'token=DO_NOT_STORE' }), { code: 'AUTHORIZATION_FAILED' });
 });

@@ -36,7 +36,7 @@ def export(service, ctx, identity):
         asset_names = {a['id']: a['name'] for a in job['result']['assets']}
         character_names = {c['id']: c['name'] for c in job['characters']}
         state_names = {(a['id'], s['id']): s['name'] for a in job['result']['assets'] for s in a['states']}
-        scene_names = {s['id']: s.get('heading') or s.get('name') or s['id'] for s in row['data']['context']['analysis']['scenes']}
+        scene_names = {s['id']: s['title'] or f"场次 {s['order']}" for s in row['data']['context']['analysis']['scenes']}
         dialogues = {d['id']: d for d in job['dialogues']}
         def prose(value):
             return escape(MENTION.sub(lambda m: asset_names[m.group(1)], str(value))).replace('\n', '<br>')
@@ -52,7 +52,8 @@ def export(service, ctx, identity):
         pages, buffer = [], io.BytesIO()
         with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
             for position, (shot, revision) in enumerate(zip(job['result']['shots'], selected), 1):
-                record = {**copy.deepcopy(shot), 'position': position, 'image': None, 'dialogues': []}
+                record = {**copy.deepcopy(shot), 'sceneTitle': scene_names[shot['sceneId']],
+                          'position': position, 'image': None, 'dialogues': []}
                 illustration = '<div class="missing">分镜图待生成或待审核</div>'
                 if revision:
                     raw = tx.get_blob(revision['blobId'])
@@ -70,7 +71,7 @@ def export(service, ctx, identity):
                     speech.append(field(speaker + ' · ' + {'dialogue': '对白', 'inner_monologue': '内心独白', 'narration': '旁白', 'voiceover': '画外音', 'offscreen': '画外对白', 'system_voice': '系统音', 'unknown': '待确认类型'}.get(d['kind'], d['kind']), d['text']))
                 refs = '、'.join(asset_names[r['assetId']] + ' · ' + state_names[(r['assetId'], r['stateId'])] for r in shot['references'])
                 pages.append(f'<article><h2>镜头 {position:03d} · {prose(shot["purpose"])}</h2>'
-                    f'<p class="meta">{prose(scene_names.get(shot["sceneId"], shot["sceneId"]))} · {shot["durationSeconds"]} 秒 · {prose(shot["framing"])}</p>'
+                    f'<p class="meta">{prose(record["sceneTitle"])} · {shot["durationSeconds"]} 秒 · {prose(shot["framing"])}</p>'
                     f'<div class="layout"><figure>{illustration}<figcaption>{prose(refs)}</figcaption></figure><section>'
                     + field('动作', shot['beat']) + field('摄影机', shot['camera']) + field('人物表演', shot['performance'])
                     + '<h3>原文台词</h3>' + (''.join(speech) or '<p>无台词</p>')
