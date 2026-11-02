@@ -65,3 +65,14 @@ class AnalysisReviewTests(unittest.TestCase):
         updated = self.ai.save_review(self.ctx, job['id'], self.payload(job, result))
         self.assertEqual(updated['status'], 'ready')
         self.assertEqual(len(self.provider.submissions), 1)
+
+    def test_empty_manual_fields_remain_editable_cards_and_keep_warnings(self):
+        job=self.failed_result();result=copy.deepcopy(job['draftResult'])
+        result['dialogues'][0]['text']=''
+        result['characters'][0]['evidence'][0]['quote']=''
+        updated=self.ai.save_review(self.ctx,job['id'],self.payload(job,result))
+        self.assertTrue(updated['structuredDraft'])
+        self.assertEqual(updated['status'],'needs_review')
+        self.assertEqual(updated['draftResult']['dialogues'][0]['text'],'')
+        self.assertTrue(updated['validationIssues'])
+        self.assertEqual(len(self.provider.submissions),1)

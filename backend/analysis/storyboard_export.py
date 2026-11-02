@@ -10,6 +10,7 @@ from html import escape
 from backend.workflow.errors import WorkflowError, conflict
 from backend.workflow.service import now
 from .production import MENTION, shot_entity_id
+from .dialogues import resolved_dialogues
 
 
 def export(service, ctx, identity, *, preview=False):
@@ -40,7 +41,7 @@ def export(service, ctx, identity, *, preview=False):
         scene_names = {s['id']: s['title'] or f"场次 {s['order']}" for s in row['data']['context']['analysis']['scenes']}
         dialogues = {d['id']: d for d in job['dialogues']}
         def prose(value):
-            return escape(MENTION.sub(lambda m: asset_names[m.group(1)], str(value))).replace('\n', '<br>')
+            return escape(MENTION.sub(lambda m: asset_names.get(m.group(1), m.group(0)), str(value))).replace('\n', '<br>')
         def field(label, value):
             return f'<div class="field"><b>{escape(label)}</b><p>{prose(value)}</p></div>'
         script = tx.state['scripts'][job['scriptId']]
@@ -67,16 +68,15 @@ def export(service, ctx, identity, *, preview=False):
                     source = f'data:{revision["mime"]};base64,{base64.b64encode(raw).decode("ascii")}' if preview else filename
                     illustration = f'<img src="{source}" alt="镜头 {position:03d} 已审核分镜图">'
                 speech = []
-                for did in shot['dialogueIds']:
-                    d = copy.deepcopy(dialogues[did])
-                    edit = next((v for v in shot.get('dialogueOverrides', []) if v['id'] == did), None)
-                    if edit:
-                        d.update(sourceText=d['text'], text=edit['text'], edited=True, origin='manual')
+                for d in resolved_dialogues(dialogues, shot):
                     speaker = character_names.get(d.get('speakerId'), d.get('speakerLabel') or '未署名')
                     record['dialogues'].append({**copy.deepcopy(d), 'speakerName': speaker})
                     speech.append(field(speaker + ' · ' + {'dialogue': '对白', 'inner_monologue': '内心独白', 'narration': '旁白', 'voiceover': '画外音', 'offscreen': '画外对白', 'system_voice': '系统音', 'unknown': '待确认类型'}.get(d['kind'], d['kind']), d['text']))
-                    if edit:
-                        speech.append(field('人工改写 · 原文对照', d['sourceText']))
+                    if d.get('sourceText'):
+                        source_speaker = character_names.get(d.get('sourceSpeakerId'), d.get('sourceSpeakerLabel') or '未署名')
+                        speech.append(field('人工改写 · 原文对照 · ' + source_speaker, d['sourceText']))
+                    elif d.get('added'):
+                        speech.append('<p class="meta">人工新增台词</p>')
                 refs = '、'.join(asset_names[r['assetId']] + ' · ' + state_names[(r['assetId'], r['stateId'])] for r in shot['references'])
                 pages.append(f'<article><h2>镜头 {position:03d} · {prose(shot["purpose"])}</h2>'
                     f'<p class="meta">{prose(record["sceneTitle"])} · {shot["durationSeconds"]} 秒 · {prose(shot["framing"])}</p>'

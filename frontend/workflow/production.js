@@ -6,14 +6,8 @@ import {overviewShots} from './storyboard-overview.js';
 import {linkedText} from './production-references.js';
 
 export const productionRunning = job => ['preparing','submitting','running','reviewing'].includes(job?.status);
-const dialogueKinds = {dialogue:'对白',inner_monologue:'内心独白',narration:'旁白',voiceover:'画外音',offscreen:'画外对白',system_voice:'系统音',unknown:'待确认'};
-export function dialogueText(job, shot) {
-  const names=new Map((job.characters||[]).map(c=>[c.id,c.name]));
-  return shot.dialogueIds.map(id=>{
-    const d=(job.dialogues||[]).find(d=>d.id===id),edit=shot.dialogueOverrides?.find(v=>v.id===id&&v.origin==='manual');
-    return d?{...d,...(edit?{text:edit.text,sourceText:d.text,edited:true}:{}),label:`${names.get(d.speakerId)||d.speakerLabel||'未署名'} · ${dialogueKinds[d.kind]||d.kind}`} : null;
-  }).filter(Boolean);
-}
+export {dialogueLines as dialogueText} from './dialogue-editor.js';
+import {dialogueLines as dialogueText} from './dialogue-editor.js';
 export function referenceCards(job,shot,assets,selection,apiBase) {
   return shot.references.map(ref=>{
     const item=returnedResult(job).assets.find(a=>a.id===ref.assetId), state=item?.states.find(s=>s.id===ref.stateId);

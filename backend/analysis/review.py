@@ -9,6 +9,13 @@ from backend.workflow.service import now
 from .contract import SCHEMA, evidence_issues, validate_result
 
 
+def editable_structure(result):
+    # Empty human-entered strings remain editable cards. Contract errors still
+    # appear and prevent treating the incomplete draft as verified analysis.
+    errors = Draft202012Validator(SCHEMA).iter_errors(result)
+    return all(error.validator in ('minLength', 'pattern', 'minimum') for error in errors)
+
+
 def decode(text):
     if not isinstance(text, str) or len(text) > 2_000_000: return None
     text = text.strip()
@@ -69,7 +76,7 @@ def present(service, ctx, row, public):
         public.update(canResumeReview=False, canRepairResult=False)
     if preview is not None:
         issues = inspect(preview, script)
-        public.update(validationIssues=issues, structuredDraft=Draft202012Validator(SCHEMA).is_valid(preview),
+        public.update(validationIssues=issues, structuredDraft=editable_structure(preview),
                       draftResult=preview if issues else None, result=None if issues else preview)
         if data['status'] not in ACTIVE:
             public.update(status='needs_review' if issues else 'ready', canRefresh=False, error=None,

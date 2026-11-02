@@ -49,3 +49,46 @@ class DialogueOverrideTests(unittest.TestCase):
             parse(text, self.script, self.context)
         self.assertIsNone(decode(text))
         self.assertNotIn('dialogueOverrides', instruction(self.script, self.context))
+
+    def test_metadata_added_deleted_order_roundtrip_and_export(self):
+        job = self.finish()
+        result = copy.deepcopy(job['result'])
+        shot = result['shots'][0]
+        shot['dialogueOverrides'] = [{'id':'dialogue_1','text':'编辑后的话','origin':'manual','speakerId':'char_ning','kind':'inner_monologue'}]
+        shot['dialogueAdditions'] = [{'id':'line_new','text':'人工新增','origin':'manual','speakerId':None,'speakerLabel':'旁白员','kind':'narration'}]
+        shot['dialogueOrder'] = ['line_new','dialogue_1']
+        saved = self.production.save_review(self.ctx, job['id'], {'expectedVersion':0,'expectedEditVersion':0,'result':result})
+        self.assertEqual(saved['status'],'ready')
+        _, manifest = self.production.export_storyboard(self.ctx,job['id'])
+        self.assertEqual([d['id'] for d in manifest['shots'][0]['dialogues']],['line_new','dialogue_1'])
+        self.assertEqual(manifest['shots'][0]['dialogues'][1]['speakerName'],'阿宁')
+        self.assertEqual(manifest['shots'][0]['dialogues'][1]['kind'],'inner_monologue')
+        shot['dialogueOverrides'][0]['deleted'] = True
+        shot['dialogueAdditions'][0].update(text='',deleted=True)
+        saved = self.production.save_review(self.ctx,job['id'],{'expectedVersion':1,'expectedEditVersion':0,'result':result})
+        self.assertEqual(saved['status'],'ready')
+        _, manifest = self.production.export_storyboard(self.ctx,job['id'])
+        self.assertEqual(manifest['shots'][0]['dialogues'],[])
+        self.assertEqual(len(self.production.store.list(self.ctx,'production.review_history')['items']),1)
+
+    def test_explicit_removed_shot_can_save_and_restore_but_ai_cannot_hide_omission(self):
+        job = self.finish()
+        result = copy.deepcopy(job['result'])
+        result['removedShots'] = [result['shots'].pop(0)]
+        result['shots'][0]['order'] = 1
+        saved = self.production.save_review(self.ctx,job['id'],{'expectedVersion':0,'expectedEditVersion':0,'result':result})
+        self.assertEqual(saved['status'],'ready')
+        _, manifest = self.production.export_storyboard(self.ctx,job['id'])
+        self.assertEqual(manifest['totalShots'],1)
+        self.assertEqual(manifest['shots'][0]['id'],'shot_2')
+        with self.assertRaises(WorkflowError): parse(json.dumps(result),self.script,self.context)
+        self.assertIsNone(decode(json.dumps(result)))
+        self.assertNotIn('removedShots',instruction(self.script,self.context))
+        result['shots'].insert(0,result.pop('removedShots')[0]);result['shots'][1]['order']=2
+        self.assertEqual(self.production.save_review(self.ctx,job['id'],{'expectedVersion':1,'expectedEditVersion':0,'result':result})['status'],'ready')
+
+    def test_duplicate_added_ids_invalid_kind_and_unknown_speaker_are_not_accepted(self):
+        for patch in ({'speakerId':'missing'},{'kind':'not_a_kind'},{'id':'dialogue_2'}):
+            result=copy.deepcopy(self.result)
+            result['shots'][0]['dialogueAdditions']=[{'id':'new_line','text':'新增','origin':'manual','speakerId':None,'speakerLabel':'手填人物','kind':'dialogue',**patch}]
+            with self.assertRaises(WorkflowError):validate(result,self.script,self.context)

@@ -1,3 +1,4 @@
+import {editDialogue,restoreDialogue,addDialogue,moveDialogue} from './dialogue-editor.js';
 import {canAutoCollect, nextCollection, collectionDelay, collectionOwnerKey, needsAssetRefresh} from './collection.js';
 import {promptPanel, promptProcessing, usablePrompt, promptIssue} from './prompts.js';
 import {productionPanel, productionRunning, createPreview, referenceCards} from './production.js';
@@ -20,8 +21,9 @@ import {overviewShots} from './storyboard-overview.js';
 import {storyCards} from './story-cards.js';
 import {mountStoryCanvas} from './story-canvas.js';
 import {mountCanvas} from './production-canvas.js';
-import {splitShot,addShot,removeBlankShot,numberShots} from './shot-structure.js';
+import {splitShot,addShot,removeShot,restoreShot,removedShotControls,numberShots} from './shot-structure.js';
 import {analysisDraft,analysisDraftAfterSave} from './analysis-edit.js';
+import {analysisRecordPanel,newAnalysisRecord,analysisArrayItem,recordGroups} from './analysis-records.js';
 import {analysisPanel, sourceView} from './analysis.js';
 import {operationLabel, elapsedLabel, taskProgress, reviewProgress} from './progress.js';
 import {buildCustomerArchives} from '../asset-lab-archives.js';
@@ -118,7 +120,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function productionDraftControls() {
     if(!production||page!=='plan')return '';
     const parked=drafts.get(`production:parked:${production.id}`),editing=drafts.get(`production:review:${production.id}`)||drafts.get(`production:edits:${production.id}`);
-    return parked?`<p class="wf-note">已暂存一份镜头草稿；当前查看已保存方案。<button data-wf-action="production-review-resume" ${busy||editing?'disabled':''}>继续编辑暂存草稿</button></p>`:editing?`<p class="wf-note">镜头修改尚未提交。<button data-wf-action="production-review-park" ${busy?'disabled':''}>暂存草稿，查看已保存方案</button></p>`:'';
+    return parked?`<p class="wf-note">已暂存一份镜头草稿；${editing?'当前修改尚未保存。<button data-wf-action="production-review-discard">恢复上次保存的方案</button>':'当前查看已保存方案。'}<button data-wf-action="production-review-resume" ${busy||editing?'disabled':''}>继续编辑暂存草稿</button></p>`:editing?`<p class="wf-note">镜头修改尚未提交。<button data-wf-action="production-review-park" ${busy?'disabled':''}>暂存草稿，查看已保存方案</button></p>`:'';
   }
   function options(values, selectedValue) { return values.map(([value,text]) => `<option value="${esc(value)}" ${value === selectedValue ? 'selected' : ''}>${esc(text)}</option>`).join(''); }
   function nav() {
@@ -139,7 +141,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function render() {
     if (!alive) return;
     if(rerollId!==reviewId&&rerollId!==imageTools?.id)rerollId=null;
-    const active=doc.activeElement,focusKey=active&&root.contains(active)?{name:active.name,path:active.dataset.wfProductionField,dialogue:active.dataset.quickDialogue,start:active.selectionStart,end:active.selectionEnd}:null;
+    const active=doc.activeElement,focusKey=active&&root.contains(active)?{name:active.name,path:active.dataset.wfProductionField,dialogue:active.dataset.quickDialogue,dialogueField:active.dataset.dialogueField,start:active.selectionStart,end:active.selectionEnd}:null;
     const drawerScroll=root.querySelector('.canvas-drawer-body')?.scrollTop||0,toolScroll=root.querySelector('[data-image-tools-panel]')?.scrollTop||0;
     const view=boardView(),viewKey=JSON.stringify([selected,page,selectedEntity,production?.id,view.kind,view.index,view.state,view.stage,view.characterLayer,view.inspector,canvasDrawer]);
     const openStates=new Map(renderedViewKey===viewKey?disclosureStates().map(({node,key})=>[key,node.open]):[]);
@@ -147,11 +149,11 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     doc.body.dataset.workflowPage=page;
     const title = project ? project.name : projects.length ? '开始一个新项目' : '开始你的第一个项目';
     const chooser = projects.length ? `<label><span class="sr-only">当前项目</span><select data-wf-project>${!selected?'<option value="">选择已有项目</option>':''}${options(projects.map(p=>[p.id,p.name]),selected)}</select></label>` : '';
-    root.innerHTML = `<section class="wf" aria-label="资产工作流"><div class="wf-toolbar"><div><span class="wf-muted">从一份剧本，到一套可用资产</span><h2>${esc(title)}</h2></div><div class="wf-actions">${chooser}<button type="button" data-wf-action="new-project" ${busy?'disabled':''}>＋ 新项目</button><button type="button" data-wf-action="refresh" ${busy ? 'disabled' : ''}>刷新状态</button></div></div>${renderStatus()}${productionDraftControls()}<div data-wf-operation></div>${project ? stepNavigation() : ''}${loading ? '<p class="wf-muted" role="status">正在读取已保存项目…</p>' : !project ? createView() : page === 'plan' ? planView() : page === 'production' ? productionView() : stages.includes(page) ? creatorView() : page === 'review' ? reviewView()+tasksView(selectedEntity) : planView()}${canvasPanelView()}${imageToolsView()}${taskTrayView()}${selectionBar()}${impactView()}${libraryPanel(remoteLibrary)}${reviewId ? reviewDetail() : ''}${prepared&&!imageTools&&!canvasDrawer ? confirmationView() : ''}</section>`;
+    root.innerHTML = `<section class="wf" aria-label="资产工作流"><div class="wf-toolbar"><div><h2>${esc(title)}</h2></div><div class="wf-actions">${chooser}<button type="button" data-wf-action="new-project" ${busy?'disabled':''}>新建项目</button><button type="button" data-wf-action="refresh" ${busy ? 'disabled' : ''}>刷新状态</button></div></div>${renderStatus()}${productionDraftControls()}${production?removedShotControls(currentProduction()||{}):''}<div data-wf-operation></div>${project ? stepNavigation() : ''}${loading ? '<p class="wf-muted" role="status">正在读取已保存项目…</p>' : !project ? createView() : page === 'plan' ? planView() : page === 'production' ? productionView() : stages.includes(page) ? creatorView() : page === 'review' ? reviewView()+tasksView(selectedEntity) : planView()}${canvasPanelView()}${imageToolsView()}${taskTrayView()}${selectionBar()}${impactView()}${libraryPanel(remoteLibrary)}${reviewId ? reviewDetail() : ''}${prepared&&!imageTools&&!canvasDrawer ? confirmationView() : ''}</section>`;
     for(const {node,key} of disclosureStates())if(openStates.has(key))node.open=openStates.get(key);
     const sameView=renderedViewKey===viewKey;renderedViewKey=viewKey;
     if(sameView){const pane=root.querySelector('.canvas-drawer-body');if(pane)pane.scrollTop=drawerScroll;const tool=root.querySelector('[data-image-tools-panel]');if(tool)tool.scrollTop=toolScroll;
-      if(focusKey){const input=[...root.querySelectorAll('input,textarea,select')].find(n=>focusKey.path?n.dataset.wfProductionField===focusKey.path:focusKey.dialogue?n.dataset.quickDialogue===focusKey.dialogue:focusKey.name&&n.name===focusKey.name);if(input){input.focus({preventScroll:true});if(input.setSelectionRange&&focusKey.start!==null)try{input.setSelectionRange(focusKey.start,focusKey.end);}catch{}}}}
+      if(focusKey){const input=[...root.querySelectorAll('input,textarea,select')].find(n=>focusKey.path?n.dataset.wfProductionField===focusKey.path:focusKey.dialogue?n.dataset.quickDialogue===focusKey.dialogue&&n.dataset.dialogueField===focusKey.dialogueField:focusKey.name&&n.name===focusKey.name);if(input){input.focus({preventScroll:true});if(input.setSelectionRange&&focusKey.start!==null)try{input.setSelectionRange(focusKey.start,focusKey.end);}catch{}}}}
     root.querySelectorAll('[data-quick-shot-select]').forEach(n=>n.checked=selectionIds().includes(n.dataset.quickShotSelect));
     renderProgress(); renderLibrary(); canvas.refresh(); storyCanvas.refresh();
     if(page==='plan'&&returnStoryShot){storyCanvas.locateShot(returnStoryShot);returnStoryShot=null;}
@@ -238,12 +240,14 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(!currentProduction()?.shots[index])return;quickRefIndex=null;returnContext=null;reviewId=null;
     boardViews.set(production.id,{kind:'shots',index,stage:'storyboard',inspector:'shots'});const result=currentProduction(),shot=result.shots[index],pins=uniqueReferencePins(production,result,assets,session.selection,shot);if(JSON.stringify(pins)!==JSON.stringify(shot.references))changeProductionField(`shots.${index}.references`,pins);openCanvasPanel({type:'shot',phase:'production'},trigger);
   }
-  function setDialogue(index,id,text){
-    const name=`production:review:${production.id}`,draft=productionDraft(),shot=draft.result.shots[index];
-    if(!shot?.dialogueIds.includes(id))return;const source=production.dialogues.find(d=>d.id===id);if(!source)return;
-    const overrides=(shot.dialogueOverrides||[]).filter(d=>d.id!==id);if(text!==source.text)overrides.push({id,text,origin:'manual'});
-    if(overrides.length)shot.dialogueOverrides=overrides;else delete shot.dialogueOverrides;
-    persist(name,draft);root.querySelectorAll('[data-wf-production-draft-status]').forEach(n=>n.textContent='台词改写已记入草稿，原文保留');
+  function setDialogue(index,id,patch){
+    const name=`production:review:${production.id}`,draft=productionDraft(),shot=draft.result.shots[index];if(!shot)return;
+    draft.result.shots[index]=editDialogue(production,shot,id,patch);
+    persist(name,draft);root.querySelectorAll('[data-wf-production-draft-status]').forEach(n=>n.textContent='台词修改待保存');
+  }
+  function changeDialogueRows(index,transform){
+    const name=`production:review:${production.id}`,draft=productionDraft();if(!draft.result.shots[index])return;
+    draft.result.shots[index]=transform(draft.result.shots[index]);persist(name,draft);render();
   }
   async function saveProductionDraft(){
     const id=production.id,projectId=selected,name=`production:review:${id}`,submitted=structuredClone(productionDraft());
@@ -272,7 +276,8 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function canvasPanelView(){
     if(page!=='plan'||!canvasDrawer)return '';
     const v=boardView(),result=currentProduction();let title='制作',body='';
-    if(canvasDrawer.type==='shared'&&result){title='统一修改镜头要求';body=sharedDirectionPanel({result,selected:selectionIds(),note:drafts.get(sharedKey())?.note||'',busy});
+    if(canvasDrawer.type==='analysis'&&analysis){title='编辑剧情内容';body=analysisRecordPanel({job:analysis,draft:drafts.get(`analysis:review:${analysis.id}`),group:canvasDrawer.group,recordId:canvasDrawer.recordId,pendingDelete:canvasDrawer.pendingDelete,removed:drafts.get(`analysis:removed:${analysis.id}`)||[],busy});
+    }else if(canvasDrawer.type==='shared'&&result){title='统一修改镜头要求';body=sharedDirectionPanel({result,selected:selectionIds(),note:drafts.get(sharedKey())?.note||'',busy});
     }else if(canvasDrawer.type==='shot'&&result){title='连续审片 · 镜头 '+String((v.index||0)+1).padStart(3,'0');body=quickShotPanel({result,job:production,index:v.index||0,assets,selection:session.selection,apiBase,rows:overviewShots({job:production,assets,coverage,selection:session.selection,tasks}),refIndex:quickRefIndex,busy,dirty:Boolean(drafts.get(`production:review:${production.id}`)||drafts.get(`production:edits:${production.id}`))});
     }else if(canvasDrawer.type==='recipes'){title='提示词规范';body=promptRecipePanel({revision:assets.flatMap(a=>a.revisions).find(r=>r.id===canvasDrawer.revisionId),project,assets,apiBase,busy,draft:drafts.get(`prompt-recipe:${selected}:${canvasDrawer.revisionId}`)||{}});
     }else if(canvasDrawer.type==='batch'&&result){title=canvasDrawer.explicit?'生成所选镜头的新版本':'批量补分镜图';body=canvasBatchPanel({explicit:canvasDrawer.explicit,job:production,result:returnedResult(production),assets,tasks,selection:session.selection,draft:boardDraft(),catalog:imageCatalog,contracts:imageContracts,busy,loading:imageModelsLoading,error:imageModelsError});
@@ -288,7 +293,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     }else {title=v.inspector==='preview'?'图板预演':v.inspector==='issues'?'核对原文与关联':`镜头 ${String((v.index||0)+1).padStart(3,'0')}`;body=productionView(true);}
     if(returnContext&&(stages.includes(phase())||v.inspector==='generate'))body=`<div class="quick-return"><button data-quick-return>← 返回镜头 ${String(returnContext.index+1).padStart(3,'0')}</button>${returnContext.assetId?'<button data-quick-use-return>用于原镜头并返回</button>':''}${drafts.get(`production:review:${production.id}`)?'<button data-wf-action="production-review-save">保存镜头草稿并继续</button>':''}<small>原镜头和输入已保留</small></div>`+body;
     if(prepared&&!imageTools)body=confirmationView()+body;
-    return `<aside class="canvas-drawer" data-canvas-drawer tabindex="-1" role="region" aria-label="${esc(title)}制作面板"><header><div><h3>${esc(title)}</h3><p>修改留在当前卡片 · 草稿自动保留</p></div><button type="button" data-canvas-close aria-label="关闭制作面板">×</button></header><div class="canvas-drawer-body">${body}</div></aside>`;
+    return `<aside class="canvas-drawer" data-canvas-drawer tabindex="-1" role="region" aria-label="${esc(title)}制作面板"><header><div><h3>${esc(title)}</h3></div><button type="button" data-canvas-close aria-label="关闭制作面板">×</button></header><div class="canvas-drawer-body">${body}</div></aside>`;
   }
   function analysisView() { const overview={project,job:production,assets,coverage,selection:session.selection,apiBase,tasks,unsaved:Boolean(drafts.get(`production:review:${production?.id}`)||drafts.get(`production:edits:${production?.id}`)||drafts.get(`analysis:review:${analysis?.id}`))};const shots=overviewShots(overview);const legacy=shots.length&&!(analysis?.result||analysis?.draftResult)?storyCards({characters:[],scenes:[...new Set(shots.map(r=>r.shot.sceneId))].map((id,i)=>({id,title:`场次 ${i+1}`,order:i,summary:'已保存分镜；原文分析可在下方补充。'}))},{overview,shots,apiBase,canvasKey:production.id}):'';return legacy+analysisPanel({overview,shots,apiBase,script:scripts.at(-1),analysis,draft:drafts.get(`analysis:review:${analysis?.id}`),enabled:capabilities.scriptAnalysis,connected:Boolean(session.selection?.providerAccountId&&session.selection?.spaceId),busy,error:analysisError,models:capabilities.analysis?.models||[],modelId:drafts.get('text-model')||capabilities.analysis?.defaultModelId}); }
   function archiveCard(a) {
@@ -647,6 +652,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     root.querySelector('.wf-guide')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
   function changeAnalysisField(path,value,target=null){
+    if(value===null&&['sceneId','targetCharacterId'].includes(path.split('.').at(-1)))value='unassigned';
     const name=`analysis:review:${analysis.id}`,draft=drafts.get(name)||analysisDraft(analysis);
     if(!setReviewValue(draft.result,path,value))return;
     persist(name,draft);
@@ -699,7 +705,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function onInput(event) {
     const target=event.target;
-    if(target.hasAttribute('data-quick-dialogue')){setDialogue(Number(target.dataset.quickShotIndex),target.dataset.quickDialogue,target.value);return;}
+    if(target.hasAttribute('data-quick-dialogue')){const field=target.dataset.dialogueField||'text';setDialogue(Number(target.dataset.quickShotIndex),target.dataset.quickDialogue,{[field]:field==='speakerId'?(target.value||null):target.value});if(field==='speakerId'||field==='kind')render();return;}
     if(target.hasAttribute('data-quick-shot-select')){const ids=new Set(selectionIds());target.checked?ids.add(target.dataset.quickShotSelect):ids.delete(target.dataset.quickShotSelect);persist(selectionKey(),{ids:[...ids]});renderSelectionBar();return;}
     if(target.hasAttribute('data-image-choice-search')){
       const q=target.value.trim().toLocaleLowerCase();
@@ -718,6 +724,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
         persist(boardGenerationKey(),{...inputs,referencePurpose:form.querySelector('[data-reference-purpose]').value,extraReferences:JSON.stringify(refs),prepareKey:key()});renderImageChoice(target);
       }catch(e){renderImageChoice(target);announce(e.message);}return;
     }
+    if(target.hasAttribute('data-analysis-record-select')){canvasDrawer.recordId=target.value;delete canvasDrawer.pendingDelete;render();return;}
     if(target.hasAttribute('data-wf-analysis-field')&&analysis){changeAnalysisField(target.dataset.wfAnalysisField,target.multiple?Array.from(target.selectedOptions,o=>o.value):target.type==='number'?Number(target.value):target.type==='checkbox'?target.checked:(target.tagName==='SELECT'&&!target.value)||target.hasAttribute('data-analysis-null')&&!target.value?null:target.value,target);return;}
     if(target.hasAttribute('data-wf-analysis-json')&&analysis){persist(`analysis:review:${analysis.id}`,{...(drafts.get(`analysis:review:${analysis.id}`)||analysisDraft(analysis)),raw:target.value});return;}
     if(target.hasAttribute('data-director-filter')){const q=target.value.toLocaleLowerCase();root.querySelectorAll('[data-director-asset-row]').forEach(row=>row.hidden=!row.textContent.toLocaleLowerCase().includes(q));return;}
@@ -920,9 +927,12 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(button.hasAttribute('data-quick-shared')){openCanvasPanel({type:'shared'},button);return;}
     if(button.hasAttribute('data-quick-selected-generate')){const ids=selectionIds();if(!ids.length)return;openCanvasPanel({type:'batch',explicit:true},button);persist(boardGenerationKey(),{...boardDraft(),shotIds:ids});render();return;}
     if(button.hasAttribute('data-quick-shot')){openQuickShot(Number(button.dataset.quickShot),button);return;}
-    if(button.hasAttribute('data-quick-edit')){openQuickShot(Number(button.dataset.quickEdit),button);const field=button.dataset.quickField;root.querySelector(field==='dialogue'?'[data-quick-dialogue]':`[data-wf-production-field="shots.${Number(button.dataset.quickEdit)}.${field||'beat'}"]`)?.focus({preventScroll:true});return;}
+    if(button.hasAttribute('data-quick-edit')){openQuickShot(Number(button.dataset.quickEdit),button);const field=button.dataset.quickField;root.querySelector(field==='dialogue'?'[data-quick-dialogue][data-dialogue-field="text"]':`[data-wf-production-field="shots.${Number(button.dataset.quickEdit)}.${field||'beat'}"]`)?.focus({preventScroll:true});return;}
     if(button.hasAttribute('data-quick-full-editor')){boardViews.set(production.id,{kind:'shots',index:Number(button.dataset.quickFullEditor),inspector:'shots',stage:'storyboard'});openCanvasPanel({type:'production',phase:'production'},button);return;}
-    if(button.hasAttribute('data-quick-dialogue-reset')){const d=production.dialogues.find(d=>d.id===button.dataset.quickDialogueReset);if(d)setDialogue(Number(button.dataset.quickShotIndex),d.id,d.text);render();return;}
+    if(button.hasAttribute('data-quick-dialogue-add')){const index=Number(button.dataset.quickDialogueAdd),id=`line_${crypto.randomUUID()}`;changeDialogueRows(index,shot=>addDialogue(shot,id));root.querySelector(`[data-quick-dialogue="${id}"][data-dialogue-field="text"]`)?.focus();return;}
+    if(button.hasAttribute('data-dialogue-delete')||button.hasAttribute('data-dialogue-undelete')){const deleted=button.hasAttribute('data-dialogue-delete');setDialogue(Number(button.dataset.quickShotIndex),button.dataset.dialogueDelete||button.dataset.dialogueUndelete,{deleted});render();return;}
+    if(button.hasAttribute('data-dialogue-move')){changeDialogueRows(Number(button.dataset.quickShotIndex),shot=>moveDialogue(production,shot,button.dataset.dialogueMove,Number(button.dataset.dialogueDelta)));return;}
+    if(button.hasAttribute('data-quick-dialogue-reset')){changeDialogueRows(Number(button.dataset.quickShotIndex),shot=>restoreDialogue(shot,button.dataset.quickDialogueReset));return;}
     if(button.hasAttribute('data-quick-reference')){quickRefIndex=Number(button.dataset.quickReference);render();return;}
     if(button.hasAttribute('data-quick-reference-close')){quickRefIndex=null;render();return;}
     if(button.hasAttribute('data-quick-pin-all')){const result=currentProduction(),i=boardView().index,shot=result.shots[i];changeProductionField(`shots.${i}.references`,uniqueReferencePins(production,result,assets,session.selection,shot));render();return;}
@@ -1082,12 +1092,14 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(button.dataset.wfRecover){const task=tasks.find(t=>t.id===button.dataset.wfRecover);if(!task||busy)return;recoveringTask=true;try{return await perform(async()=>{await api.request(`/tasks/${encodeURIComponent(task.id)}/recover`,{method:'POST',body:{expectedVersion:task.version}});announce('已查询原任务；没有重新发起生成。');await load();});}finally{recoveringTask=false;render();}}
     if(button.dataset.wfPromptView){const job=promptJobs.find(j=>j.id===button.dataset.wfPromptView);if(job?.entityId===currentEntity()?.id){persist(`prompt-view:${selected}:${job.entityId}`,job.id);render();}return;}
     if(button.hasAttribute('data-story-scene')){storyCanvas.locate(Number(button.dataset.storyScene));return;}
-    if(button.dataset.wfAnalysisRecord){
-      storyCanvas.exitFocus();
-      const record=[...root.querySelectorAll('[data-analysis-record]')].find(n=>n.dataset.analysisRecord===button.dataset.wfAnalysisRecord);
-      if(record){for(let node=record;node&&node!==root;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;const edit=record.querySelector(':scope > details');if(edit)edit.open=true;record.scrollIntoView({block:'start'});record.querySelector('textarea,input,select')?.focus({preventScroll:true});}return;
-    }
-    if(button.dataset.wfAnalysisGroup){const group=root.querySelector('#analysis-'+button.dataset.wfAnalysisGroup);if(group){group.open=true;group.scrollIntoView({behavior:'smooth',block:'start'});}return;}
+    if(button.dataset.wfAnalysisRecord){const [group,index]=button.dataset.wfAnalysisRecord.split('.'),result=drafts.get(`analysis:review:${analysis.id}`)?.result||analysis.result||analysis.draftResult;openCanvasPanel({type:'analysis',group,recordId:result[group]?.[Number(index)]?.id},button);return;}
+    if(button.dataset.wfAnalysisGroup||button.dataset.analysisOpen){const group=button.dataset.wfAnalysisGroup||button.dataset.analysisOpen;if(recordGroups[group])openCanvasPanel({type:'analysis',group},button);return;}
+    if(button.dataset.analysisAdd){const group=button.dataset.analysisAdd,name=`analysis:review:${analysis.id}`,draft=drafts.get(name)||analysisDraft(analysis),record=newAnalysisRecord(group,`manual_${crypto.randomUUID()}`,draft.result);if(!record)return;draft.result[group].push(record);persist(name,draft);openCanvasPanel({type:'analysis',group,recordId:record.id});return;}
+    if(button.dataset.analysisDelete){canvasDrawer.pendingDelete=button.dataset.analysisDelete;render();return;}
+    if(button.hasAttribute('data-analysis-delete-cancel')){delete canvasDrawer.pendingDelete;render();return;}
+    if(button.dataset.analysisDeleteConfirm){const name=`analysis:review:${analysis.id}`,draft=drafts.get(name)||analysisDraft(analysis),group=button.dataset.analysisGroup,rows=draft.result[group],index=rows?.findIndex(r=>r.id===button.dataset.analysisDeleteConfirm);if(index<0||index===undefined)return;const removed=drafts.get(`analysis:removed:${analysis.id}`)||[];persist(`analysis:removed:${analysis.id}`,[...removed.filter(x=>x.record.id!==rows[index].id),{group,index,record:rows[index]}]);if(saveError)return;rows.splice(index,1);persist(name,draft);openCanvasPanel({type:'analysis',group});return;}
+    if(button.dataset.analysisRestore){const name=`analysis:review:${analysis.id}`,draft=drafts.get(name)||analysisDraft(analysis),removed=drafts.get(`analysis:removed:${analysis.id}`)||[],entry=removed.find(x=>x.record.id===button.dataset.analysisRestore);if(!entry||draft.result[entry.group].some(r=>r.id===entry.record.id))return;draft.result[entry.group].splice(entry.index,0,entry.record);persist(name,draft);persist(`analysis:removed:${analysis.id}`,removed.filter(x=>x!==entry));openCanvasPanel({type:'analysis',group:entry.group,recordId:entry.record.id});return;}
+    if(button.dataset.analysisArrayAdd||button.dataset.analysisArrayRemove){const path=button.dataset.analysisArrayAdd||button.dataset.analysisArrayRemove,name=`analysis:review:${analysis.id}`,draft=drafts.get(name)||analysisDraft(analysis),rows=valueAt(draft.result,path);if(!Array.isArray(rows))return;if(button.dataset.analysisArrayAdd){const value=analysisArrayItem(path);if(value===undefined)return;rows.push(value);}else rows.splice(Number(button.dataset.arrayIndex),1);persist(name,draft);render();return;}
     if(button.dataset.wfSource){storyCanvas.exitFocus();if(page==='production')navigate('plan');const source=root.querySelector(`[data-wf-script="${scripts.at(-1)?.id}"]`);if(source){source.open=true;source.querySelectorAll('[data-wf-line]').forEach(line=>line.classList.toggle('wf-source-active',Number(line.dataset.wfLine)>=Number(button.dataset.wfSource)&&Number(line.dataset.wfLine)<=Number(button.dataset.wfSourceEnd)));source.querySelector('.wf-source-active')?.scrollIntoView({behavior:'smooth',block:'center'});}return;}
     const action=button.dataset.wfAction;
     if(['production-preview-open','production-shots-open','production-assets-open','production-issues-open'].includes(action)){const section=action.split('-')[1],panel=root.querySelector(`[data-wf-production-${section}]`);if(panel){panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'start'});}return;}
@@ -1107,11 +1119,13 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     }
     if(action==='production-open-review'){page='plan';canvasDrawer={type:'production',phase:'production'};persist('page',page);updateBoard({inspector:production.validationIssues?.length?'issues':'handoff'});root.querySelector('[data-production-review-panel]')?.scrollIntoView({block:'start'});return;}
     if(button.hasAttribute('data-shot-remove')){
-      const result=currentProduction(),index=Number(button.dataset.shotRemove),shot=result.shots[index];
-      if(!shot||shot.dialogueIds.length||shot.purpose!=='补充镜头 · 请编辑动作与构图')return;
-      persist(`production:removed:${production.id}`,{index,shot});if(saveError)return;
-      changeProductionField('shots',removeBlankShot(result,index).shots);updateBoard({inspector:'shots',index:Math.max(0,index-1)});
-      announce('已从镜头草稿删除这条空白镜头，其他镜头保留；请保存镜头编排。');return;
+      const index=Number(button.dataset.shotRemove),result=currentProduction();if(!result.shots[index])return;
+      const name=`production:review:${production.id}`,draft=drafts.get(name)||reviewDraft(production);draft.result=removeShot(result,index);persist(name,draft);
+      boardViews.set(production.id,{...boardView(),index:Math.max(0,index-1)});render();announce('镜头已移入已删除列表，可随时恢复；原图与台词保留。');return;
+    }
+    if(button.hasAttribute('data-shot-restore')){
+      const name=`production:review:${production.id}`,draft=drafts.get(name)||reviewDraft(production);draft.result=restoreShot(currentProduction(),button.dataset.shotRestore);persist(name,draft);
+      boardViews.set(production.id,{...boardView(),index:draft.result.shots.findIndex(s=>s.id===button.dataset.shotRestore)});render();return;
     }
     if(action==='production-number-shots'){
       changeProductionField('shots',numberShots(currentProduction().shots));render();

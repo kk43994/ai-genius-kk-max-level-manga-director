@@ -51,12 +51,22 @@ SHOT = obj({'id': ID, 'sceneId': ID, 'order': {'type': 'integer', 'minimum': 1},
             'imagePrompt': string(3000, 20), 'videoPrompt': string(3000, 20),
             'sound': string(), 'continuity': TEXTS, 'evidence': arr(EVIDENCE, 1, 12)})
 # Human-authored dialogue remains separate from immutable source dialogue.
-SHOT['properties']['dialogueOverrides'] = arr(obj({'id': ID, 'text': string(4000), 'origin': {'const': 'manual'}}))
+DIALOGUE_KIND = {'enum': ['dialogue', 'inner_monologue', 'narration', 'voiceover', 'offscreen', 'system_voice', 'unknown']}
+DIALOGUE_EDIT = obj({'id': ID, 'text': string(4000, 0), 'origin': {'const': 'manual'}})
+DIALOGUE_EDIT['properties'].update(speakerId={'anyOf': [ID, {'type': 'null'}]},
+    speakerLabel=string(100, 0), kind=DIALOGUE_KIND, deleted={'type': 'boolean'})
+SHOT['properties']['dialogueOverrides'] = arr(DIALOGUE_EDIT)
+DIALOGUE_ADD = copy.deepcopy(DIALOGUE_EDIT)
+DIALOGUE_ADD['required'] += ['speakerId', 'speakerLabel', 'kind']
+SHOT['properties']['dialogueAdditions'] = arr(DIALOGUE_ADD, maximum=100)
+SHOT['properties']['dialogueOrder'] = IDS
 SCHEMA = obj({'schemaVersion': {'const': 'production-v1'}, 'sourceRevision': string(128),
               'analysisId': ID, 'aspectRatio': {'enum': ['9:16', '16:9', '1:1']},
               'styleBible': string(4000), 'assets': arr(ASSET, 1, 100),
-              'scenePlans': arr(SCENE, 1, 100), 'shots': arr(SHOT, 1, 200),
+              'scenePlans': arr(SCENE, 1, 100), 'shots': arr(SHOT, 0, 200),
               'uncertainties': TEXTS})
+SCHEMA['properties']['removedShots'] = arr(SHOT, maximum=200)
+SCHEMA['properties']['shotOrder'] = arr(ID, maximum=400)
 
 
 def instruction(script, context, repair=None):
@@ -78,7 +88,11 @@ shots.imagePrompt描述具体分镜静帧构图和首帧；videoPrompt描述主�
     if repair:
         rules += '\n上次方案未通过核验。这次只修正该方案中不符合契约的字段，保留其有效创作内容并返回完整JSON。quote必须是原文连续片段，严禁用省略号代替原句；可以引用较短的真实片段。重新核对所有状态的sceneIds应包含引用它的镜头场次、每条台词恰好分配一次、全部事件覆盖。不得删减镜头以规避核验。'
     provider_schema = copy.deepcopy(SCHEMA)
-    provider_schema['properties']['shots']['items']['properties'].pop('dialogueOverrides', None)
+    provider_schema['properties'].pop('removedShots', None)
+    provider_schema['properties'].pop('shotOrder', None)
+    provider_schema['properties']['shots']['minItems'] = 1
+    for field in ('dialogueOverrides', 'dialogueAdditions', 'dialogueOrder'):
+        provider_schema['properties']['shots']['items']['properties'].pop(field, None)
     return rules + '\n' + json.dumps({'sourceRevision': script['sourceRevision'],
         'analysisId': context['analysisId'], 'aspectRatio': context['aspectRatio'],
         'source': [{'line': i, 'text': t} for i, t in enumerate(script['text'].splitlines(), 1)],
@@ -131,17 +145,21 @@ def validate(result, script, context):
         if not location or location['category'] != 'scene' or not set(location['sourceIds']).intersection(scenes[scene['sceneId']]['locationIds']):
             fail('场次设计的地点物料不匹配。')
     shots = result['shots']
-    if len({s['id'] for s in shots}) != len(shots):
+    removed = result.get('removedShots', [])
+    all_shots = shots + removed
+    if len({s['id'] for s in all_shots}) != len(all_shots):
         fail('镜头编号重复。')
-    if {s['sceneId'] for s in shots} != set(scenes): fail('分镜没有覆盖全部场次。')
+    if 'shotOrder' in result and (len(result['shotOrder']) != len(set(result['shotOrder'])) or set(result['shotOrder']) != {s['id'] for s in all_shots}):
+        fail('镜头恢复顺序与当前镜头不一致。')
+    if {s['sceneId'] for s in all_shots} != set(scenes): fail('分镜没有覆盖全部场次。')
     scene_order = [scenes[s['sceneId']]['order'] for s in shots]
     if scene_order != sorted(scene_order): fail('分镜改变了原剧本的场次播放顺序。')
     # Providers may number globally or restart at each scene. Both preserve
     # the same array playback order; the UI supplies a global display number.
     for scene_id in scenes:
         orders = [s['order'] for s in shots if s['sceneId'] == scene_id]
-        if orders != list(range(orders[0], orders[0] + len(orders))): fail('同一场次的镜头编号重复或顺序不连续。')
-    used_dialogues, used_events = [], set()
+        if orders and orders != list(range(orders[0], orders[0] + len(orders))): fail('同一场次的镜头编号重复或顺序不连续。')
+    used_dialogues, used_events, manual_ids = [], set(), set()
     for shot in shots:
         if not math.isfinite(shot['durationSeconds']): fail('镜头时长必须是有效数字。')
         scene = scenes[shot['sceneId']]
@@ -169,12 +187,28 @@ def validate(result, script, context):
         overrides = shot.get('dialogueOverrides', [])
         if len({d['id'] for d in overrides}) != len(overrides) or any(d['id'] not in shot['dialogueIds'] for d in overrides):
             fail('人工改写台词必须对应本镜的原文台词，且不能重复。')
+        additions = shot.get('dialogueAdditions', [])
+        added_ids = [d['id'] for d in additions]
+        if len(set(added_ids)) != len(added_ids) or set(added_ids) & (set(dialogues) | manual_ids):
+            fail('新增台词编号重复，请重新添加。')
+        manual_ids.update(added_ids)
+        if any(not d.get('deleted') and not d['text'].strip() for d in [*overrides, *additions]):
+            fail('有空白台词，请补充内容或删除这一句；当前修改可以先保存。')
+        if any(d.get('speakerId') and d['speakerId'] not in characters for d in [*overrides, *additions]):
+            fail('台词说话人已不存在，可改为现有角色或手动填写名称。')
+        order = shot.get('dialogueOrder')
+        if order is not None and (len(set(order)) != len(order) or set(order) != set(shot['dialogueIds']) | set(added_ids)):
+            fail('台词顺序与当前台词不一致，请重新排序。')
         for e in shot['eventIds']:
             if e not in events or events[e]['sceneId'] != shot['sceneId']: fail('镜头事件引用错误。')
             used_events.add(e)
-    if len(used_dialogues) != len(set(used_dialogues)) or set(used_dialogues) != set(dialogues):
+    omitted_dialogues = {d for s in removed for d in s['dialogueIds']}
+    omitted_events = {e for s in removed for e in s['eventIds']}
+    if not omitted_dialogues <= set(dialogues) or not omitted_events <= set(events):
+        fail('已删除镜头含有不存在的原文引用。')
+    if len(used_dialogues) != len(set(used_dialogues)) or set(used_dialogues) | omitted_dialogues != set(dialogues):
         fail('分镜遗漏或重复分配了原文台词，请保留结果后重新设计。')
-    if used_events != set(events): fail('分镜遗漏了剧本事件。')
+    if used_events | omitted_events != set(events): fail('分镜遗漏了剧本事件。')
     if sum(len(a['states']) for a in assets.values()) > 250: fail('状态物料过多，请按集制作。')
     return result
 
@@ -185,7 +219,9 @@ def parse(text, script, context):
     if text.startswith('```json\n') and text.endswith('```'): text = text[8:-3].strip()
     try: result = json.loads(text)
     except (ValueError, RecursionError): fail('AI 制作方案未完整返回，原任务记录已保留。')
-    if isinstance(result, dict) and isinstance(result.get('shots'), list) and any(isinstance(s, dict) and s.get('dialogueOverrides') for s in result['shots']):
+    if isinstance(result, dict) and (result.get('removedShots') or result.get('shotOrder')):
+        fail('AI 返回不能冒充人工删除镜头。')
+    if isinstance(result, dict) and isinstance(result.get('shots'), list) and any(isinstance(s, dict) and any(s.get(k) for k in ('dialogueOverrides', 'dialogueAdditions', 'dialogueOrder')) for s in result['shots']):
         fail('AI 返回不能冒充人工台词改写，请保留原文台词引用。')
     return validate(result, script, context)
 
@@ -364,6 +400,9 @@ class ProductionService(AnalysisService):
                 or type(body.get('expectedEditVersion')) is not int or body['expectedEditVersion'] != (legacy['version'] if legacy else 0)):
                 raise WorkflowError('VERSION_CONFLICT', '方案已被另一页面修改，请刷新核对；本机修改仍保留。', 409)
             payload = {'jobId': identity, 'result': copy.deepcopy(edited), 'validated': not issues}
+            if old:
+                tx.create('production.review_history', {'jobId': identity, 'reviewVersion': old['version'],
+                    'result': copy.deepcopy(old['data']['result'])})
             if old: tx.update('production.reviews', identity, payload, expected_version=old['version'])
             else: tx.create('production.reviews', payload, record_id=identity)
             # The full review includes previous shot edits; retire their overlay
