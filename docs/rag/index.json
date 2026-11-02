@@ -232,6 +232,21 @@
         "分析审查合并"
       ],
       "status": "implemented-preview"
+    },
+    {
+      "id": "canvas-production-line",
+      "file": "docs/plans/2026-11-03-canvas-production-line.md",
+      "keywords": [
+        "画布流水线",
+        "Goal",
+        "实施计划",
+        "打勾",
+        "占位卡",
+        "全剧美术标准",
+        "试做",
+        "填空"
+      ],
+      "status": "in-development"
     }
   ]
 }
