@@ -25,7 +25,7 @@ class WorkflowOutputStore:
         snapshot = task.get('inputs', {}).get('workflowSnapshot') or task.get('workflowSnapshot')
         if not snapshot:
             raise WorkflowError('WORKFLOW_SNAPSHOT_MISSING', '任务缺少准备时的资产版本快照，尚未入库。', 409)
-        material = {**copy.deepcopy(task.get('spec', {})), **copy.deepcopy(task), 'workflowSnapshot': snapshot}
+        material = {**copy.deepcopy(task.get('spec', {})), **copy.deepcopy(task), 'workflowSnapshot': snapshot, 'modelLabel': task.get('spec', {}).get('modelId') or (task.get('prepared') or {}).get('modelKey')}
         revision = self.workflow.record_output(ctx, material, content, str(index))
         # revision IDs are opaque read handles, never local paths or upstream URLs.
         return {'blobId': revision['id'], 'assetId': revision['assetId'], 'revisionId': revision['id'],

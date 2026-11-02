@@ -76,6 +76,43 @@ class RouteTests(unittest.TestCase):
         self.assertNotIn('private-test',str(result.body))
         self.assertEqual(self.f.providers.submit_count,0)
 
+    def test_reference_and_parameter_failures_keep_specific_safe_reason(self):
+        from backend.tasks.errors import provider_failure
+        for code, expected in [('INPUT_INVALID', '制作参数'), ('SOURCE_CHANGED', '参考图'),
+                               ('SOURCE_REVIEW_REQUIRED', '审核参考图')]:
+            error = RuntimeError('private-token https://signed.invalid/private')
+            error.code = code
+            status, public = provider_failure(error)
+            self.assertEqual(status, 'needs_attention')
+            self.assertEqual(public['code'], code)
+            self.assertIn(expected, public['message'])
+            self.assertNotIn('private', str(public))
+
+    def test_preparation_outage_does_not_claim_a_generation_is_running(self):
+        from backend.tasks.errors import provider_failure
+        error = RuntimeError('private'); error.code = 'PROVIDER_UNAVAILABLE'
+        _, before = provider_failure(error, attempted=False)
+        _, after = provider_failure(error, attempted=True)
+        self.assertIn('尚未提交收费生成', before['message'])
+        self.assertNotIn('尚未提交收费生成', after['message'])
+        self.assertIn('收取原任务', after['message'])
+
+    def test_account_read_outage_preserves_recovery_state_and_safe_error(self):
+        from backend.auth.errors import AuthError
+        from backend.tasks.errors import provider_failure
+        error=AuthError('PROVIDER_ACCOUNT_READ_UNAVAILABLE')
+        state, public=provider_failure(error,attempted=True)
+        self.assertEqual(state,'needs_attention')
+        self.assertEqual(public['code'],error.code)
+        self.assertNotIn('generationSubmitted',public['details'])
+        self.assertTrue(public['details']['submissionAttempted'])
+        def unavailable(ctx):raise error
+        self.f.selections.get_selection=unavailable
+        result=self.call('POST','/api/v1/tasks/prepare',json={**spec(),'expectedSelectionRevision':1})
+        self.assertEqual(result.status,503)
+        self.assertEqual(result.body['error']['code'],error.code)
+        self.assertEqual(self.f.providers.submit_count,0)
+
 
 if __name__ == "__main__":
     unittest.main()

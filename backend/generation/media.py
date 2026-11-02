@@ -123,6 +123,12 @@ class SafeMediaTransfer:
         inspect_image(raw, mime, max_bytes=max_bytes, max_pixels=max_pixels, sha256=sha256)
         return raw
 
+    def get_image(self,url,*,max_bytes,max_pixels):
+        raw,mime=self._request('GET',url,None,max_bytes)
+        if mime not in MIMES.values():raise GenerationError('OUTPUT_INVALID')
+        inspect_image(raw,mime,max_bytes=max_bytes,max_pixels=max_pixels)
+        return raw,mime
+
 
 class PublicMediaResolver:
     """Resolve allowlisted public media when a local TUN returns Fake-IP.

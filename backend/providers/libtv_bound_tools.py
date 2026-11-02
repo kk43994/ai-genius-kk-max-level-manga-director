@@ -7,7 +7,7 @@ changes the remote active account or invents an account/team request parameter.
 import copy
 
 from backend.auth.errors import AuthError
-from .libtv_identity import MCPReadSession
+from .libtv_identity import MCPReadSession, ReadOnlyMCPIdentityVerifier, LIBTV_ACCOUNT_IDENTITY
 from .libtv_oauth import SCOPES
 
 
@@ -43,6 +43,12 @@ class BoundMCPTools:
             self._access_token = token
         session = self._session
         matches = [tool for tool in self._catalog if tool.get('name') == name]
+        identity_alias = name == 'account_user' and arguments == {} and not matches
+        project_alias = name == 'project_info' and set(arguments) == {'project_id'} and not matches
+        if identity_alias:
+            matches = [tool for tool in self._catalog if tool.get('name') == 'doctor']
+        if project_alias:
+            matches = [tool for tool in self._catalog if tool.get('name') == 'read_project']
         if len(matches) != 1:
             raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
         tool = matches[0]
@@ -62,16 +68,17 @@ class BoundMCPTools:
         if not isinstance(annotations, dict):
             raise AuthError('PROVIDER_SCOPE_UNAVAILABLE')
         readonly = annotations.get('readOnlyHint')
+        if (identity_alias or project_alias) and (readonly is not True or annotations.get('destructiveHint') is not False):
+            raise AuthError('PROVIDER_CAPABILITY_UNAVAILABLE')
         if (type(readonly) is not bool
                 or (not readonly and not any(any(s.endswith(':write') for s in scopes) for scopes in candidates))):
             raise AuthError('PROVIDER_SCOPE_UNAVAILABLE')
-        account_tool = next((t for t in self._catalog if t.get('name') == 'account_user'), None)
         snapshot = None
         if (callable(getattr(getattr(self._service, 'account_reader', None), 'spaces_from_payload', None))
                 and callable(getattr(self._service, '_assert_space_payload', None))
-                and account_tool and account_tool.get('annotations', {}).get('readOnlyHint') is True
+                and any(t.get('name') in ('account_user', 'doctor') for t in self._catalog)
                 and 'libtv:account:read' in granted):
-            snapshot = session.call_tool(account_tool, {})
+            _, snapshot = ReadOnlyMCPIdentityVerifier(None, LIBTV_ACCOUNT_IDENTITY).read_session(session, self._catalog)
             self._service._assert_space_payload(self._ctx, self._owner, snapshot)
         else:
             self._service._assert_space(self._ctx, self._owner)
@@ -81,6 +88,18 @@ class BoundMCPTools:
         if (snapshot is not None and not readonly and self._owner.get('spaceKind') == 'personal'
                 and str(snapshot.get('activeAccountId')) != self._owner['spaceId']):
             raise AuthError('OWNERSHIP_MISMATCH')
-        result = snapshot if name == 'account_user' and arguments == {} and snapshot is not None else session.call_tool(tool, copy.deepcopy(arguments))
+        if project_alias:
+            # Official read_project(view=summary) was observed through the local
+            # preparation UI on 2026-11-03. Keep the former internal response
+            # shape; PersonalProjects still checks ownerId, UUID and canvas ID.
+            result = session.call_tool(tool, {'projectId': arguments.get('project_id'), 'view': 'summary'})
+            project = result.get('project')
+            if (result.get('projectId') != arguments['project_id'] or not isinstance(project, dict)
+                    or project.get('uuid') != arguments['project_id']
+                    or type(project.get('ownerId')) is not int or type(project.get('projectSpaceId')) is not int):
+                raise AuthError('PROVIDER_PROTOCOL_ERROR')
+            result = {'projectId': result['projectId'], 'data': {'projectMeta': project}}
+        else:
+            result = snapshot if name == 'account_user' and arguments == {} and snapshot is not None else session.call_tool(tool, copy.deepcopy(arguments))
         self._service._bundle_for(self._ctx, self._owner)
         return result

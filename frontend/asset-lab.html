@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#141414">
   <meta name="description" content="从剧本到角色、场景与道具，在同一个工作台制作、审核和交付。">
-  <title>资产实验室 · 创作工作台</title>
+  <title>漫剧工作台 · 创作空间</title>
   <link rel="icon" href="shell/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="asset-lab.css">
   <link rel="stylesheet" href="asset-lab-canvas.css">
@@ -23,7 +23,7 @@
   </svg>
 
   <header class="topbar">
-    <a class="workspace-brand" href="#workspace-main" aria-label="资产实验室，跳到制作区"><img class="brand-mark" src="shell/mark.svg" alt="" width="36" height="36"><span><b>资产实验室</b><small>ASSET LAB / 创作工作台</small></span></a>
+    <a class="workspace-brand" href="#workspace-main" aria-label="漫剧工作台，跳到制作区"><img class="brand-mark" src="shell/mark.svg" alt="" width="36" height="36"><span><b>漫剧工作台</b><small>创作空间</small></span></a>
     <div class="topbar-divider" aria-hidden="true"></div>
     <div class="workspace-context"><span class="context-dot" aria-hidden="true"></span><span>我的工作台</span></div>
     <!-- Module 6 replaces only account-root contents. -->
@@ -42,7 +42,7 @@
         <div id="warehouseFilters" class="warehouse-filters" aria-label="资产分类"><button type="button" class="active" data-warehouse-filter="all" aria-pressed="true">全部</button><button type="button" data-warehouse-filter="character" aria-pressed="false">角色</button><button type="button" data-warehouse-filter="scene" aria-pressed="false">场景</button><button type="button" data-warehouse-filter="prop" aria-pressed="false">道具</button></div>
         <div class="warehouse-scope"><label><input id="includeHistory" type="checkbox">包含历史项目</label><span id="warehouseScope">当前项目</span></div>
         <div id="warehouseList" class="warehouse-list"><div class="library-empty"><span class="empty-line-icon" aria-hidden="true">＋</span><h3>你的故事，从这里开始</h3><p>导入剧本或填写清单，<br>角色、场景与道具会在这里归档。</p></div></div>
-        <div class="warehouse-footer"><span id="selectionCount">选择已审核的图片，继续精修</span><button id="batchClean" class="lab-button secondary" type="button" disabled>Nano 精修选中资产</button><small>每个资产，保留完整的创作版本</small></div>
+        <div class="warehouse-footer"><span id="selectionCount">在图片旁选用，再继续制作</span><small>每个资产，保留完整的创作版本</small></div>
       </aside>
     </div>
 
@@ -54,11 +54,11 @@
         <div class="welcome-art" aria-hidden="true"><div class="art-grid"></div><div class="art-orbit"></div><span class="art-caption">A STORY, TAKING SHAPE.</span><div class="concept-card concept-scene"><span>02 / SCENE</span><div class="concept-arch"></div><b>一个世界</b></div><div class="concept-card concept-character"><span>01 / CHARACTER</span><div class="concept-person"><i></i></div><b>一个角色</b></div><div class="concept-card concept-prop"><span>03 / PROP</span><div class="concept-object"></div><b>一个细节</b></div><div class="art-label"><i></i>从想法，到资产</div></div>
       </section>
 
-      <section id="getting-started" class="getting-started" aria-labelledby="getting-started-title"><div class="section-title"><h2 id="getting-started-title">你的第一条制作流程</h2><span>每一步，都由你确认</span></div><ol class="start-grid"><li><span class="start-number">01</span><h3>带入你的故事</h3><p>导入剧本，或手工整理<br>角色、场景与道具。</p><span class="start-meta">TXT · MD · DOCX</span></li><li><span class="start-number">02</span><h3>一步步做出资产</h3><p>先锁定视觉风格，<br>再制作资产、保真精修。</p><span class="start-meta">MJ → Image2 → Nano</span></li><li><span class="start-number">03</span><h3>审核后，再交付</h3><p>比较版本，标注返修，<br>下载你确认过的成果。</p><span class="start-meta">人工审核 · 版本保留</span></li></ol></section>
+      <section id="getting-started" class="getting-started" aria-labelledby="getting-started-title"><div class="section-title"><h2 id="getting-started-title">你的第一条制作流程</h2><span>每一步，都由你确认</span></div><ol class="start-grid"><li><span class="start-number">01</span><h3>带入你的故事</h3><p>导入剧本，或手工整理<br>角色、场景与道具。</p><span class="start-meta">TXT · MD · DOCX</span></li><li><span class="start-number">02</span><h3>一步步做出资产</h3><p>先由你选定风格，<br>再制作统一的规范资产。</p><span class="start-meta">选风格 → 做资产 → 导演编排</span></li><li><span class="start-number">03</span><h3>审核后，再交付</h3><p>比较版本，标注返修，<br>下载你确认过的成果。</p><span class="start-meta">人工审核 · 版本保留</span></li></ol></section>
 
       <!-- Module 8 owns workflow-root and its legacy main target. -->
-      <div id="workflow-root" class="workflow-mount"><nav id="steps" class="workflow-index" aria-label="制作流程"><span>制作流程</span><button type="button" data-nav="script">01 清单</button><i aria-hidden="true">›</i><button type="button" data-nav="style">02 MJ 风格</button><i aria-hidden="true">›</i><button type="button" data-nav="asset">03 Image2</button><i aria-hidden="true">›</i><button type="button" data-nav="clean">04 Nano</button><i aria-hidden="true">›</i><button type="button" data-nav="review">05 审核 <b id="reviewCount">0</b></button><i aria-hidden="true">›</i><button type="button" data-nav="export">06 下载</button></nav><div id="main" tabindex="-1"><div class="loading" role="status">正在载入项目与制作记录…</div></div></div>
-      <footer class="workspace-footer"><span class="footer-flower" aria-hidden="true">✳</span><span>每个结果都值得被认真看一眼。</span><span class="video-pause">视频生成已暂停</span></footer>
+      <div id="workflow-root" class="workflow-mount"><nav id="steps" class="workflow-index" aria-label="制作流程"><span>剧本分析 → 风格探索 → 资产制作 → 导演编排 → 审核交付</span><span id="reviewCount" class="sr-only">0</span></nav><div id="main" tabindex="-1"><div class="loading" role="status">正在载入项目与制作记录…</div></div></div>
+      <footer class="workspace-footer"><span class="video-pause">视频生成已暂停</span></footer>
     </main>
 
     <div id="activity-dock" class="activity-dock"><aside id="activity-panel" class="activity-panel" aria-labelledby="activity-title"><div class="activity-heading"><div><span class="caption">KEEP CREATING</span><h2 id="activity-title">任务与审核</h2></div><svg class="lab-icon" aria-hidden="true"><use href="#icon-tasks"/></svg></div>

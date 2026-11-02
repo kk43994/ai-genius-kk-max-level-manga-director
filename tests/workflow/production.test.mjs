@@ -68,3 +68,11 @@ test('canvas keeps all assets, shots and preview on one surface with real links'
  assert.doesNotMatch(html,/data-wf-production-field="shots\.1\.purpose"/);
  assert.doesNotMatch(html,/role="tablist"/);
 });
+
+test('canvas drawer renders preview controls and only selected eligible storyboard images',()=>{
+ const shotRevision={...revision,id:'shot-picture',assetId:'shot-media',entityId:'shot-entity',stage:'storyboard'};
+ const readyJob={...job,shotBindings:[{shotId:'s1',entityId:'shot-entity'}]};
+ const o={script:{id:'script'},job:readyJob,phase:'canvas',view:{inspector:'preview'},assets:[{id:'shot-media',entityId:'shot-entity',active:true,revisions:[shotRevision]}],selection,coverage:{entities:[{shotId:'s1',designCurrent:true}],exportRevisionIds:['shot-picture']}};
+ const html=productionPanel(o);assert.match(html,/播放预演/);assert.match(html,/alt="已选分镜 1"/);assert.match(html,/回到当前镜头/);assert.doesNotMatch(html,/data-board-viewport/);
+ const pending=structuredClone(o);pending.assets[0].revisions[0].review='pending';assert.doesNotMatch(productionPanel(pending),/alt="已选分镜 1"/);
+});

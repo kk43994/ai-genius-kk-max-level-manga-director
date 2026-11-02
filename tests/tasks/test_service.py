@@ -236,6 +236,55 @@ class TaskSafetyTests(unittest.TestCase):
         self.assertEqual(self.f.providers.lookups, [self.f.providers.prepared_receipt])
         self.assertEqual(self.f.providers.submit_count, 1)
 
+    def test_upload_failure_recovery_is_explicit_and_does_not_resubmit(self):
+        self.f.providers.prepared_receipt = {'projectId':'original-project'}
+        prepared = self.f.prepare()
+        self.f.providers.submit_error = TimeoutError()
+        unknown = self.f.submit(prepared)['task']
+        self.f.providers.lookup_result = {'status':'failed', 'failureStage':'reference_upload', 'generationSubmitted':False}
+        recovered = self.f.service.recover(self.f.ctx, unknown['id'], unknown['version'])['task']
+        self.assertEqual(recovered['status'],'failed')
+        self.assertEqual(recovered['error']['code'],'REFERENCE_UPLOAD_FAILED')
+        self.assertTrue(recovered['submissionAttempted'])
+        self.assertEqual(self.f.providers.submit_count,1)
+        self.assertCode('SUBMISSION_ALREADY_ATTEMPTED', self.f.service.submit, self.f.ctx,
+            recovered['id'], recovered['version'], 'unused', 'never-replay')
+
+    def test_setup_stop_preserves_attempt_and_requires_a_new_explicit_prepare(self):
+        self.f.providers.prepared_receipt = {'projectId':'original-project'}
+        prepared = self.f.prepare()
+        self.f.providers.submit_error = TimeoutError()
+        unknown = self.f.submit(prepared)['task']
+        self.f.providers.lookup_result = {'status':'failed', 'failureStage':'reference_setup', 'generationSubmitted':False}
+        recovered = self.f.service.recover(self.f.ctx, unknown['id'], unknown['version'])['task']
+        self.assertEqual(recovered['status'], 'failed')
+        self.assertEqual(recovered['error']['code'], 'REFERENCE_SETUP_STOPPED')
+        self.assertFalse(recovered['error']['details']['generationSubmitted'])
+        self.assertTrue(recovered['submissionAttempted'])
+        self.assertEqual(self.f.providers.submit_count, 1)
+        self.assertCode('SUBMISSION_ALREADY_ATTEMPTED', self.f.service.submit, self.f.ctx,
+            recovered['id'], recovered['version'], 'unused', 'never-replay')
+
+    def test_verified_preflight_rejection_is_terminal_but_original_cannot_resubmit(self):
+        prepared=self.f.prepare()
+        self.f.providers.submit_error=TestProviderError('REFERENCE_PREFLIGHT_REJECTED', provider_receipt=self.f.providers.prepared_receipt)
+        rejected=self.f.submit(prepared)['task']
+        self.assertEqual(rejected['status'],'failed')
+        self.assertEqual(rejected['error']['code'],'REFERENCE_PREFLIGHT_REJECTED')
+        self.assertFalse(rejected['error']['details']['generationSubmitted'])
+        self.assertTrue(rejected['submissionAttempted'])
+        self.assertEqual(rejected['providerReceipt'],self.f.providers.prepared_receipt)
+        self.assertCode('SUBMISSION_ALREADY_ATTEMPTED',self.f.service.submit,self.f.ctx,
+            rejected['id'],rejected['version'],'unused','do-not-replay')
+
+    def test_revision_rejection_with_conflicting_receipt_remains_unknown(self):
+        prepared=self.f.prepare()
+        self.f.providers.submit_error=TestProviderError('REFERENCE_PREFLIGHT_REJECTED',provider_receipt={'nodeId':'different'})
+        rejected=self.f.submit(prepared)['task']
+        self.assertEqual(rejected['status'],'needs_attention')
+        self.assertEqual(rejected['error']['code'],'PROVIDER_RECEIPT_MISMATCH')
+        self.assertEqual(rejected['providerReceipt'],self.f.providers.prepared_receipt)
+
     def test_timeout_without_receipt_stops_with_explanation(self):
         self.f.providers.prepared_receipt = None
         prepared = self.f.prepare()
@@ -361,6 +410,32 @@ class TaskSafetyTests(unittest.TestCase):
         result = self.f.service.recover(self.f.ctx, task["id"], task["version"])["task"]
         self.assertEqual(result["error"]["code"], "OUTPUT_INVALID")
         self.assertEqual(result["providerReceipt"], task["providerReceipt"])
+
+    def test_partial_delivery_is_reviewable_but_never_completed_or_resubmitted(self):
+        from unittest.mock import patch
+        from backend.tasks.ports import PartialDownload
+        from support import FakeClient
+        original=FakeClient.prepare
+        def prepare(client, spec):
+            return {**original(client,spec), 'count':4}
+        with patch.object(FakeClient,'prepare',prepare):
+            task=self.f.submit(self.f.prepare())["task"]
+        self.f.providers.lookup_result={"status":"completed"}
+        self.f.providers.artifacts=PartialDownload(tuple(DownloadArtifact(bytes([i+1]),'image/png') for i in range(3)))
+        result=self.f.service.recover(self.f.ctx,task['id'],task['version'])['task']
+        self.assertEqual(result['status'],'needs_attention')
+        self.assertEqual(result['error']['code'],'PARTIAL_DELIVERY')
+        self.assertEqual(len(result['outputs']),3)
+        self.assertTrue(all(row['review']=='pending' for row in result['outputs']))
+        self.assertNotIn('completedAt',result)
+        again=self.f.service.recover(self.f.ctx,result['id'],result['version'])['task']
+        self.assertEqual(again['outputs'],result['outputs'])
+        self.assertEqual(len(self.f.outputs.blobs),3)
+        self.assertEqual(self.f.providers.submit_count,1)
+        self.f.providers.artifacts=PartialDownload(())
+        failed=self.f.service.recover(self.f.ctx,again['id'],again['version'])['task']
+        self.assertEqual(failed['error']['code'],'OUTPUT_INVALID')
+        self.assertEqual(failed['outputs'],result['outputs'])
 
     def test_late_response_after_local_cancellation_preserves_receipt(self):
         prepared = self.f.prepare()

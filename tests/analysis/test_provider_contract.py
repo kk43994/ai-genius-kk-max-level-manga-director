@@ -35,8 +35,33 @@ class ProviderContractTests(unittest.TestCase):
         for tool,message,expected in (
             ('create_node','Error executing tool create_node: NODE_NAME_CONFLICT: A node exists','PROVIDER_NODE_NAME_CONFLICT'),
             ('create_node','Upstream unknown after write','PROVIDER_PROTOCOL_ERROR'),
+            ('update_node','Error executing tool update_node: SNAPSHOT_REVISION_MISMATCH: changed','PROVIDER_SNAPSHOT_REVISION_MISMATCH'),
+            ('create_node','Error executing tool update_node: SNAPSHOT_REVISION_MISMATCH: changed','PROVIDER_PROTOCOL_ERROR'),
             ('task_status','Error executing tool create_node: NODE_NAME_CONFLICT: A node exists','PROVIDER_PROTOCOL_ERROR')):
             client._rpc=Mock(return_value={'isError':True,'content':[{'type':'text','text':message}]})
             with self.assertRaises(AuthError) as error:client.call_tool({'name':tool},{})
             self.assertEqual(error.exception.code,expected)
             self.assertNotIn('Upstream',error.exception.message)
+
+    def test_error_log_contains_only_machine_code_not_provider_payload(self):
+        client=MCPReadSession(None,'synthetic-test-token')
+        client._rpc=Mock(return_value={'isError':True,'content':[{'type':'text','text':
+            'Error executing tool update_node: REVISION_CONFLICT: secret-prompt https://private.example/token'}]})
+        with self.assertLogs('backend.providers.libtv_identity',level='ERROR') as logs:
+            with self.assertRaises(AuthError):client.call_tool({'name':'update_node'},{})
+        self.assertIn('provider_code=REVISION_CONFLICT',logs.output[0])
+        self.assertNotIn('secret-prompt',logs.output[0])
+        self.assertNotIn('private.example',logs.output[0])
+
+    def test_account_http_failure_is_temporary_without_echoing_upstream_body(self):
+        from backend.spaces.errors import call_provider, SpaceError
+        client=MCPReadSession(None,'synthetic-test-token')
+        client._rpc=Mock(return_value={'isError':True,'content':[{'type':'text','text':
+            'Error executing tool account_user: UPSTREAM_HTTP_ERROR: HTTP 429 secret-token https://private.invalid/secret'}]})
+        with self.assertLogs('backend.providers.libtv_identity',level='ERROR') as logs:
+            with self.assertRaises(SpaceError) as caught:
+                call_provider(SimpleNamespace(identity=lambda:client.read_identity({'name':'account_user'},{})),'identity')
+        self.assertEqual(caught.exception.code,'PROVIDER_ACCOUNT_READ_UNAVAILABLE')
+        self.assertTrue(caught.exception.retryable)
+        self.assertIn('upstream_status=429',logs.output[0])
+        self.assertNotIn('secret',str(caught.exception.public())+str(logs.output))

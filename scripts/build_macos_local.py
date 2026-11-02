@@ -60,7 +60,8 @@ coll = COLLECT(exe,a.binaries,a.datas,strip=False,upx=False,name='AssetLabServer
     (contents/'Info.plist').write_bytes(plistlib.dumps(info))
     (contents/'Resources/build-provenance.json').write_text(json.dumps({'product':'AssetLab','version':APP_VERSION,
         'sourceCommit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
-        'customerDataIncluded':False,'uiTheme':'studio-neutral-dark','generationEnabledByDefault':False},indent=2),encoding='utf-8')
+        'customerDataIncluded':False,'uiTheme':'studio-neutral-dark','generationEnabledByDefault':True,
+        'automaticUpdates':True},indent=2),encoding='utf-8')
     license_root=Path(sys.base_prefix)/'licenses'
     if license_root.is_dir():shutil.copytree(license_root,contents/'Resources/licenses')
     subprocess.run(['codesign','--force','--deep','--sign','-',str(app)],check=True)

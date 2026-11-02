@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {canAutoCollect,nextCollection,collectionDelay} from '../../frontend/workflow/collection.js';
+import {canAutoCollect,nextCollection,collectionDelay,collectionOwnerKey} from '../../frontend/workflow/collection.js';
 const task=(extra={})=>({id:'task-a',createdAt:'2026-11-01',status:'queued',submissionAttempted:true,canRecover:true,providerReceipt:{taskId:'original-receipt'},...extra});
 test('known receipts collect without depending on selected account, guide or workflow drafts',()=>{
  for(const status of ['queued','running','submitted','downloading','submitting'])assert.ok(canAutoCollect(task({status})));
@@ -19,6 +19,15 @@ test('collection is fair across tasks and transient failures back off',()=>{
  assert.equal(selected.task.id,'task-b');assert.equal(selected.due,9000);
  assert.equal(collectionDelay(task()),8000);assert.equal(collectionDelay(task({status:'needs_attention'})),30000);
 });
+test('account read outage cools down all original tasks of that owner but not another owner',()=>{
+ const first=task({ownership:{tenantId:'t',providerAccountId:'a',spaceId:'s'},status:'needs_attention',error:{code:'PROVIDER_ACCOUNT_READ_UNAVAILABLE'}});
+ const second={...first,id:'task-b'}, other={...first,id:'task-c',ownership:{...first.ownership,providerAccountId:'b'}};
+ const attempts=new Map([[collectionOwnerKey(first),{due:61000}],[other.id,{due:2000}]]);
+ assert.ok(canAutoCollect(first)); assert.equal(collectionDelay(first),60000);
+ assert.equal(nextCollection([first,second],attempts,1000).due,61000);
+ assert.equal(nextCollection([first,second,other],attempts,1000).task.id,'task-c');
+ assert.equal(canAutoCollect({...first,providerReceipt:{}}),false);
+});
 
 test('a completed task with a not-yet-visible asset keeps refreshing until images arrive',async()=>{
  const {needsAssetRefresh}=await import('../../frontend/workflow/collection.js');
@@ -27,4 +36,8 @@ test('a completed task with a not-yet-visible asset keeps refreshing until image
  assert.ok(needsAssetRefresh([completed],[{revisions:[{id:'r1'}]}]));
  assert.equal(needsAssetRefresh([completed],[{revisions:[{id:'r1'},{id:'r2'}]}]),false);
  assert.equal(needsAssetRefresh([task()],[]),false);
+ const partial=task({status:'needs_attention',error:{code:'PARTIAL_DELIVERY'},outputs:[{revisionId:'r1'}]});
+ assert.equal(canAutoCollect(partial),false);
+ assert.ok(needsAssetRefresh([partial],[]));
+ assert.equal(needsAssetRefresh([partial],[{revisions:[{id:'r1'}]}]),false);
 });

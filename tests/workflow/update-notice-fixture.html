@@ -1,0 +1,8 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新版本提示 · 合成界面测试</title><link rel="stylesheet" href="../../frontend/asset-lab-customer.css">
+<body style="background:#171717;color:#eee;font:16px sans-serif;padding:24px"><h1>新版本提示 · 合成界面测试</h1><p>仅模拟更新状态，不下载、不安装、不连接账号。</p><label>未保存的内容 <input id="draft" value="保留这份草稿"></label><div id="updates" style="margin-top:320px"></div>
+<script type="module">
+import {mountLocalUpdates} from '../../scripts/browser/local-updates.mjs';
+const state={enabled:true,status:'ready',canInstall:true,packaged:true,message:'新版已下载并校验。保存后可退出并安装。',latestVersion:'0.3.0-preview.5'};
+mountLocalUpdates({root:document.querySelector('#updates'),api:{async request(){return state;}},saveDraft:async()=>({saved:false}),getSafetyState:async()=>({hasUnsavedChanges:true})});
+</script></body></html>

@@ -6,16 +6,19 @@ opaque output schemas require explicit evidence-backed response contracts.
 import copy
 import hashlib
 import math
+import logging
 import re
+from contextlib import nullcontext
 
 from backend.tasks.ports import DownloadArtifact
 from .contracts import ResponseContracts, ToolCatalog, validate
 from .errors import GenerationError
 from .media import inspect_image
+from .project_coordination import project_mutation
 from .types import (AuthorizedMCP, GenerationPolicy, ProjectBinding, RecipeBinding,
                     VerifiedReference, digest, opaque, owner, safe_receipt, same_owner)
 
-RECIPES = {'mj_style', 'image2_asset', 'nano_refine', 'storyboard_image'}
+RECIPES = {'mj_style', 'image25_style', 'image2_asset', 'image25_asset', 'nano_refine', 'storyboard_image', 'image25_storyboard'}
 DELIVERY_FIELDS = ('operationId', 'projectId', 'status', 'files', 'fileUrl', 'fileMime',
                    'fileNodeId', 'fileOutputIndex')
 RESERVED = {'model', 'provider', 'modeType', 'scene', 'prompt', 'imageList', 'videoList',
@@ -72,14 +75,23 @@ class BoundImageClient:
         self.a.catalog.request(name, arguments)
         permit = self._authorize_scopes(self.a.catalog.scopes(name))
         try:
-            result = permit.call_tool(name, copy.deepcopy(arguments))
+            project = arguments.get('projectId', arguments.get('project_id'))
+            mutation = name in {'create_node', 'update_node', 'upload_media', 'generation_submit', 'prepare_project_delivery'}
+            with project_mutation(self._owner, project) if mutation and project else nullcontext():
+                result = permit.call_tool(name, copy.deepcopy(arguments))
         except GenerationError:
             raise
         except Exception as exc:
             code = getattr(exc, 'code', None)
+            known = {'PROVIDER_PROTOCOL_ERROR','PROVIDER_UNAVAILABLE','PROVIDER_RESPONSE_TOO_LARGE',
+                     'PROVIDER_ACCOUNT_READ_UNAVAILABLE',
+                     'PROVIDER_SCOPE_UNAVAILABLE','PROVIDER_AUTHORIZATION_REQUIRED','PROVIDER_SCOPE_REQUIRED',
+                     'OWNERSHIP_MISMATCH','PROVIDER_NODE_NAME_CONFLICT','PROVIDER_SNAPSHOT_REVISION_MISMATCH'}
+            logging.getLogger(__name__).error('Official tool failed: tool=%s code=%s',
+                name, code if code in known else 'UNCLASSIFIED')
             if code == 'PROVIDER_SCOPE_UNAVAILABLE':
                 raise GenerationError('PROVIDER_SCOPE_REQUIRED', required_scopes=self.a.catalog.scopes(name)) from None
-            if code in {'PROVIDER_AUTHORIZATION_REQUIRED', 'PROVIDER_SCOPE_REQUIRED', 'OWNERSHIP_MISMATCH'}:
+            if code in {'PROVIDER_AUTHORIZATION_REQUIRED', 'PROVIDER_SCOPE_REQUIRED', 'OWNERSHIP_MISMATCH', 'PROVIDER_SNAPSHOT_REVISION_MISMATCH', 'PROVIDER_ACCOUNT_READ_UNAVAILABLE'}:
                 raise GenerationError(code) from None
             raise GenerationError('PROVIDER_UNAVAILABLE') from None
         return self.a.catalog.response(name, result)
@@ -94,6 +106,21 @@ class BoundImageClient:
         if not isinstance(model, str) or not model.strip() or model != model.strip():
             raise GenerationError('INPUT_INVALID')
         return self._call('get_model', {'model': model})
+
+    def _library_project(self, local_project):
+        if self._owner['spaceKind'] != 'personal':
+            raise GenerationError('PROJECT_BINDING_REQUIRED')
+        existing=getattr(self.a.projects,'existing',None)
+        if not callable(existing):raise GenerationError('PROJECT_BINDING_REQUIRED')
+        binding=existing(self,local_project)
+        if not binding.verified or not same_owner(binding.ownership,self._owner):raise GenerationError('OWNERSHIP_MISMATCH')
+        return opaque(binding.project_id)
+
+    def search_assets(self, local_project, name='', page=1):
+        return self._call('search_assets', {'scope':'personal','projectId':self._library_project(local_project),'name':name,'page':page,'pageSize':40})
+
+    def get_asset(self, asset_id, local_project):
+        return self._call('get_asset', {'scope':'personal','projectId':self._library_project(local_project),'assetId':opaque(asset_id)})
 
     def _project(self, local_project):
         resolver = getattr(self.a.projects, 'resolve', None)
@@ -110,18 +137,21 @@ class BoundImageClient:
                 or any(not isinstance(x, dict) for x in snapshots)
                 or len(ids) != len(set(ids)) or [x.get('revisionId') for x in snapshots] != ids):
             raise GenerationError('SOURCE_CHANGED')
-        if (recipe in {'nano_refine', 'image2_asset'} and len(ids) != 1
-                or recipe == 'mj_style' and ids or recipe == 'storyboard_image' and not 1 <= len(ids) <= 20):
+        if (len(ids)>20 or recipe in {'nano_refine', 'image2_asset', 'image25_asset'} and not ids
+                or recipe in {'storyboard_image','image25_storyboard'} and not 1 <= len(ids) <= 20):
             raise GenerationError('SOURCE_REVIEW_REQUIRED')
         results = []
-        for snap in snapshots:
-            if not same_owner(snap.get('ownership'), self._owner) or snap.get('review') != 'approved' or snap.get('stale'):
+        for index, snap in enumerate(snapshots):
+            # TaskService persists owner + revision + byte hash only. Review is
+            # re-read authoritatively below, not inferred from optional hints.
+            if (not same_owner(snap.get('ownership'), self._owner)
+                    or 'review' in snap and snap['review'] != 'approved' or snap.get('stale')):
                 raise GenerationError('SOURCE_REVIEW_REQUIRED')
             ref = self.a.references.read(self._owner, snap)
             if (not isinstance(ref, VerifiedReference) or not same_owner(ref.ownership, self._owner)
                     or ref.revision_id != snap['revisionId'] or ref.sha256 != snap['sha256']
                     or not ref.approved or ref.stale
-                    or ref.stage not in (('asset','refine') if recipe=='storyboard_image' else ({'image2_asset': 'style', 'nano_refine': 'asset'}.get(recipe),))):
+                    or ref.stage not in (('style','asset','refine','reference') if recipe in {'mj_style','image25_style'} or index>0 else ('asset','refine','reference') if recipe in {'storyboard_image','image25_storyboard'} else ('style','asset') if recipe in {'image2_asset','image25_asset'} else ('asset',))):
                 raise GenerationError('SOURCE_CHANGED')
             inspect_image(ref.content, ref.mime, max_bytes=self.a.policy.max_image_bytes,
                           max_pixels=self.a.policy.max_pixels, sha256=ref.sha256)
@@ -183,6 +213,7 @@ class BoundImageClient:
         if not same_owner(payload.get('ownership'), self._owner):
             raise GenerationError('OWNERSHIP_MISMATCH')
         spec = {k: copy.deepcopy(payload[k]) for k in ('projectId', 'entityId', 'recipe', 'prompt', 'sourceRevisionIds', 'settings')}
+        if 'modelId' in payload: spec['modelId'] = payload['modelId']
         task_id, request_hash = opaque(payload.get('localTaskId')), payload.get('requestHash')
         if not isinstance(request_hash, str) or not re.fullmatch('[a-f0-9]{64}', request_hash):
             raise GenerationError('INPUT_INVALID')
@@ -352,10 +383,10 @@ class BoundImageClient:
         self._finish(task_id, step, normalized)
         return normalized
 
-    def lookup(self, receipt):
+    def lookup(self, receipt, *, local_task_id=None):
         self._preflight_tools(['task_status'])
         receipt = safe_receipt(receipt)
-        task_id = self.a.bridge.task_for_receipt(self._owner, receipt)
+        task_id = self.a.bridge.task_for_receipt(self._owner, receipt, **({'local_task_id':local_task_id} if local_task_id is not None else {}))
         record = self._record(task_id)
         if receipt.get('projectId') != self._project(record['spec']['projectId']):
             raise GenerationError('OWNERSHIP_MISMATCH')

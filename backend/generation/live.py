@@ -7,7 +7,7 @@ import copy
 import hashlib
 import re
 
-from backend.tasks.ports import DownloadArtifact
+from backend.tasks.ports import DownloadArtifact, PartialDownload
 from .contracts import validate
 from .errors import GenerationError
 from .media import inspect_image
@@ -20,6 +20,7 @@ def personal_account(body, ownership):
     accounts = body.get('accounts', {}).get('accounts', [])
     matches = [r for r in accounts if str(r.get('accountId')) == ownership['spaceId']]
     if (ownership['spaceKind'] != 'personal' or user.get('uuid') != ownership['providerSubject']
+            or type(user.get('id')) is not int or user['id'] <= 0
             or len(matches) != 1 or matches[0].get('accountType') != 1
             or matches[0].get('ownerUuid') != user.get('uuid')
             or body.get('activeAccountId') != matches[0].get('accountId')):
@@ -31,7 +32,10 @@ class PersonalProjects:
     def __init__(self, services, context):
         self.services, self.context = services, context
 
-    def resolve(self, client, local_project_id):
+    def existing(self, client, local_project_id):
+        return self.resolve(client,local_project_id,create=False)
+
+    def resolve(self, client, local_project_id, *, create=True):
         ctx = self.context(client._owner)
         project = self.services.workflow.get_project(ctx, local_project_id)
         user = personal_account(client._call('account_user', {}), client._owner)
@@ -42,6 +46,7 @@ class PersonalProjects:
                 row = tx.get('generation.project_bindings', key)
             except Exception as exc:
                 if getattr(exc, 'code', None) != 'NOT_FOUND': raise
+                if not create: raise GenerationError('PROJECT_BINDING_REQUIRED') from None
                 row = tx.create('generation.project_bindings', {
                     'ownership': copy.deepcopy(client._owner), 'localProjectId': local_project_id,
                     'createArguments': {'name': project['name'], 'teamId': 0, 'openInBrowser': False,
@@ -53,6 +58,7 @@ class PersonalProjects:
             raise GenerationError('OWNERSHIP_MISMATCH')
         remote = record.get('remoteProjectId')
         if not remote:
+            if not create: raise GenerationError('PROJECT_BINDING_REQUIRED')
             if not client.a.policy.allow_external_writes: raise GenerationError('PROJECT_BINDING_REQUIRED')
             # Exact persisted key recovers an interrupted idempotent creation.
             result = client._call('create_project', record['createArguments'])
@@ -89,10 +95,16 @@ class LiveImageClient(BoundImageClient):
     def _model(self, spec):
         binding = self.a.recipes.get(spec.get('recipe'))
         if not binding: raise GenerationError('MODEL_BINDING_REQUIRED')
-        contract = self.get_model(binding.model).get('inputContract', {})
+        requested = spec.get('modelId', binding.model)
+        contract = self.get_model(requested).get('inputContract', {})
         schema = contract.get('parameterSchemas', {}).get('generate')
-        if contract.get('model') != binding.model or contract.get('modality') != 'image' or not isinstance(schema, dict):
+        # get_model resolves an exact official display name or key. Historical
+        # ID bindings retain their equality check; selected display names resolve
+        # to the returned key and the full contract is pinned before submission.
+        if (('modelId' not in spec and ' ' not in binding.model and contract.get('model') != binding.model)
+                or contract.get('modality') != 'image' or not isinstance(schema, dict)):
             raise GenerationError('MODEL_CONTRACT_UNVERIFIED')
+        model_key = opaque(contract.get('model'))
         settings = spec.get('settings', {})
         if not isinstance(settings, dict) or any(k in RESERVED for k in settings):
             raise GenerationError('INPUT_INVALID')
@@ -105,7 +117,7 @@ class LiveImageClient(BoundImageClient):
         prompt = spec.get('prompt')
         if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 50000:
             raise GenerationError('INPUT_INVALID')
-        return binding.model, params, count, digest({'inputContract': contract, 'controls': dict(binding.controls),
+        return model_key, params, count, digest({'inputContract': contract, 'controls': dict(binding.controls),
                                                     'tool': self.a.catalog.fingerprint('generation_submit')})
 
     def _upload_contracts(self):
@@ -143,7 +155,10 @@ class LiveImageClient(BoundImageClient):
         if not isinstance(file_ref,str) or not re.fullmatch(r'[A-Za-z0-9._~:-]{1,16384}',file_ref):
             raise GenerationError('PROVIDER_PROTOCOL_ERROR')
         self.a.bridge.check(task_id, self._owner, request_hash, key)
-        attach = self._call('upload_media', {'name':name,'idempotencyKey':key+':'+ref.sha256[:32],
+        # The same reference can feed many generated assets. Canvas names must
+        # distinguish the consuming task, while this task's retry stays stable.
+        attach_name = 'ref_' + task_id + '_' + ref.sha256[:16]
+        attach = self._call('upload_media', {'name':attach_name,'idempotencyKey':key+':'+ref.sha256[:32],
                          'projectId':project_id,'fileRef':file_ref,'mediaType':'image'})
         self._observe(task_id, 'upload_media', attach)
         if attach.get('projectId') != project_id: raise GenerationError('PROVIDER_RECEIPT_MISMATCH')
@@ -169,13 +184,44 @@ class LiveImageClient(BoundImageClient):
         with self.a.journal.edit(self._owner, local_task) as state:
             state.setdefault('observedResponseShapes', {})[name] = shape(body)
 
-    def lookup(self, receipt):
+    def _upload_stopped_before_generation(self, local_task):
+        # Every charged call is preceded by a durable generation claim. Only a
+        # journal consisting entirely of unfinished uploads proves no paid run.
+        with self.a.journal.edit(self._owner, local_task) as state:
+            steps = copy.deepcopy(state.get('steps', {}))
+            if state.get('originalReferenceRun'):
+                return False
+        return bool(steps and all(re.fullmatch(r'upload_[a-f0-9]{64}', name) for name in steps)
+                    and all(row.get('attempted') is True for row in steps.values())
+                    and any(not row.get('done') for row in steps.values()))
+
+    def _reference_setup_stopped(self, local_task, record, receipt):
+        # An intact prepared record distinguishes a known pre-generation stop
+        # from a missing journal. Every charged path persists a generation claim.
+        with self.a.journal.edit(self._owner, local_task) as state:
+            if (state.get('record') != record or not record.get('sources')
+                    or record.get('prepared', {}).get('providerReceipt') != receipt
+                    or state.get('originalReferenceRun')):
+                return False
+            steps = state.get('steps')
+            return isinstance(steps, dict) and all(
+                (name == 'reference_node' or re.fullmatch(r'upload_[a-f0-9]{64}', name))
+                and isinstance(row, dict) and row.get('attempted') is True
+                for name, row in steps.items())
+
+    def lookup(self, receipt, *, local_task_id=None):
         receipt = safe_receipt(receipt)
-        local_task = self.a.bridge.task_for_receipt(self._owner, receipt)
+        local_task = self.a.bridge.task_for_receipt(self._owner, receipt, **({'local_task_id':local_task_id} if local_task_id is not None else {}))
         record = self._record(local_task)
         if receipt.get('projectId') != self._project(record['spec']['projectId']):
             raise GenerationError('OWNERSHIP_MISMATCH')
         if not receipt.get('taskId'):
+            if not receipt.get('nodeId') and self._upload_stopped_before_generation(local_task):
+                return {'status':'failed', 'providerReceipt':receipt,
+                        'failureStage':'reference_upload', 'generationSubmitted':False}
+            if not receipt.get('nodeId') and self._reference_setup_stopped(local_task, record, receipt):
+                return {'status':'failed', 'providerReceipt':receipt,
+                        'failureStage':'reference_setup', 'generationSubmitted':False}
             if not receipt.get('nodeId') or self.a.reference_route is None:
                 raise GenerationError('ORIGINAL_RECEIPT_REQUIRED', receipt=receipt)
             receipt = self.a.reference_route.recover_task(self, local_task, record, receipt)
@@ -232,7 +278,14 @@ class LiveImageClient(BoundImageClient):
                     'idempotencyKey':'delivery_'+local_task+'_'+str(index),
                     'projectId':receipt['projectId'], 'watermark':'keep'}
             step = 'delivery_'+str(index)
-            cached = self._claim(local_task, step, args)
+            try:
+                cached = self._claim(local_task, step, args)
+            except GenerationError as exc:
+                # Preserve verified earlier outputs even if a later export lost
+                # its receipt. Do not resend that export or the paid generation.
+                if exc.code == 'OPERATION_UNKNOWN' and artifacts:
+                    return PartialDownload(tuple(artifacts))
+                raise
             if cached is None:
                 body = self._call('prepare_project_delivery', args)
                 self._observe(local_task, 'prepare_project_delivery', body)

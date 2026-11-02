@@ -1,4 +1,5 @@
 import {escapeHTML as esc,categories} from './model.js';
+import {imageChoice} from './image-choices.js';
 
 // Stored tokens use stable asset IDs; names are presentation only. A shot binds
 // one state (and optionally one approved image version) per asset.
@@ -33,10 +34,14 @@ export function referenceField(label,path,shot,result,max=3000){
   const key=path.split('.').at(-1),value=shot[key]||'';
   return `<div class="board-reference-field"><div class="board-field-title"><b>${esc(label)}</b><button data-board-reference-picker="${esc(path)}">@ 插入物料</button></div><textarea aria-label="${esc(label)}" rows="4" maxlength="${max}" data-wf-production-field="${esc(path)}" data-reference-text>${esc(readableText(value,result,shot))}</textarea><div class="board-linked-text" data-reference-preview="${esc(path)}" aria-label="${esc(label)}引用预览">${linkedText(value,result,shot)}</div><div data-reference-picker="${esc(path)}" hidden></div></div>`;
 }
-export function referencePicker(result,shot,path,query=''){
+export function referencePicker(result,shot,path,query='',cards=[]){
   const filtered=result.assets.flatMap((asset,index)=>asset.states.filter(s=>s.sceneIds?.includes(shot.sceneId)).map(state=>({asset,index,state})))
     .filter(({asset,state})=>(asset.name+' '+state.name).toLowerCase().includes(query.toLowerCase()));
-  return `<div class="board-reference-picker" role="group" aria-label="选择引用物料"><div class="board-field-title"><b>选物料与状态</b><button data-board-reference-picker-close>关闭</button></div><input type="search" aria-label="搜索引用物料" placeholder="搜索角色、场景、道具" data-reference-search value="${esc(query)}"><div class="board-reference-options">${filtered.map(({asset,index,state})=>`<button data-reference-insert="${esc(asset.id)}" data-reference-state="${esc(state.id)}" data-reference-path="${esc(path)}"><span>${esc(categories[asset.category])}</span><strong>${esc(asset.name)}${result.assets.filter(a=>a.name===asset.name).length>1?' '+String(index+1).padStart(3,'0'):''}</strong><small>${esc(state.name)}</small></button>`).join('')||'<p class="wf-muted">本场次没有匹配物料，可在档案里补充适用场次。</p>'}</div><p class="wf-muted">选择后绑定档案并连接画布；图片需要单独制作、审核。</p></div>`;
+  return `<div class="board-reference-picker" role="group" aria-label="选择引用物料"><div class="board-field-title"><b>选物料与状态</b><button data-board-reference-picker-close>关闭</button></div><input type="search" aria-label="搜索引用物料" placeholder="搜索角色、场景、道具" data-reference-search value="${esc(query)}"><div class="board-reference-options image-choice-grid">${filtered.map(({asset,index,state})=>{
+    const card=cards.find(c=>c.assetId===asset.id&&c.stateId===state.id);
+    const name=asset.name+(result.assets.filter(a=>a.name===asset.name).length>1?' '+String(index+1).padStart(3,'0'):'');
+    return card?.src?imageChoice({src:card.src,name,caption:state.name,previewId:card.revisionId,choose:'引用到本镜',action:{'data-reference-insert':asset.id,'data-reference-state':state.id,'data-reference-path':path,'data-reference-image':card.revisionId}}):`<button data-reference-insert="${esc(asset.id)}" data-reference-state="${esc(state.id)}" data-reference-path="${esc(path)}"><span>${esc(categories[asset.category])}</span><strong>${esc(name)}</strong><small>${esc(state.name)} · 待制图</small></button>`;
+  }).join('')||'<p class="wf-muted">本场次没有匹配物料，可在档案里补充适用场次。</p>'}</div></div>`;
 }
 export function bindReference(shot,asset,stateId){
   if(!asset?.states.some(s=>s.id===stateId&&s.sceneIds?.includes(shot.sceneId)))return false;

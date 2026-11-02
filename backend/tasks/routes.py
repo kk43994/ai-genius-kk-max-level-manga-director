@@ -30,6 +30,7 @@ def register_routes(router, services):
                 # Dependencies may fail before a task is persisted. Do not let
                 # raw provider/DB error strings reach the common HTTP adapter.
                 safe = {
+                    "PROVIDER_ACCOUNT_READ_UNAVAILABLE": ("PROVIDER_ACCOUNT_READ_UNAVAILABLE", "LibTV 暂时无法读取原账号资料。已有任务保留，请稍后刷新账号或收取原任务。", 503),
                     "SESSION_REQUIRED": ("SESSION_REQUIRED", "请恢复本站会话后继续。", 401),
                     "NOT_FOUND": ("NOT_FOUND", "项目、账号或参考素材不存在。", 404),
                     "VALIDATION_FAILED": ("VALIDATION_FAILED", "任务参数或参考素材未通过校验。", 422),
@@ -58,7 +59,7 @@ def register_routes(router, services):
         return next((v for k, v in headers.items() if k.lower() == "idempotency-key"), None)
 
     def prepare(ctx, params):
-        value = body(ctx, {"projectId", "recipe", "entityId", "prompt", "sourceRevisionIds", "settings", "expectedSelectionRevision"})
+        value = body(ctx, {"projectId", "recipe", "entityId", "prompt", "sourceRevisionIds", "settings", "modelId", "expectedSelectionRevision"})
         return service.prepare(ctx, {k: v for k, v in value.items() if k != "expectedSelectionRevision"},
                                value.get("expectedSelectionRevision"), idempotency(ctx))
 
@@ -83,6 +84,34 @@ def register_routes(router, services):
             raise TaskError("VALIDATION_FAILED", "分页数量无效。", 422) from None
         return service.list(ctx, **{k: query[k] for k in ("projectId", "providerAccountId", "spaceId", "cursor") if k in query}, limit=limit)
 
+    from backend.generation.model_catalog import read_catalog
+    def models(ctx, params):
+        query = field(ctx, 'query', {}) or {}
+        if set(query) - {'model'}:
+            raise TaskError('VALIDATION_FAILED', '模型查询参数无效。', 422)
+        try:
+            return read_catalog(service, ctx, query.get('model'))
+        except Exception as exc:
+            from backend.generation.errors import GenerationError
+            if isinstance(exc, GenerationError):
+                raise TaskError(exc.code, exc.message, exc.status) from None
+            raise
+    router.add('GET', '/api/v1/image-models', wrap(models))
+    def library(ctx, params):
+        query=field(ctx,'query',{}) or {}
+        if set(query)-{'name','page','assetId','projectId'} or not query.get('projectId'):
+            raise TaskError('VALIDATION_FAILED','素材查询参数无效。',422)
+        selected=service._selection(ctx);owner=service._owner(ctx,selected)
+        client=service._client(ctx,owner)
+        from backend.generation.asset_library import catalog,details,with_previews
+        from backend.generation.errors import GenerationError
+        try:
+            page=int(query.get('page',1))
+            if page<1:raise ValueError()
+            return with_previews(details(client.get_asset(query['assetId'],query['projectId'])),field(services,'generation').media) if query.get('assetId') else catalog(client.search_assets(query['projectId'],query.get('name',''),page))
+        except ValueError:raise TaskError('VALIDATION_FAILED','分页参数无效。',422) from None
+        except GenerationError as exc:raise TaskError(exc.code,exc.message,exc.status) from None
+    router.add('GET','/api/v1/libtv-assets',wrap(library))
     router.add("POST", "/api/v1/tasks/prepare", wrap(prepare, mutation=True))
     router.add("GET", "/api/v1/tasks", wrap(listing))
     router.add("GET", "/api/v1/tasks/{taskId}", wrap(lambda ctx, params: service.get(ctx, params["taskId"])))

@@ -6,7 +6,7 @@ export function operationLabel(path, method = 'GET') {
   if (/\/analyze$/.test(path)) return '正在建立 AI 分析任务';
   if (/\/analyses\/.+\/refresh$/.test(path)) return '正在检查原 AI 分析任务';
   if (/\/scripts$/.test(path) && method === 'POST') return '正在导入剧本';
-  if (/\/tasks\/prepare$/.test(path)) return '正在核对账号、空间与制作参数';
+  if (/\/(?:tasks|images)\/prepare$/.test(path)) return '正在核对账号、空间与制作参数';
   if (/\/submit$/.test(path)) return '正在提交制作请求，等待官方回执';
   if (/\/recover$/.test(path)) return '正在查询原任务并收取已生成素材';
   if (/\/reviews$/.test(path)) return '正在保存审核结果';

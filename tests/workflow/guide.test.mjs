@@ -13,7 +13,7 @@ test('script draft requires review, then account selection, before preparing',()
 });
 test('each stage pauses for review and Nano always uses Image2',()=>{
  assert.equal(nextAction(withImages(revision('style','pending'))).kind,'review');
- const asset=nextAction(withImages(revision('style'))); assert.equal(asset.spec.recipe,'image2_asset'); assert.deepEqual(asset.spec.sourceRevisionIds,['style']);
+ const asset=nextAction(withImages(revision('style'))); assert.equal(asset.spec.recipe,'image25_asset'); assert.deepEqual(asset.spec.sourceRevisionIds,['style']);
  const nano=nextAction(withImages(revision('style'),revision('asset'))); assert.equal(nano.spec.recipe,'nano_refine'); assert.deepEqual(nano.spec.sourceRevisionIds,['asset']);
  assert.equal(nextAction(withImages(revision('style'),revision('asset'),revision('refine','pending'))).kind,'review');
 });

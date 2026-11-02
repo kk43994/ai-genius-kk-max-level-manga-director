@@ -48,7 +48,7 @@ export class DraftCoordinator {
   hasContent() {
     const {workflow,accountSelection}=this.snapshot();
     return Boolean(accountSelection?.providerAccountId || accountSelection?.spaceId || workflow.selectedProject
-      || Object.entries(workflow).some(([key,value]) => key.startsWith('plan:') || key.startsWith('compose:') || key.startsWith('review:')
+      || Object.entries(workflow).some(([key,value]) => key.startsWith('plan:') || key.startsWith('compose:') || key.startsWith('review:') || key.startsWith('production:') || key.startsWith('boardgen:') || key.startsWith('art-direction:')
         || (key==='quick-start' && Boolean(value?.text?.trim()))
         || (key==='new-project' && Object.values(value || {}).some(text=>String(text).trim()))));
   }

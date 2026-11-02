@@ -1,6 +1,7 @@
 import { accountLabels, accountState, accountName, validSelection, sameSelection, selectable,
   officialAuthorizationUrl, publicReturnPath, attemptState, activeAttempt, publicAttemptError, timeLabel, quotaPresentation, retainQuotaOnFailure, errorText } from './state.js';
 import { mountWorkspaceOwner } from './workspace-owner.js';
+import { coalesceStatusReads } from './read-status.js';
 
 let mountCount = 0;
 const e = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -32,7 +33,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
   const blocked = () => Boolean(busy || loading || activeAttempt(attempt) || ownerModule?.isActive());
   const quotaBlocked = () => Boolean(busy || loading || spacesLoading || quotaLoading || ownerModule?.isActive());
   const emit = (name, detail) => events.dispatchEvent(new win.CustomEvent(name, { detail: { ...detail, source } }));
-  const request = (path, options) => api.request(path, options);
+  const request = coalesceStatusReads((path, options) => api.request(path, options), () => `${epoch}:${snapshot?.tenant?.id}:${snapshot?.session?.id}`);
   const fail = code => Object.assign(new Error(code), { code });
 
   root.classList.add('al-accounts');
@@ -160,7 +161,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     const selectedSpace = (selected.providerAccountId === draft.providerAccountId ? spaces.find(s => s.id === selected.spaceId) : null)
       || (selectedSpaceLabel?.providerAccountId === selected.providerAccountId && selectedSpaceLabel?.id === selected.spaceId ? selectedSpaceLabel : null);
     const connectedAccount = accounts.find(a=>accountState(a)==='connected');
-    text('status', status || (connectedAccount ? `LibTV 已连接${connectedAccount.grantedScopes?.includes('libtv:task:write')?'，图片创作权限已授权':''}。` : ''));
+    text('status', status || (connectedAccount ? `LibTV 已授权${connectedAccount.grantedScopes?.includes('libtv:task:write')?' · 图片创作已授权':''}${spacesLoading?' · 正在核对空间':spacesError?' · 空间暂不可核实':space?.access==='available'?' · 空间已核实':' · 请选择空间'}。` : ''));
     const activity = busy ? '正在保存账号操作…' : loading ? '正在读取已连接账号…' : spacesLoading ? '正在向 LibTV 核对空间权限…' : quotaLoading ? '正在查询所选空间余额…' : polling ? '正在检查授权结果…' : '';
     refs.activity.hidden = !activity; text('activity-label', activity);
     refs.error.hidden = !error; text('error', error);
@@ -197,18 +198,19 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     buttons.apply.textContent = busy === 'selection' ? '正在切换…' : '应用到新任务';
     const q = quotaPresentation(quota);
     text('quota-label', q.label);
-    text('quota-value', quotaLoading ? '正在查询…' : !space ? '选择空间后查询' : q.value);
-    text('quota-note', !space ? '余额只对应所选账号的这个空间。' : [quotaError, q.note].filter(Boolean).join(' '));
+    text('quota-value', quotaLoading ? '正在查询…' : q.state==='stale' ? q.value : !space ? '余额待核实' : q.value);
+    text('quota-note', !space && q.state!=='stale' ? (spacesError ? '空间尚未核实，不能判断积分是否充足。可打开官网核对同一账号的余额。' : '选择空间后查询；也可打开官网核对同一账号。') : [quotaError, q.note].filter(Boolean).join(' '));
     text('quota-time', quota?.checkedAt ? `最近查询：${timeLabel(quota.checkedAt)}` : '');
     refs['quota-time'].hidden = !quota?.checkedAt;
     refs['quota-buckets'].innerHTML = q.buckets.map(b => `<li>${e(b.name)}：${e(b.value)}</li>`).join('');
     refs['quota-buckets'].hidden = !q.buckets.length;
-    refs['quota-official'].hidden = !space;
+    refs['quota-official'].hidden = false;
+    refs['quota-official'].href = 'https://www.liblib.art/calculation';
     text('plan', quota?.planName ? `套餐：${quota.planName}（不代表可用余额）` : '');
     refs.plan.hidden = !quota?.planName;
     refs.quota.setAttribute('aria-busy', String(quotaLoading));
-    buttons.quota.disabled = quotaBlocked() || !selectable(account, space);
-    buttons.quota.textContent = quotaLoading ? '正在查询…' : quota ? '重新查询余额' : '查询余额';
+    buttons.quota.disabled = quotaBlocked() || !selectable(account, space) || account?.capabilities?.quota===false;
+    buttons.quota.textContent = account?.capabilities?.quota===false ? '接口暂不支持余额查询' : quotaLoading ? '正在查询…' : quota ? '重新查询余额' : '查询余额';
     renderAttempt();
     ownerModule?.render();
   }
@@ -248,7 +250,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     if (disposed) return;
     const seq = ++refreshSequence, startedEpoch = epoch;
     let acceptedEpoch = startedEpoch, acceptedSequence = seq;
-    loading = true; render();
+    loading = true; status = ''; render();
     try {
       let next = snapshot;
       if (rereadSession || !next) next = await request('/session');
@@ -272,7 +274,7 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
 
   async function loadSpaces() {
     const seq = ++spaceSequence, localEpoch = epoch, account = currentAccount();
-    quotaSequence++; spaces = []; quota = null; spacesError = ''; quotaError = ''; quotaLoading = false;
+    quotaSequence++; spaces = []; quota = sameSelection(quota,draft) ? quota : null; spacesError = ''; quotaError = ''; quotaLoading = false;
     if (!account || !['connected','expired'].includes(accountState(account)) || account.capabilities?.spaces === false) { spacesLoading = false; render(); return; }
     spacesLoading = true; render();
     try {
@@ -293,7 +295,12 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
         draft = { ...draft, spaceId: null }; dirty = !sameSelection(draft, selection()); saveLocal();
       }
       render(); await loadQuota();
-    } catch (err) { if (!disposed && localEpoch === epoch && seq === spaceSequence) { spacesError = errorText(err); spacesLoading = false; render(); } }
+    } catch (err) { if (!disposed && localEpoch === epoch && seq === spaceSequence) {
+      spacesError = errorText(err); spacesLoading = false;
+      const failed={...draft,state:'unavailable',checkedAt:new Date().toISOString()};
+      quota=['PROVIDER_UNAVAILABLE','NETWORK_ERROR','TIMEOUT','PROVIDER_ACCOUNT_READ_UNAVAILABLE'].includes(err?.code) ? retainQuotaOnFailure(quota,failed) : null;
+      render();
+    } }
   }
 
   async function loadQuota() {
@@ -302,6 +309,10 @@ export function mount({ root, api, events = new EventTarget(), session = null, p
     quota = sameSelection(quota, {providerAccountId:account?.id,spaceId:space?.id}) ? quota : null;
     quotaError = ''; quotaLoading = false;
     if (!selectable(account, space)) { render(); return; }
+    if (account.capabilities?.quota === false) {
+      quota={providerAccountId:account.id,spaceId:space.id,state:'unknown',reason:'provider_capability_unavailable'};
+      render(); return;
+    }
     quotaLoading = true; render();
     try {
       const result = await request(`/provider-accounts/${idPath(account.id)}/spaces/${idPath(space.id)}/quota`);

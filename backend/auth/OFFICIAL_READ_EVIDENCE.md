@@ -70,3 +70,14 @@ personal/team 枚举另有官方公开网页代码佐证：官方首页加载的
 精确公网 callback `https://kk666.best/asset-lab/api/v1/oauth/libtv/callback` 的标准 DCR（含 application_type=web）返回 400 invalid_redirect_uri。loopback 注册/授权成功不能替代公网准入。
 
 还需要官方批准/预注册精确公网 callback、按用户新授权取得所需 scope、核实项目到账号/空间归属、核实模型/任务/资源响应和明确生成操作。两个真实登录用户隔离、真实 token refresh/revoke、付费生成及下载均尚未验收。
+
+## 2026-11-03 · Official Remote MCP compatibility refresh
+
+Browser-only local integration verified the same creator grant after routine OAuth renewal. Current tools/list no longer lists account_user or project_info. The audited replacements are doctor and read_project; they are not a larger OAuth grant and do not expose a quota tool.
+
+- doctor.identity.userUuid → canonical user.uuid; nickname → user.nickname; numeric userId → user.id. identity.accounts.accounts contains accountId/accountType/ownerUuid/isActive; activeAccountId and activeTeamId remain explicit. The account directory and identity come from the same read. Missing membership or mismatched subject still fails.
+- read_project({projectId, view:"summary"}) returns projectId and project.{uuid,ownerId,projectSpaceId}; the local adapter maps this to its former projectMeta envelope. Observed via local frontend preparation. UUID, integer owner ID, active personal billing account, target_project teamId=0 and canvas space must still match.
+- Compatibility applies only if the old tool is absent, never if it is duplicated or returns an error. Replacement tools must be readonly/nondestructive and declare granted scopes. Bound calls retain fresh membership checks and local revocation checks.
+- No credit balance field was returned in the current identity/account response. The official plugin README documents Remote HTTP MCP with dynamic OAuth registration, but no balance scope or endpoint. Unsupported quota remains unknown with an official webpage link; do not infer zero or scrape browser credentials.
+
+Public sources: https://www.liblib.tv/plugin and https://github.com/liblib-ai/marketplace/blob/main/README.md . Real account values and diagnostic screenshots are stored outside Git. Tests use synthetic values only.

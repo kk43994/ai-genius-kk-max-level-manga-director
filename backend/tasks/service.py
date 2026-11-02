@@ -16,7 +16,7 @@ from .model import (HASH_RE, OWNER_KEYS, TERMINAL, cost, decode_cursor,
                     digest, encode_cursor, merge_receipt, opaque, owner_match,
                     parse_time, public_task, receipt, safe_prepared, selection_revision,
                     tenant, timestamp, utcnow, validate_spec, version, workflow_snapshot)
-from .ports import DownloadArtifact, TaskPolicy
+from .ports import DownloadArtifact, PartialDownload, TaskPolicy
 
 
 class TaskService:
@@ -302,7 +302,7 @@ class TaskService:
             self._expect(task, expectedVersion)
             if not self.policy.allow_paid_submission:
                 raise TaskError("PAID_SUBMISSION_DISABLED", "开发验收期间生成提交已关闭，任务草稿已保留。", 403)
-            if task["recipe"] not in {"mj_style", "image2_asset", "nano_refine", "storyboard_image", "script_analysis"}:
+            if task["recipe"] not in {"mj_style", "image25_style", "image2_asset", "image25_asset", "nano_refine", "storyboard_image", "image25_storyboard", "script_analysis"}:
                 raise TaskError("VIDEO_GENERATION_DISABLED", "正式视频生成仍暂停。", 403)
             if task["submissionAttempted"]:
                 raise TaskError("SUBMISSION_ALREADY_ATTEMPTED", "此任务已尝试提交，只能查回原任务。", 409)
@@ -366,6 +366,17 @@ class TaskService:
             return {"task": public_task(current)}
 
     def _operation_failure(self, ctx, task_id, lease, exc, *, attempted=False):
+        # Developer diagnostics without upstream messages, payloads or signed URLs.
+        import logging
+        import traceback
+        from pathlib import Path
+        from .errors import PREPARATION_CODES, AUTH_CODES
+        code = getattr(exc, 'code', None)
+        safe_code = code if code in PREPARATION_CODES or code in AUTH_CODES else 'UNCLASSIFIED'
+        locations = ['%s:%s:%s' % (Path(f.filename).name, f.lineno, f.name)
+                     for f in traceback.extract_tb(exc.__traceback__)[-6:]]
+        logging.getLogger(__name__).error('Task operation failed: code=%s type=%s locations=%s',
+            safe_code, type(exc).__name__, ' > '.join(locations))
         with self.repository.transaction(ctx) as tx:
             task = self._get(tx, ctx, task_id)
             # Explicitly typed error receipts only; never parse text or URLs.
@@ -377,6 +388,9 @@ class TaskService:
                     evidence = None
             if self._owns(task, lease):
                 status, error = provider_failure(exc, attempted=attempted or task["submissionAttempted"])
+                if getattr(exc, 'code', None) in {'REFERENCE_PREFLIGHT_REJECTED','REFERENCE_SETUP_STOPPED'} and (not evidence or evidence != task.get('providerReceipt') or evidence.get('taskId') or not evidence.get('nodeId')):
+                    status, error = 'needs_attention', {'code':'PROVIDER_RECEIPT_MISMATCH',
+                        'message':'拒绝记录与原节点回执不一致，仍需核对原任务。', 'retryable':False, 'details':{}}
                 if isinstance(exc, TaskError) and exc.code in {"SOURCE_CHANGED", "SOURCE_REVIEW_REQUIRED", "WORKFLOW_VERSION_CHANGED", "WORKFLOW_SNAPSHOT_MISSING", "PROVIDER_RECEIPT_MISMATCH", "OUTPUT_INVALID", "OUTPUT_STORE_UNVERIFIED"}:
                     status, error = "needs_attention", exc.public()
                 task.update(status=status, error=error, lease=None, confirmation=None)
@@ -437,7 +451,7 @@ class TaskService:
                         current.update(status="draft", lease=None, error=None, confirmation=None)
                         self._save(tx, current)
                     return {"task": public_task(current)}
-            result = client.lookup(deepcopy(task["providerReceipt"]))
+            result = client.lookup(deepcopy(task["providerReceipt"]), local_task_id=task_id)
             if not isinstance(result, dict):
                 raise TaskError("LOOKUP_UNCONFIRMED", "官方任务状态尚未确认。", 409)
             ref = merge_receipt(task["providerReceipt"], result.get("providerReceipt"))
@@ -453,9 +467,17 @@ class TaskService:
                 elif state == "completed":
                     current.update(status="downloading", error=None)
                 elif state == "failed":
+                    upload_only = (result.get('failureStage') == 'reference_upload' and result.get('generationSubmitted') is False
+                                   and not ref.get('taskId') and not ref.get('nodeId'))
+                    setup_only = (result.get('failureStage') == 'reference_setup' and result.get('generationSubmitted') is False
+                                  and not ref.get('taskId') and not ref.get('nodeId'))
                     current.update(status="failed", lease=None,
-                                   error={"code": "PROVIDER_TASK_FAILED", "message": "官方原任务失败，未自动重新生成。",
-                                          "retryable": False, "details": {}})
+                        error=({"code":"REFERENCE_SETUP_STOPPED", "message":"图片准备过程曾中断；已核实尚未调用收费生成。可以重新准备，原记录保留。",
+                                "retryable":True, "details":{"generationSubmitted":False}} if setup_only else
+                               {"code":"REFERENCE_UPLOAD_FAILED", "message":"参考图上传未完成；已核实尚未调用收费生成。可以重新准备，原记录保留。",
+                                "retryable":True, "details":{"generationSubmitted":False}}
+                               if upload_only else {"code":"PROVIDER_TASK_FAILED", "message":"官方原任务失败，未自动重新生成。",
+                                                    "retryable":False, "details":{}}))
                 elif state == "cancelled":
                     current.update(status="cancelled", lease=None,
                                    cancellation={"localOnly": False, "remoteConfirmed": True, "refundConfirmed": False})
@@ -470,8 +492,10 @@ class TaskService:
             # Recheck the same identity immediately before receiving its media.
             self._identity(client, task["ownership"], ctx)
             downloaded = client.download(deepcopy(task["providerReceipt"]))
+            partial = isinstance(downloaded, PartialDownload)
             self._revalidate_inputs(ctx, task)
-            output_records = self._persist_outputs(ctx, task, downloaded)
+            output_records = self._persist_outputs(ctx, task, downloaded.artifacts if partial else downloaded,
+                                                   partial=partial)
             # Workflow also marks a racing old revision stale in its own atomic
             # commit. Recheck after that commit so the task explains the change.
             self._revalidate_inputs(ctx, task)
@@ -480,13 +504,19 @@ class TaskService:
         with self.repository.transaction(ctx) as tx:
             current = self._get(tx, ctx, task_id)
             if self._owns(current, lease):
-                current.update(status="completed", lease=None, error=None, outputs=output_records,
-                               review="pending", completedAt=self._now())
+                if partial:
+                    current.update(status="needs_attention", lease=None, outputs=output_records, review="pending",
+                        error={"code":"PARTIAL_DELIVERY", "message":f"已收取 {len(output_records)}/{task['prepared']['count']} 张，可先审核；其余图片交付待核对，不会重复生成。",
+                               "retryable":False, "details":{"received":len(output_records), "expected":task['prepared']['count']}})
+                else:
+                    current.update(status="completed", lease=None, error=None, outputs=output_records,
+                                   review="pending", completedAt=self._now())
                 self._save(tx, current)
             return {"task": public_task(current)}
 
-    def _persist_outputs(self, ctx, task, downloaded):
-        if not isinstance(downloaded, (list, tuple)) or len(downloaded) != task["prepared"]["count"]:
+    def _persist_outputs(self, ctx, task, downloaded, *, partial=False):
+        expected=task["prepared"]["count"]
+        if not isinstance(downloaded, (list, tuple)) or not (0<len(downloaded)<expected if partial else len(downloaded)==expected):
             raise TaskError("OUTPUT_INVALID", "返回文件数量与已确认任务不符，未标记完成。", 409)
         artifacts = []
         allowed_mimes = ({"application/json", "text/plain"} if task["recipe"] == "script_analysis"

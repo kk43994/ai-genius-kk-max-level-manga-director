@@ -2,6 +2,9 @@
 from dataclasses import dataclass, field
 
 from .errors import WorkflowError, tenant, value
+from backend.auth.errors import AuthError
+from backend.spaces.errors import SpaceError
+from backend.tasks.errors import TaskError
 
 
 @dataclass
@@ -25,7 +28,7 @@ def register_routes(router, services):
                 result = action(ctx, params, value(ctx, 'json', {}) or {}, value(ctx, 'query', {}) or {})
                 return result if isinstance(result, Response) else Response(200, result)
             except Exception as error:
-                if isinstance(error, WorkflowError) or type(error).__module__ == 'backend.storage.errors':
+                if isinstance(error, (WorkflowError, AuthError, SpaceError, TaskError)) or type(error).__module__ == 'backend.storage.errors':
                     return Response(error.status, {'error': error.public()})
                 raise
         router.add(method, '/api/v1' + path, handler)
@@ -40,6 +43,8 @@ def register_routes(router, services):
         add('GET', '/projects/{projectId}/scripts/{scriptId}/analysis', lambda c, p, b, q:
             ai.latest(c, p['projectId'], p['scriptId']))
         add('GET', '/analyses/{analysisId}', lambda c, p, b, q: ai.get(c, p['analysisId']))
+        add('PUT', '/analyses/{analysisId}/review', lambda c,p,b,q: ai.save_review(c,p['analysisId'],b))
+        add('POST', '/analyses/{analysisId}/read-original', lambda c,p,b,q: ai.read_original(c,p['analysisId']))
         add('POST', '/analyses/{analysisId}/refresh', lambda c, p, b, q: ai.refresh(c, p['analysisId']))
         add('POST', '/analyses/{analysisId}/review-original', lambda c, p, b, q: ai.resume_review(c, p['analysisId']))
         add('POST', '/analyses/{analysisId}/repair', lambda c, p, b, q: ai.repair_result(c, p['analysisId'], b))
@@ -59,6 +64,7 @@ def register_routes(router, services):
         add('GET', '/production-jobs/{productionId}', lambda c,p,b,q: production.get(c,p['productionId']))
         add('PUT', '/production-jobs/{productionId}/edits', lambda c,p,b,q: production.save_edits(c,p['productionId'],b))
         add('PUT', '/production-jobs/{productionId}/review', lambda c,p,b,q: production.save_review(c,p['productionId'],b))
+        add('PUT', '/production-jobs/{productionId}/bindings', lambda c,p,b,q: production.save_binding(c,p['productionId'],b))
         add('POST', '/production-jobs/{productionId}/refresh', lambda c,p,b,q: production.refresh(c,p['productionId']))
         add('POST', '/production-jobs/{productionId}/revalidate', lambda c,p,b,q: production.revalidate(c,p['productionId']))
         add('POST', '/production-jobs/{productionId}/repair', lambda c,p,b,q: production.repair_plan(c,p['productionId'],b))
@@ -69,12 +75,20 @@ def register_routes(router, services):
     add('GET', '/projects', lambda c, p, b, q: workflow.list_projects(c))
     add('POST', '/projects', lambda c, p, b, q: workflow.create_project(c, b))
     add('GET', '/projects/{projectId}', lambda c, p, b, q: workflow.get_project(c, p['projectId']))
+    from .prompt_recipes import save as save_prompt_recipe
+    add('POST', '/projects/{projectId}/prompt-recipes', lambda c,p,b,q: save_prompt_recipe(workflow,c,p['projectId'],b))
+    from .art_studies import prepare as prepare_art_study
+    add('POST', '/projects/{projectId}/art-studies/prepare', lambda c,p,b,q: prepare_art_study(workflow,c,p['projectId'],b))
+    add('PUT', '/projects/{projectId}/art-direction', lambda c,p,b,q: workflow.confirm_art_direction(c,p['projectId'],b))
     add('PATCH', '/projects/{projectId}', lambda c, p, b, q: workflow.update_project(c, p['projectId'], b))
     add('POST', '/projects/{projectId}/scripts', lambda c, p, b, q: workflow.import_script(c, p['projectId'], b))
     add('GET', '/projects/{projectId}/scripts/{scriptId}', lambda c, p, b, q: workflow.get_script(c, p['projectId'], p['scriptId']))
     add('GET', '/projects/{projectId}/plan', lambda c, p, b, q: workflow.get_plan(c, p['projectId']))
     add('PUT', '/projects/{projectId}/plan', lambda c, p, b, q: workflow.save_plan(c, p['projectId'], b))
     add('GET', '/projects/{projectId}/assets', lambda c, p, b, q: workflow.list_assets(c, p['projectId']))
+    from .reference_library import import_reference,import_library_reference
+    add('POST', '/projects/{projectId}/references', lambda c,p,b,q: import_reference(workflow,c,p['projectId'],b))
+    add('POST', '/projects/{projectId}/library-references', lambda c,p,b,q: import_library_reference(services,c,p['projectId'],b))
     add('POST', '/assets/{assetId}/reviews', lambda c, p, b, q: workflow.review(c, p['assetId'], b))
 
     def content(c, p, b, q, thumbnail=False):
@@ -89,6 +103,15 @@ def register_routes(router, services):
         return Response(200, raw, {'Content-Type': 'application/zip', 'Cache-Control': 'private, no-store',
                                   'Content-Disposition': f'attachment; filename="{filename}"',
                                   'X-Content-Type-Options': 'nosniff'})
+
+    if getattr(workflow, 'production', None):
+        add('GET', '/production-jobs/{productionId}/storyboard-export', lambda c,p,b,q:
+            download(workflow.production.export_storyboard(c,p['productionId'])[0], 'storyboard-script.zip'))
+        add('GET', '/production-jobs/{productionId}/storyboard-preview', lambda c,p,b,q:
+            Response(200, workflow.production.export_storyboard(c,p['productionId'], preview=True)[0], {
+                'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store',
+                'X-Content-Type-Options': 'nosniff',
+                'Content-Security-Policy': "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"}))
 
     add('GET', '/projects/{projectId}/export', lambda c, p, b, q:
         download(workflow.export(c, p['projectId'])[0], 'approved-assets.zip'))

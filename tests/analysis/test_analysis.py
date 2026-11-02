@@ -91,7 +91,7 @@ class AnalysisTests(unittest.TestCase):
         new=self.begin(idempotencyKey='single-invalid-request',reanalyze=True)
         self.ai.advance(self.ctx,new['id']);self.ai.advance(self.ctx,new['id'])
         failed=self.ai.get(self.ctx,new['id'])
-        self.assertEqual(failed['status'],'failed');self.assertEqual(failed['totalCalls'],1)
+        self.assertEqual(failed['status'],'needs_review');self.assertEqual(failed['totalCalls'],1)
         self.ai.refresh(self.ctx,new['id']);self.ai.advance(self.ctx,new['id'])
         self.assertEqual(len(self.provider.submissions),2)
         self.ai.resume_review(self.ctx,new['id'])
@@ -152,7 +152,7 @@ class AnalysisTests(unittest.TestCase):
     def test_partial_or_malformed_model_output_fails_and_leaves_plan(self):
         job=self.begin();self.ai.advance(self.ctx,job['id']);self.provider.text='{"complete":'
         self.ai.advance(self.ctx,job['id'])
-        result=self.ai.get(self.ctx,job['id']);self.assertEqual(result['status'],'failed')
+        result=self.ai.get(self.ctx,job['id']);self.assertEqual(result['status'],'needs_review')
         self.assertIsNone(result['result']);self.assertTrue(result['canRetry'])
         self.assertEqual(len(self.provider.submissions),1)
         with self.assertRaises(WorkflowError):self.ai.candidate(self.ctx,job['id'])
@@ -186,7 +186,7 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(self.ai.get(self.ctx,job['id'])['phase'],'review')
         self.ai.advance(self.ctx,job['id']);self.ai.advance(self.ctx,job['id'])
         failed=self.ai.get(self.ctx,job['id'])
-        self.assertEqual(failed['status'],'failed');self.assertTrue(failed['canRepairResult'])
+        self.assertEqual(failed['status'],'needs_review');self.assertTrue(failed['canRepairResult'])
         self.assertEqual(failed['completedCalls'],2)
         with self.assertRaises(WorkflowError):self.ai.repair_result(self.ctx,job['id'],{'confirmSpend':False})
         self.ai.repair_result(self.ctx,job['id'],{'confirmSpend':True})

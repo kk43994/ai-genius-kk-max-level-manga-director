@@ -1,0 +1,13 @@
+import {escapeHTML as esc,assetURL} from './model.js';
+export const recipeStatus={draft:'待试用',single:'单次选用',repeated:'重复验证'};
+export function portablePrompt(prompt=''){
+ return prompt.replace(/\n*\[本剧美术规范[^\]]*\][\s\S]*?\[\/本剧美术规范\][\s\S]*$/,'').replace(/\{\{reference:[^}]+\}\}/g,'{{参考图}}').replace(/本次制作对象：[^\n]+/g,'本次制作对象：{{主体}}。').trim();
+}
+export function promptRecipePanel({revision,project,assets,apiBase,busy,draft={}}){
+ if(!revision)return (project.promptRecipes||[]).map(r=>`<article class="wf-panel"><h4>${esc(r.name)}</h4><p>${recipeStatus[r.status]} · ${r.evidence.length} 张人工选用样例 · ${esc(r.modelLabel||'模型未记录')}</p><p>${esc(r.notes)}</p><details><summary>提示词与生成参数</summary><pre class="wf-prompt-text">${esc(r.prompt)}</pre><pre>${esc(JSON.stringify(r.settings,null,2))}</pre></details></article>`).join('')||'<p class="wf-empty">在已选图片的版本窗口点击“收为提示词规范”，就能记录用得好的要求、参数与样例。</p>';
+ const evidence=assets.flatMap(a=>a.revisions).filter(r=>r.id!==revision.id&&r.entityId===revision.entityId&&r.stage===revision.stage&&r.status==='ready'&&r.prompt===revision.prompt&&JSON.stringify(r.settings)===JSON.stringify(revision.settings)&&r.modelLabel===revision.modelLabel&&(r.review==='approved'||r.reviewHistory?.some(h=>h.decision==='approved')));
+ return `<p class="wf-muted">保存原始要求、模型、参数和选用样例。改写后的模板标为待试用；已有样例只说明当时的效果。</p><form data-wf-form="prompt-recipe" class="wf-compose"><input type="hidden" name="revisionId" value="${esc(revision.id)}"><label>规范名称<input name="name" maxlength="120" required value="${esc(draft.name||'')}"></label><label>适用范围与检查要点<textarea name="notes" rows="3" maxlength="2000" required placeholder="例如：用于白底人物多视图。检查身份、服饰、四个视角和手部。">${esc(draft.notes||'')}</textarea></label><label>可复用要求<textarea name="prompt" rows="7" maxlength="15000" required>${esc(draft.prompt??portablePrompt(revision.prompt))}</textarea></label><p class="wf-muted">{{主体}} 在使用时替换；参考图从当前对象重新选择。</p>${evidence.length?`<details><summary>加入同条件下的其他验证样例（${evidence.length}）</summary>${evidence.map(r=>`<label class="wf-analysis-check"><input type="checkbox" name="evidenceRevisionIds" value="${esc(r.id)}" ${(draft.evidenceRevisionIds||[]).includes(r.id)?'checked':''}><img width="72" src="${esc(assetURL(apiBase,r.assetId,r.id,true))}" alt="验证样例">${esc(r.id.slice(-6))}</label>`).join('')}</details>`:''}<button class="primary" ${busy?'disabled':''}>保存提示词规范</button></form>`;
+}
+export function recipePicker(project){
+ return project?.promptRecipes?.length?`<details><summary>使用本剧提示词规范</summary>${project.promptRecipes.map(r=>`<button type="button" data-prompt-use="${esc(r.id)}">${esc(r.name)} · ${recipeStatus[r.status]}</button>`).join('')}</details>`:'';
+}

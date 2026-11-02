@@ -2,8 +2,10 @@
 import base64
 import hashlib
 import json
+import logging
 import re
 import socket
+import time
 from dataclasses import dataclass, field
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
@@ -108,8 +110,9 @@ class HTTPResult:
 
 class OfficialHTTP:
     """Bounded requests; redirects cannot exfiltrate codes/tokens/client secrets."""
-    def __init__(self, timeout=15, max_bytes=None):
+    def __init__(self, timeout=15, max_bytes=None, mcp_timeout=60):
         self.timeout = timeout
+        self.mcp_timeout = mcp_timeout
         self.max_bytes = 1024 * 1024 if max_bytes is None else max_bytes
         self.mcp_max_bytes = 16 * 1024 * 1024 if max_bytes is None else max_bytes
         self._opener = build_opener(_NoRedirects())
@@ -117,10 +120,11 @@ class OfficialHTTP:
     def request(self, method, url, *, data=None, headers=None):
         official_url(url)
         limit = self.mcp_max_bytes if url == RESOURCE else self.max_bytes
+        deadline = time.monotonic() + (self.mcp_timeout if url == RESOURCE else self.timeout)
         try:
             req = Request(url, data=data, headers=headers or {}, method=method)
             try:
-                response = self._opener.open(req, timeout=self.timeout)
+                response = self._opener.open(req, timeout=self.mcp_timeout if url == RESOURCE else self.timeout)
             except HTTPError as err:
                 response = err
             with response:
@@ -131,6 +135,10 @@ class OfficialHTTP:
                 if 'text/event-stream' in content_type:
                     body, used, event_data = None, 0, []
                     while used <= limit:
+                        # Keepalive lines can prevent a socket timeout forever.
+                        # They are not progress and must not extend this request.
+                        if time.monotonic() >= deadline:
+                            raise TimeoutError()
                         line = response.readline(limit - used + 1)
                         used += len(line)
                         if used > limit:
@@ -161,7 +169,12 @@ class OfficialHTTP:
             return HTTPResult(status, body, response_headers)
         except AuthError:
             raise
-        except (URLError, TimeoutError, socket.timeout, OSError):
+        except (URLError, TimeoutError, socket.timeout, OSError) as exc:
+            # Never log URLs, exception messages, request bodies or credentials.
+            cause = getattr(exc, 'reason', exc)
+            kind = 'timeout' if isinstance(cause, (TimeoutError, socket.timeout)) else 'transport'
+            logging.getLogger(__name__).error('Official request failed: endpoint=%s kind=%s',
+                                                'mcp' if url == RESOURCE else 'oauth', kind)
             raise AuthError('PROVIDER_UNAVAILABLE') from None
         except (ValueError, UnicodeError, RecursionError):
             raise AuthError('PROVIDER_PROTOCOL_ERROR') from None

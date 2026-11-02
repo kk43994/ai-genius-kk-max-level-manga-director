@@ -64,7 +64,7 @@ def main():
     shutil.copytree(ROOT / ".build/server", stage / "server")
     client = stage / "server/local_client"
     client.mkdir()
-    for name in ("__init__.py", "launch.py", "asset-lab.ico"):
+    for name in ("__init__.py", "launch.py", "updater.py", "install_update.py", "asset-lab.ico"):
         shutil.copyfile(ROOT / "local_client" / name, client / name)
     runtime = stage / "runtime"
     runtime.mkdir()
@@ -85,17 +85,18 @@ def main():
         f"资产实验室 · Windows 本地连接预览 {APP_VERSION}\n\n"
         "1. 将整个 ZIP 解压到一个文件夹。不要在压缩包预览中运行。\n"
         "2. 双击“启动资产实验室.cmd”，浏览器会打开本机工作台。无需安装 Python、Codex 或 CLI。\n"
-        "3. 点击“授权 LibTV”，在 LibTV 官方页面登录并确认账号读取权限。\n"
+        "3. 点击“授权 LibTV”，在 LibTV 官方页面登录；使用创作功能时确认所需创作权限。\n"
         "4. 工作台自动核验账号并查询个人/团队空间；选择空间后点击“应用到新任务”。\n"
         "5. 再次启动会恢复本机已保存的工作区和授权。令牌失效时使用“重新授权”。\n\n"
         "数据保存在 %LOCALAPPDATA%\\AssetLab；程序文件夹与数据分开。请保留其中的 secrets 文件夹，否则无法解密已保存的授权。\n"
         "使用页面底部“退出本地工作台”可停止本地服务。再次双击启动即可继续。\n\n"
-        "本版仅开放 LibTV 账号读取；生成、付费调用和自动安装更新暂未开放。\n"
+        "支持剧本分析与图片创作；创作授权及每批生成需用户确认。自动检查并下载更新，保存草稿并完成任务后安装；视频与音频后续接入。\n"
         "开发机已完成真实官方只读授权、身份/空间回读和重启保留连接；Windows 实机验证仍待完成。\n",
         encoding="utf-8-sig")
     provenance.update(wheels=[{"file": w.name, "sha256": digest(w)} for w in wheels],
                       platform="windows-amd64", python=PYTHON_VERSION, version=APP_VERSION,
                       liveUserCredentialsIncluded=False, windowsRuntimeExecuted=False,
+                      generationEnabledByDefault=True, automaticUpdates=True,
                       sourceCommit=subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip())
     (stage / "build-provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
     files = {p.relative_to(stage).as_posix(): digest(p) for p in sorted(stage.rglob("*")) if p.is_file()}

@@ -24,6 +24,10 @@ class LiveTests(unittest.TestCase):
             with self.assertRaises(GenerationError):personal_account(BODY,{**OWNER,**patch})
         body=copy.deepcopy(BODY);body['accounts']['accounts'][0]['ownerUuid']='other'
         with self.assertRaises(GenerationError):personal_account(body,OWNER)
+    def test_missing_numeric_subject_id_cannot_match_missing_project_owner(self):
+        for value in (None, '', '9', True, 0):
+            body=copy.deepcopy(BODY);body['user']['id']=value
+            with self.assertRaises(GenerationError):personal_account(body,OWNER)
     def test_nested_model_contract_preserves_exact_count(self):
         a=SimpleNamespace(recipes={'mj_style':RecipeBinding('mj-v8.1')},policy=GenerationPolicy(),catalog=ToolCatalog.bundled())
         c=LiveImageClient(a,OWNER,None)
@@ -38,6 +42,24 @@ class LiveTests(unittest.TestCase):
                 with self.assertRaises(ConfigurationError):Config(Path(d).resolve(),**kwargs)
             c=Config(Path(d).resolve(),allowPaidSubmission=True,local_client=True)
             self.assertTrue(c.allowPaidSubmission);self.assertFalse(c.videoGeneration)
+    def test_new_image25_routes_preserve_legacy_models_and_require_exact_live_contract(self):
+        from backend.integration_generation import make_adapter
+        adapter = make_adapter(SimpleNamespace(storage=None), None, local_images=True)
+        self.assertEqual(adapter.recipes['image2_asset'].model, 'lib-image-2')
+        self.assertEqual(adapter.recipes['storyboard_image'].model, 'lib-image-2')
+        client = LiveImageClient(adapter, OWNER, None)
+        seen = []
+        def contract(model):
+            seen.append(model)
+            return {'inputContract':{'model':model,'modality':'image',
+                'parameterSchemas':{'generate':{'type':'object','properties':{'count':{'enum':[1]}},'additionalProperties':False}}}}
+        client.get_model = contract
+        for recipe in ('image25_style','image25_asset','image25_storyboard'):
+            self.assertEqual(client._model({'recipe':recipe,'prompt':'合成模型路由测试','settings':{'count':1}})[0], 'lib-image-2.5-s')
+        self.assertEqual(seen, ['lib-image-2.5-s'] * 3)
+        client.get_model = lambda _: contract('lib-image-2')
+        with self.assertRaises(GenerationError):
+            client._model({'recipe':'image25_asset','prompt':'合成测试','settings':{'count':1}})
 if __name__=='__main__':unittest.main()
 
 class DurableResponseTests(unittest.TestCase):
@@ -123,7 +145,7 @@ class UploadContractTests(unittest.TestCase):
         import hashlib
         raw=png();sha=hashlib.sha256(raw).hexdigest()
         ref=VerifiedReference('revision',OWNER,raw,'image/png',sha,'style',True)
-        calls=[];stored=[];sent=[];signed='signed.'+'A'*1100
+        calls=[];stored=[];sent=[];names=[];signed='signed.'+'A'*1100
         a=SimpleNamespace(bridge=SimpleNamespace(check=lambda *a:None),media=SimpleNamespace(put=lambda u,b:sent.append((u,b))))
         c=LiveImageClient(a,OWNER,None)
         c._claim=lambda *a:None;c._observe=lambda *a:None;c._authorize_scopes=lambda *a:None
@@ -133,9 +155,92 @@ class UploadContractTests(unittest.TestCase):
             if name=='upload_ticket':return {'uploadId':'upload','path':'upload-images/path','parts':[{'partNumber':1,'method':'PUT','url':'https://media.example/upload'}]}
             if name=='upload_complete':return {'file_ref':signed,'url':'https://media.example/image.png'}
             self.assertEqual(args['fileRef'],signed)
+            names.append(args['name'])
             return {'projectId':'project','status':'completed','nodeId':'source-node'}
         c._call=call
         result=c._upload('local','project',ref,'original-key','h'*64)
         self.assertEqual(result['nodeId'],'source-node')
         self.assertNotIn(signed,str(stored));self.assertEqual(len(sent),1)
         self.assertEqual(calls,['upload_ticket','upload_complete','upload_media'])
+        c._upload('another-task','project',ref,'another-key','h'*64)
+        c._upload('local','project',ref,'original-key','h'*64)
+        self.assertNotEqual(names[0],names[1])
+        self.assertEqual(names[0],names[2])
+
+class UploadRecoveryTests(unittest.TestCase):
+    def client(self, state):
+        from contextlib import contextmanager
+        @contextmanager
+        def edit(*args):
+            yield state
+        c = LiveImageClient(SimpleNamespace(journal=SimpleNamespace(edit=edit),
+            bridge=SimpleNamespace(task_for_receipt=lambda *args:'local'), reference_route=None), OWNER, None)
+        c._record = lambda task: {'spec':{'projectId':'local-project'}}
+        c._project = lambda project:'project'
+        c._call = lambda *args: self.fail('Recovery must never submit or upload')
+        return c
+
+    def test_upload_only_failure_can_be_reprepared_without_claiming_remote_generation_failed(self):
+        state={'steps':{'upload_'+'a'*64:{'attempted':True, 'done':False}}}
+        result=self.client(state).lookup({'projectId':'project'})
+        self.assertEqual(result['status'],'failed')
+        self.assertIs(result['generationSubmitted'],False)
+        self.assertEqual(result['failureStage'],'reference_upload')
+
+    def test_missing_journal_or_any_possible_generation_claim_stays_blocked(self):
+        for steps in ({}, {'generation':{'attempted':True}}, {'reference_node':{'attempted':True}},
+                      {'upload_'+'a'*64:{'attempted':True, 'done':True}}, {'unknown':{'attempted':True}}):
+            with self.subTest(steps=steps), self.assertRaises(GenerationError):
+                self.client({'steps':steps}).lookup({'projectId':'project'})
+
+    def test_intact_reference_record_proves_early_setup_stop_without_any_write(self):
+        receipt = {'projectId':'project'}
+        record = {'spec':{'projectId':'local-project'}, 'sources':[{'sha256':'a'*64}],
+                  'prepared':{'providerReceipt':receipt}}
+        for steps in ({}, {'reference_node':{'attempted':True, 'done':False}},
+                      {'upload_'+'a'*64:{'attempted':True, 'done':True}}):
+            state = {'record':record, 'steps':steps}
+            client = self.client(state); client._record = lambda _: copy.deepcopy(record)
+            result = client.lookup(receipt)
+            self.assertEqual(result['failureStage'], 'reference_setup')
+            self.assertIs(result['generationSubmitted'], False)
+        for extra in ({'steps':{'generation':{'attempted':True}}},
+                      {'steps':{'unexpected':{'attempted':True}}},
+                      {'originalReferenceRun':{'run':True}}, {'record':{}}):
+            state = {'record':record, 'steps':{}, **extra}
+            client = self.client(state); client._record = lambda _: copy.deepcopy(record)
+            with self.assertRaises(GenerationError): client.lookup(receipt)
+
+class PartialDeliveryTests(unittest.TestCase):
+    def test_unknown_fourth_export_keeps_three_verified_files_without_resending(self):
+        from helpers import png
+        from backend.tasks.ports import PartialDownload
+        from backend.generation.types import digest
+        raw=png();calls=[]
+        adapter=SimpleNamespace(bridge=SimpleNamespace(task_for_receipt=lambda *args:'local'),
+            policy=GenerationPolicy(allow_external_writes=True),media=SimpleNamespace(get=lambda *args,**kwargs:raw))
+        client=LiveImageClient(adapter,OWNER,None)
+        receipt={'projectId':'project','taskId':'task','nodeId':'node'}
+        client.lookup=lambda ref:{'status':'completed','providerReceipt':receipt}
+        client._record=lambda task:{'prepared':{'count':4}}
+        def claim(task, step, args):
+            index=args['items'][0]['outputIndex']
+            if index==3:raise GenerationError('OPERATION_UNKNOWN')
+            return {'operationId':'op'+str(index),'sourceHash':digest('source'+str(index)),
+                    'nodeId':'node','outputIndex':index,'mime':'image/png'}
+        client._claim=claim
+        def call(name,args):
+            calls.append((name,args))
+            self.assertEqual(name,'get_web_operation_status')
+            index=int(args['operationId'][-1])
+            return {'projectId':'project','operationId':args['operationId'],'status':'completed',
+                    'operation':'prepare_delivery_item','result':{'sourceIdentity':'source'+str(index),
+                    'mime':'image/png','url':'https://media.example/verified.png'}}
+        client._call=call
+        result=client.download(receipt)
+        self.assertIsInstance(result,PartialDownload)
+        self.assertEqual(len(result.artifacts),3)
+        self.assertTrue(all(item.content==raw for item in result.artifacts))
+        self.assertEqual(len(calls),3)
+        client._claim=lambda *args: (_ for _ in ()).throw(GenerationError('PROVIDER_RECEIPT_MISMATCH'))
+        with self.assertRaises(GenerationError):client.download(receipt)

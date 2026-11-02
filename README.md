@@ -1,100 +1,182 @@
-# 资产实验室 · 本地 LibTV 连接预览
+<div align="center">
 
-当前提供 Mac（Apple 芯片）与 Windows（x64）连接体验版：安装后创建桌面快捷方式，双击启动工作台，点击“授权 LibTV”，在官方页面确认后，由本机回调自动核验账号并读取个人／团队空间。仅申请 `libtv:account:read`；授权令牌由本地服务加密存储，不放入浏览器、源码包或程序包。生成和自动安装更新未开放。
+<img src="docs/brand/kk-director-hero.png" alt="KK DIRECTOR：黑金电影镜头与连续分镜组成的品牌主视觉" width="100%">
 
-下载入口：<https://kk666.best/asset-lab/>。Windows EXE 为中文向导，安装到当前用户的 Programs 目录，创建桌面和开始菜单快捷方式；Mac PKG 安装到“应用程序”并为当前登录用户创建桌面链接。均自带运行时，无需安装 Python、Codex 或 CLI。Windows 数据位于 `%LOCALAPPDATA%\\AssetLab`，Mac 数据位于 `~/Library/Application Support/AssetLab`，与程序分开。只绑定 `127.0.0.1:18874`；页面底部可停止本地服务。卸载保留独立的数据目录。
+<h1>AI天才kk选手进军漫剧界直接做出满级ai漫剧导演台</h1>
 
-Windows 安装流程、快捷方式与本机权限保护仍需 Windows 实机验收；Mac 系统安装流程也需验收。Mac 独立应用的启动、重复打开和重启持久化须以打包后的应用核验。Windows 未代码签名，Mac 仅有本地 ad-hoc 签名，尚无 Developer ID 签名和 Apple 公证；当前为小范围试用包。不要建议用户关闭系统安全保护。
+<p><strong>KK DIRECTOR · 为漫剧工作室打造的 AI 导演台</strong></p>
+<p>开局一份剧本，出手就是导演台。<br>接入 LibTV 创作与额度来源，让一间工作室的想象力，进入可复用的制作流程。</p>
+<p><strong>当前支持 LibTV 扩展接入 · 后续扩展 Lovart</strong></p>
 
-开发人员可运行：
+<p>
+  <a href="https://github.com/kk43994/ai-genius-kk-max-level-manga-director/actions/workflows/verify.yml"><img src="https://github.com/kk43994/ai-genius-kk-max-level-manga-director/actions/workflows/verify.yml/badge.svg?branch=main" alt="源码验证状态"></a>
+  <img src="https://img.shields.io/badge/SOURCE-0.3.0--preview.6-171717?style=flat-square&labelColor=171717&color=b49a66" alt="源码 0.3.0-preview.6">
+  <img src="https://img.shields.io/badge/DESKTOP-0.3.0--preview.5-171717?style=flat-square&labelColor=171717&color=738f80" alt="公开桌面版 0.3.0-preview.5">
+  <img src="https://img.shields.io/badge/FINAL_CUT-YOURS-171717?style=flat-square&labelColor=171717&color=b49a66" alt="创作决定由人做出">
+</p>
 
-```sh
-.venv/bin/python local_client/launch.py --instance /absolute/path/outside-source/local-instance
-```
+<p>
+  <a href="https://kk666.best/asset-lab/"><strong>下载桌面预览版</strong></a> ·
+  <a href="#平台接入与额度来源">LibTV / Lovart</a> ·
+  <a href="#从剧本到分镜">制作流程</a> ·
+  <a href="#导演手里有什么">功能一览</a> ·
+  <a href="docs/updates/README.md">每次升级</a> ·
+  <a href="docs/rag/README.md">项目知识库</a>
+</p>
 
-构建 Windows 包前，下载固定版本的 Windows x64 wheels，再调用构建脚本。脚本从 Python 官方发布清单确定内嵌运行时并校验 SHA-256；只复制公共前端、服务器代码和依赖，不复制任何运行实例。
+<sub>主视觉与下方流程图由 imagegen 原创生成，属于品牌概念配图；实际功能与验收范围见版本记录。</sub>
+</div>
 
-```sh
-.venv/bin/python -m pip download --only-binary=:all: --platform win_amd64 --python-version 3.14 --implementation cp --abi cp314 --dest work/windows-wheels -r requirements.txt
-.venv/bin/python scripts/build_windows_local.py --output /absolute/path/to/output
-.venv/bin/python scripts/build_windows_installer.py --output /absolute/path/to/output
-```
+---
 
-Windows 安装器需要 NSIS，使用命名互斥量避免覆盖正在运行的程序。ZIP 仅用于支持人员排查，公开下载页使用 EXE。Mac 需在 Apple 芯片电脑上，使用最低部署目标为 macOS 11 的 Python 3.14 构建环境：
+## 这一次，导演位我坐定了
 
-```sh
-python -m pip install -r local_client/macos-build-requirements.txt
-python scripts/build_macos_local.py --output /absolute/path/to/output
-```
+**AI 天才 kk 选手，正式进军漫剧界。**
 
-已用 Astral python-build-standalone `20261026` 的 CPython 3.14.10 aarch64-apple-darwin 运行时构建；下载归档 SHA-256 为 `95eb8c87d16af37c54e9765e31d8c56c0d8ffa9968ea0f704f73a9b83f84e9f9`。不要用最低系统版本高于 macOS 11 的宿主 Python 构建并宣称兼容 macOS 11。打包后检查全部 Mach-O 的最低系统版本与应用签名，再在独立测试实例验证启动和持久化。
+剧本交给 AI 拆，风格由我定；角色立得住，场景接得上，每一个镜头都能回到画布上重新打磨。从一张风格样板，到整部剧的美术标准；从一句台词，到一组能看懂剧情的分镜——创作的主动权，始终在导演手里。
 
-`scripts/build_download_site.py` 从两份安装包及校验文件生成黑白下载页。必须提供 `--installer`、`--mac-installer`、`--mac-verification`、`--output`；核验报告须包含匹配的 `version` 与 `packagedLaunchPassed: true`。公网页面只含静态文件、安装包及校验值，不能复制任何本地实例、密钥或数据库。
+KK DIRECTOR 的野心很直接：**做漫剧工作室最好用的 AI 导演台。** 把平台的生成能力与额度接进来，把工作室的剧本、美术标准、资产和镜头组织起来。下一部剧，换上你的故事，继续开拍。
 
-本分支基于集成版本 `46464071006fb3e734073b54c7d3d5684327ad81`，下面保留公共网页模式的开发说明。网页模式的正式授权门槛没有放开；只有明确启用且严格绑定本机的本地模式开放账号读取。
+固定的是流程、版式与制作依赖。人物、场次、镜头、台词和画面，随时可以由人增删修改。AI 负责减少重复劳动，最后一拍，由你喊。
 
-## 公共网页模式的集成状态
+## 平台接入与额度来源
 
-公共入口已装配 SQLite 存储、本站会话、LibTV 授权生命周期、账号与空间选择、项目工作流、任务归属与恢复、版本更新。前端只有一个 bootstrap，共享 API client 和事件通道。项目与草稿可以保存、刷新和重启恢复，角色、场景、道具分别保留制作与人工审核记录。
+**工作台负责导演与制作流程，接入的平台提供生成能力与额度。** 当前通过 LibTV 官方扩展接入用户自己的账号，调用可用模型、引用素材并提交图片创作任务，实际消耗对应账号的 LibTV 额度。创作内容和最终选用决定留在导演台中统一管理。
 
-**当前是集成候选版，customerReady=false。** 正式 GenerationAdapter 已注入 ProviderService，并与同一 Store、TaskRepository、WorkflowService 接线；模型、准备、提交、查询、参考图和下载的协议流程已有实现。生产响应字段映射、准确模型绑定、项目到空间映射与媒体域名证据尚未补齐，不能开放真实生成。创作 scope、公网 callback 和收费实测是另外三个未通过的门槛。另一隔离实例已完成本机官方只读授权；该实例的凭据没有复制到本仓库或发布包。
+| 平台 | 当前定位 | 接入状态 |
+| :--- | :--- | :--- |
+| **LibTV** | 当前创作能力与额度来源：官方授权、图片模型目录、个人素材库与生成任务。 | **已接入。** 可用能力依官方账号、授权和目录而定；官方未返回余额时显示未知，不把未知显示成 0。 |
+| **Lovart** | 后续扩展的创作平台与额度来源，继续服务同一套工作室制作流程。 | **规划中。** 具体接入方式与能力待官方接口和授权条件核验，当前版本尚未接入。 |
 
-客户最终通过网址操作，无需 Codex 或 CLI。以下命令只给开发和部署人员使用。8768 与 8870 是原工作台和基线端口，禁止此副本占用。
+面向工作室的方向是：复用全剧美术标准和资产，减少重复输入，在同一处看图、改图与审查剧情。未来扩展平台时，继续保留账号归属、任务回执、素材版本和人工选用记录。
 
-## 本地运行
+## 从剧本到分镜
 
-运行环境已在 Python 3.14.7 验证。requirements.txt 固定凭据加密与图片完整性检查所需依赖。
+<img src="docs/brand/production-flow.png" alt="制作流程概念图：导入剧本、确立人物与场景风格、制作多视图资产、编排连续分镜" width="100%">
 
-```sh
-python3 -m venv .venv
+| 阶段 | 画布上发生什么 | 你来决定什么 |
+| :--- | :--- | :--- |
+| **01 · 剧本入场** | 导入 TXT、Markdown 或 DOCX；AI 提取角色、场景、事件与台词，先铺出剧情卡片和画面占位。 | 校对原文、补充遗漏、改写内容、增删角色与场次。 |
+| **02 · 全剧美术定调** | 分别探索人物与场景风格，再做人物入景试镜，形成一套可继承的全剧美术标准。 | 哪张脸、哪种质感、什么空间气氛，值得成为这部剧的标准。 |
+| **03 · 资产站稳** | 先做人物、场景主多视图，再以固定版本派生剧情状态；关键道具单独建档。 | 选用哪个版本，哪些细节需要带着原图重新调整。 |
+| **04 · 镜头开拍** | 引用已确认素材，编排动作、构图与台词；按依赖批量补图，新画面回到原来的镜头卡。 | 选图、比较、修改、重抽，控制相邻镜头的衔接。 |
+| **05 · 连起来看** | 在同一画布审查多视图、分镜图、描述与台词，静帧预演后导出图文分镜资料。 | 剧情是否清楚、人物是否一致、这一版是否可以交付。 |
+
+**先有框架，后补画面；看到问题，就在问题旁边改。** 制作画布与任务版本分工明确，减少来回切页面和重新填写同一份信息。
+
+## 导演手里有什么
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 一张画布，整部剧都在眼前
+
+剧情、全剧美术试做、人物场景资产与镜头共用制作画布。卡片可移动、画布可缩放，点开对象就在旁边继续制作。尚未生成的画面保留占位，不耽误先看清故事。
+
+</td>
+<td width="50%" valign="top">
+
+### 点图选版本，带原图改画面
+
+图片旁直接比较与选用版本，展开重抽后填写修改意见，保留原参考和历史。Nano 洗图提供保真清理入口，新结果作为候选返回，是否替换由人决定。
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 模型自由选，任务一起跑
+
+MJ 用于人物与场景风格探索；正式图片制作默认 **Lib Image 2.5 Pro**，下拉框提供当前官方目录中的图片模型。支持多组抽卡与最多 8 镜的批量准备，核对费用后并发提交。
+
+</td>
+<td valign="top">
+
+### AI 给初稿，人有修改权
+
+角色、场次、事件、镜头和台词可增删修改；说话人、台词类型与顺序也能调整。原文单独保留，编辑结果同步到预演和导出，删除镜头后可恢复。
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 好效果，留下制作配方
+
+固定人物、场景与道具的引用版本，支持个人素材库和本地上传参考。把模型、参数、提示词与来源一起保存为规范，并区分待试、单次通过和重复验证。
+
+</td>
+<td valign="top">
+
+### 每次进步，都有记录
+
+源码、版本说明、RAG 与逐次升级记录一起维护。任务保留原回执，余额未知明确显示未知，已完成的图片版本持续保留。遇到问题能找到原因，也能找到当时的版本。
+
+</td>
+</tr>
+</table>
+
+## 现在可以用到哪里
+
+| 入口 | 当前版本 | 范围 |
+| :--- | :--- | :--- |
+| **本仓库源码** | `0.3.0-preview.6` | 统一画布、就地编辑、版本选图、AI 内容人工纠错等最新开发功能。逐项证据见 [preview.6](docs/versions/0.3.0-preview.6.md)。 |
+| **公共安装包与更新源** | `0.3.0-preview.5` | Windows / macOS 桌面预览版；下载与实际支持平台以 [下载页](https://kk666.best/asset-lab/) 为准。源码更新不会自动变成安装包更新。 |
+| **图片创作** | 已接入，持续打磨 | 使用你自己的 LibTV 账号和授权；实际可用模型、费用与结果取决于官方服务。新候选由人选用。 |
+| **视频与音频** | 后续阶段 | 当前交付重点是带分镜图、画面描述与角色台词的分镜脚本，以及静帧预演。 |
+
+已有真实前端的 22 镜图文分镜制作与导出记录；新统一画布完成完整合成流程和代表性真实出图验证。**这不等于所有模型、Nano 清理质量或所有电脑安装都已验收。** 具体范围、失败记录和下一步分别写在 [版本说明](docs/versions/0.3.0-preview.6.md) 与 [制作清单](docs/plans/2026-11-03-canvas-production-line.md) 中。
+
+## 开始创作
+
+普通使用者从 [桌面下载页](https://kk666.best/asset-lab/) 安装，启动后在浏览器操作工作台，连接自己的 LibTV 账号，再导入剧本。日常创作不需要 Codex 或命令行。
+
+<details>
+<summary><strong>开发者：从源码启动最新画布</strong></summary>
+
+当前依赖组合在 Python 3.14 验证；运行前确保端口 `18874` 空闲。
+
+```bash
+git clone https://github.com/kk43994/ai-genius-kk-max-level-manga-director.git
+cd ai-genius-kk-max-level-manga-director
+python3.14 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python scripts/init_local_instance.py --directory /absolute/path/outside-release/local-instance
-.venv/bin/python -m backend.app --port 8890 --data-dir /absolute/path/outside-release/local-instance/data --secret-key-file /absolute/path/outside-release/local-instance/secrets/storage.key
+.venv/bin/python local_client/launch.py \
+  --instance ../kk-director-instance \
+  --enable-image-generation
 ```
 
-打开 http://127.0.0.1:8890/。初始化只为新实例生成密钥，绝不覆盖已有密钥。数据与密钥分别存放在代码发布目录之外；密钥须为当前服务用户独占的普通文件，不能软链接、随数据备份或进入发布包。更换密钥会影响已有加密授权，不能用重新初始化代替恢复。
+以上是 macOS / Linux 终端示例；Windows 对应解释器位于 `.venv\Scripts\python.exe`。默认打开 `http://127.0.0.1:18874/asset-lab/`。实例目录放在源码之外，项目资料和授权数据不进入 Git。该参数开放经授权的图片任务入口，实际提交仍在前端确认。
 
-子路径实例添加 --public-base-path /asset-lab/，使用独立端口与实例目录，访问 http://127.0.0.1:8891/asset-lab/。API 自动位于 /asset-lab/api/v1，根 /api 不被占用。--api-base 可显式指定另一个同源路径。Cookie 按根/子路径和本地实例隔离。
+维护与验证：
 
-环境变量见 .env.example，命令行优先，程序不自动加载 .env。--check-config 只检查配置语法，不创建或迁移数据库。实际数据库 schema 为 **2**。指定发布清单时，先校验 schema 再初始化存储。回滚不能擅自把 schema 2 数据交给只支持 schema 1 的代码。
-
-## 已装配行为
-
-- tenantId/siteSessionId 仅从安全 Cookie 查服务端会话。项目、任务、文件下载、审核、草稿都校验工作区归属；浏览器不能指定其他租户。
-- 写入验证 Origin、CSRF、发起时的 X-Asset-Lab-Session、字段白名单、对象版本、任务幂等。Cookie 轮换后即使拿到新 CSRF，旧页面发起的新项目创建或无 projectId 草稿仍返回 WORKSPACE_CONTEXT_CHANGED；已通过 HTTP 检查的请求在 Store 事务中再次验证 session，轮换竞态不会跨工作区落盘。
-- 主所有者服务和 UI 已接入真实草稿检查、强制服务器保存凭据、旧上下文暂停与会话轮换。界面只在 workspaceOwnerAuthorization 明确为 true 时允许操作；当前为 false。外部会话改变时保留旧输入供用户核对，不把旧草稿保存到新工作区。真人 owner 绑定/找回尚未执行。
-- 过期 Cookie 不静默生成新工作区。POST /session/anonymous 只接受同源显式新建动作与专用请求头，拒绝替换有效会话，不授予旧工作区访问权。
-- 导入 TXT/MD/DOCX 或手工整理清单，导入不等于模型分析。MJ 风格、Image2 资产、Nano 精修逐阶段人工审核；返修追溯原始 Image2。
-- 任务 owner 和工作流快照固定持久化。切换当前账号不改变历史任务，恢复只查询原回执，不重提生成。源换版时阻止旧结果混入当前资产。
-- PUT /drafts/browser 保存新项目、计划、提示词、审核备注及待应用选择，采用 CAS。更新必须收到服务器保存确认，本机缓存不能代替确认。冲突保留双方副本并阻止自动覆盖。
-- 版本模块使用页面构建时写入的标记，定期或手动提示。检查不会自动刷新；客户点击后再次检查草稿、任务、下载。页面与服务不兼容时拦截业务写入，仍可保存草稿。
-
-health=200 只表示进程存活。ready 报告模块装配和官方授权、双真实账号、公网部署、生成门槛，未满足时保持 503。模块测试、合成 provider 或本地升级不代表客户成品完成。
-
-官方只读证据见 backend/auth/OFFICIAL_READ_EVIDENCE.md。已确认 account_user.user.uuid 稳定、个人与团队空间投影；余额无字段，仍为 unknown。search_models 因缺 project:read 被拒绝。精确候选 callback 在标准 DCR 和 application_type=web 下都被拒绝；这不证明所有公网 OAuth 都不支持。生成缺项详见 backend/generation/EVIDENCE.md。
-
-## 检查与打包
-
-```sh
-.venv/bin/python scripts/check_all.py --output /absolute/path/to/evidence/all-checks.json
-.venv/bin/python scripts/check_integration.py --output /absolute/path/to/evidence/http-tests.json
-.venv/bin/python scripts/build_bundle.py --output /absolute/path/to/asset-lab-customer-source.zip
+```bash
+.venv/bin/python scripts/query_project_knowledge.py --check
+.venv/bin/python scripts/check_update_history.py --check-commits
+.venv/bin/python scripts/check_all.py
 ```
 
-源码包从指定 Git commit 白名单生成，ZIP 内含每文件 SHA-256，外附整包校验和，同 commit 可重复构建。排除旧引擎、客户数据、密钥、Git 元数据、本地测试实例、原工程媒体和未提交改动。
+完整检查还需要 Node.js 22。提交前阅读 [协作约定](AGENTS.md)，每次有意义的迭代新增一份 [升级记录](docs/updates/TEMPLATE.md)。
 
-发布结构由 scripts/build_customer.py 生成 .build/public 和 .build/server，不带测试假服务。deploy/release.py 根据真实 build spec 生成清单、完整 SHA-256 inventory 和不可变版本资源基址。示例 buildId、时间、版本、说明须替换为实际值。
+</details>
 
-scripts/prepare_local_release.py 可完整构建、校验、解包到仓库外独立 loopback 实例，用于升级验收，不连接远程主机。发布包从 server 目录启动：
+## 每次升级，看得见
 
-```sh
-python -m backend.app --frontend-dir ../public --release-root /absolute/runtime-root --running-manifest ../release.json --public-base-path /asset-lab/ --port 8892 --data-dir /absolute/instance/data --secret-key-file /absolute/instance/secrets/storage.key
-```
+| 想了解什么 | 从这里看 |
+| :--- | :--- |
+| 这次到底改了什么 | [逐次升级时间线](docs/updates/README.md) · [CHANGELOG](CHANGELOG.md) |
+| 当前功能怎么设计、改哪里 | [RAG 项目知识首页](docs/rag/README.md) |
+| 哪些内容人可以修改 | [人工编辑约定](docs/rag/human-editing.md) |
+| 画布生产流程与待办 | [画布流水线](docs/rag/canvas-production-line.md) · [逐项清单](docs/plans/2026-11-03-canvas-production-line.md) |
+| 模型、素材、连接和更新 | [图片创作](docs/rag/image-creation.md) · [LibTV 连接](docs/rag/libtv-connectivity.md) · [桌面更新](docs/rag/desktop-updates.md) |
+| 品牌主图与生成提示词 | [视觉资产说明](docs/brand/PROMPTS.md) |
 
-## 发布边界
+RAG 在这里是随版本维护、可本地检索的项目知识源。首页直接列出最近升级内容；同一预览版本内的改动也逐次记录，CI 检查程序提交是否漏记。历史文档保留当时状态，判断当前能力请优先看最新 RAG 和版本记录。
 
-未操作 ssh kelao，未修改公网路由。https://kk666.best/asset-lab/ 仅为候选路径，实际官方注册曾拒绝该候选 callback，不能推广为所有公网回调都不支持。
+---
 
-部署、回滚、SSH/Hub 流程保留在 deploy/，生产 hooks、反向代理、服务用户、备份迁移、公网验收还须配置执行。工具要求真实空闲检查、预检、激活、停用和探针 hooks；示例命令不是已安装的服务。
-
-allowPaidSubmission 与 videoGeneration 目前不可开启。新增收费路径必须受同一提交门槛控制，最终视频继续暂停。
+<div align="center">
+<strong>一部剧，可以由 AI 协作完成。<br>但每一个值得留下的镜头，都要有你的决定。</strong>
+<p><sub>KK DIRECTOR · ONE CANVAS. EVERY SHOT.</sub></p>
+</div>

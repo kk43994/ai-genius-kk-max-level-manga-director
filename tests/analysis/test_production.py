@@ -77,7 +77,7 @@ class ProductionTests(unittest.TestCase):
         job=self.finish();calls=[]
         self.services.tasks.prepare=lambda ctx,spec,rev,key:calls.append(spec) or {'task':{'id':'synthetic'}}
         plan=self.workflow.get_plan(self.ctx,self.project['id'])
-        body={'assetId':'a_lin','stateId':'base','recipe':'mj_style','prompt':'独立角色风格设计',
+        body={'assetId':'a_lin','stateId':'__character_master__','recipe':'mj_style','prompt':'独立角色风格设计',
               'expectedReviewVersion':0,'expectedEditVersion':0,'expectedPlanVersion':plan['version'],
               'expectedSelectionRevision':1,'idempotencyKey':'canvas-test','settings':{'count':4}}
         self.production.prepare_image(self.ctx,job['id'],body)
@@ -113,7 +113,7 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(job['dialogues'],self.analysis['result']['dialogues'])
         self.assertEqual(self.services.analysis.get(self.ctx,self.analysis['id'])['result'],self.analysis['result'])
         candidate=self.production.candidate(self.ctx,job['id'])
-        self.assertEqual(candidate['addedCount'],4)
+        self.assertEqual(candidate['addedCount'],7)
         self.workflow.save_plan(self.ctx,self.project['id'],{k:candidate[k] for k in ('expectedVersion','entities','stylePrompt')})
         self.assertEqual(self.production.candidate(self.ctx,job['id'])['addedCount'],0)
         self.assertTrue(all(b['saved'] for b in self.production.get(self.ctx,job['id'])['bindings']))
@@ -232,7 +232,7 @@ class ProductionTests(unittest.TestCase):
         edited['assets'][0]['evidence'][0]['quote']=original_quote
         ready=self.production.save_review(self.ctx,job['id'],{'expectedVersion':1,'expectedEditVersion':0,'result':edited})
         self.assertEqual(ready['status'],'ready');self.assertEqual(ready['validationIssues'],[])
-        self.assertEqual(self.production.candidate(self.ctx,job['id'])['addedCount'],4)
+        self.assertEqual(self.production.candidate(self.ctx,job['id'])['addedCount'],7)
         self.assertEqual(len(self.provider.submissions),1)
         self.assertEqual(self.production._get(self.ctx,job['id'])['data'],raw)
         self.assertEqual(self.production.get(self.ctx,job['id'])['result'],edited)
@@ -266,7 +266,7 @@ class ProductionTests(unittest.TestCase):
 
     def test_prompt_separates_facts_design_and_generation(self):
         text=instruction(self.script,self.context)
-        for value in ('creativeChoices','dialogueIds','单人独立参考图','不输出URL','表演','首尾状态'):
+        for value in ('creativeChoices','dialogueIds','人物主多视图','不输出URL','表演','首尾状态'):
             self.assertIn(value,text)
 
 if __name__=='__main__':unittest.main()

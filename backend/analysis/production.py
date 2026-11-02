@@ -50,11 +50,23 @@ SHOT = obj({'id': ID, 'sceneId': ID, 'order': {'type': 'integer', 'minimum': 1},
             'dialogueIds': IDS, 'eventIds': IDS,
             'imagePrompt': string(3000, 20), 'videoPrompt': string(3000, 20),
             'sound': string(), 'continuity': TEXTS, 'evidence': arr(EVIDENCE, 1, 12)})
+# Human-authored dialogue remains separate from immutable source dialogue.
+DIALOGUE_KIND = {'enum': ['dialogue', 'inner_monologue', 'narration', 'voiceover', 'offscreen', 'system_voice', 'unknown']}
+DIALOGUE_EDIT = obj({'id': ID, 'text': string(4000, 0), 'origin': {'const': 'manual'}})
+DIALOGUE_EDIT['properties'].update(speakerId={'anyOf': [ID, {'type': 'null'}]},
+    speakerLabel=string(100, 0), kind=DIALOGUE_KIND, deleted={'type': 'boolean'})
+SHOT['properties']['dialogueOverrides'] = arr(DIALOGUE_EDIT)
+DIALOGUE_ADD = copy.deepcopy(DIALOGUE_EDIT)
+DIALOGUE_ADD['required'] += ['speakerId', 'speakerLabel', 'kind']
+SHOT['properties']['dialogueAdditions'] = arr(DIALOGUE_ADD, maximum=100)
+SHOT['properties']['dialogueOrder'] = IDS
 SCHEMA = obj({'schemaVersion': {'const': 'production-v1'}, 'sourceRevision': string(128),
               'analysisId': ID, 'aspectRatio': {'enum': ['9:16', '16:9', '1:1']},
               'styleBible': string(4000), 'assets': arr(ASSET, 1, 100),
-              'scenePlans': arr(SCENE, 1, 100), 'shots': arr(SHOT, 1, 200),
+              'scenePlans': arr(SCENE, 1, 100), 'shots': arr(SHOT, 0, 200),
               'uncertainties': TEXTS})
+SCHEMA['properties']['removedShots'] = arr(SHOT, maximum=200)
+SCHEMA['properties']['shotOrder'] = arr(ID, maximum=400)
 
 
 def instruction(script, context, repair=None):
@@ -65,7 +77,7 @@ def instruction(script, context, repair=None):
 已有visualStyle则严格沿用，否则提出一套适合故事的统一美术方案，styleBible标明待确认；全片比例使用aspectRatio。
 角色资产sourceIds使用analysis.characters中的ID，场景资产sourceIds使用analysis.locations中的ID，道具sourceIds为空数组。只为实际在场的角色建立资产，仅被提及者不新增出镜。OS不是独立角色。
 每项资产至少一个基础state，按剧情需要添加被绑/浇湿/受伤/解绳/换装和起火前后等不同state；每个state.sceneIds列出可使用场次。状态不应混合。场景的门窗布局、轴线与光源必须能支持剧情，不擅自把闪回火场等同于当前仓库。
-states.imagePrompt是完整的单一状态资产图提示词，固定人物身份/服装/材质/光线，场景用空镜，道具突出结构。角色使用单人独立参考图，不拼三视图。避免8K、大师级等空词。资产图不演绎整段剧情。
+states.imagePrompt是完整的单一状态资产图提示词，固定人物身份/服装/材质/光线，场景用空镜，道具突出结构。角色状态以已确认的人物主多视图为身份依据，生成同一人物的正面全身、侧面全身、背面全身、头部特写；不重新设计人物长相。避免8K、大师级等空词。资产图不演绎整段剧情。
 scenePlans覆盖每个分析场次，给出可执行的空间布局、光线、情绪变化和跨镜连续性。
 shots按影片播放顺序全局连续编号。每镜有明确叙事目的、主动作、景别、机位、运镜、人物表演、首尾状态、画面与声音。动作复杂时拆镜，听者应有反应，不把一场戏压成一句概括。镜头时长是预演建议，要容纳完整对白、停顿与动作；不要所有镜头同一时长。
 每镜references必须准确引用本方案的assetId/stateId，包含该镜使用的场景、在场人物和关键道具。beat、imagePrompt、videoPrompt 中需要引用具体物料时，用 {{asset:物料ID}} 代替该物料名称，让描述关联真实档案；每个标签都必须出现在本镜 references 中。不要输出 revisionId，它由用户审核图片后选择。即使跨镜仍需重复列出引用，不能只在首镜列。状态应符合时序，跨镜的脸、服装、湿度、伤情、手中道具、视线方向、绳索、火势须连贯。
@@ -75,10 +87,16 @@ shots.imagePrompt描述具体分镜静帧构图和首帧；videoPrompt描述主�
 输出需精炼但完整：优先明确动作、空间和状态，避免各镜重复长篇美术词。'''
     if repair:
         rules += '\n上次方案未通过核验。这次只修正该方案中不符合契约的字段，保留其有效创作内容并返回完整JSON。quote必须是原文连续片段，严禁用省略号代替原句；可以引用较短的真实片段。重新核对所有状态的sceneIds应包含引用它的镜头场次、每条台词恰好分配一次、全部事件覆盖。不得删减镜头以规避核验。'
+    provider_schema = copy.deepcopy(SCHEMA)
+    provider_schema['properties'].pop('removedShots', None)
+    provider_schema['properties'].pop('shotOrder', None)
+    provider_schema['properties']['shots']['minItems'] = 1
+    for field in ('dialogueOverrides', 'dialogueAdditions', 'dialogueOrder'):
+        provider_schema['properties']['shots']['items']['properties'].pop(field, None)
     return rules + '\n' + json.dumps({'sourceRevision': script['sourceRevision'],
         'analysisId': context['analysisId'], 'aspectRatio': context['aspectRatio'],
         'source': [{'line': i, 'text': t} for i, t in enumerate(script['text'].splitlines(), 1)],
-        'analysis': context['analysis'], 'visualStyle': context['stylePrompt'], 'schema': SCHEMA,
+        'analysis': context['analysis'], 'visualStyle': context['stylePrompt'], 'schema': provider_schema,
         **({'previousResult': repair} if repair else {})},
         ensure_ascii=False, separators=(',', ':'))
 
@@ -115,6 +133,7 @@ def validate(result, script, context):
         if asset['category'] != 'prop' and len(asset['sourceIds']) != 1:
             fail('一个人物或地点资产不能合并多个不同的原文对象。')
         if asset['category'] == 'character': covered_characters.update(asset['sourceIds'])
+        if any(s['id'] == MASTER_STATE_ID for s in asset['states']): fail('剧情状态编号不能占用人物主档案编号。')
         if len({s['id'] for s in asset['states']}) != len(asset['states']): fail('同一物料的状态编号重复。')
         for state in asset['states']:
             if not set(state['sceneIds']) <= set(scenes): fail('状态引用了不存在的场次。')
@@ -126,17 +145,21 @@ def validate(result, script, context):
         if not location or location['category'] != 'scene' or not set(location['sourceIds']).intersection(scenes[scene['sceneId']]['locationIds']):
             fail('场次设计的地点物料不匹配。')
     shots = result['shots']
-    if len({s['id'] for s in shots}) != len(shots):
+    removed = result.get('removedShots', [])
+    all_shots = shots + removed
+    if len({s['id'] for s in all_shots}) != len(all_shots):
         fail('镜头编号重复。')
-    if {s['sceneId'] for s in shots} != set(scenes): fail('分镜没有覆盖全部场次。')
+    if 'shotOrder' in result and (len(result['shotOrder']) != len(set(result['shotOrder'])) or set(result['shotOrder']) != {s['id'] for s in all_shots}):
+        fail('镜头恢复顺序与当前镜头不一致。')
+    if {s['sceneId'] for s in all_shots} != set(scenes): fail('分镜没有覆盖全部场次。')
     scene_order = [scenes[s['sceneId']]['order'] for s in shots]
     if scene_order != sorted(scene_order): fail('分镜改变了原剧本的场次播放顺序。')
     # Providers may number globally or restart at each scene. Both preserve
     # the same array playback order; the UI supplies a global display number.
     for scene_id in scenes:
         orders = [s['order'] for s in shots if s['sceneId'] == scene_id]
-        if orders != list(range(orders[0], orders[0] + len(orders))): fail('同一场次的镜头编号重复或顺序不连续。')
-    used_dialogues, used_events = [], set()
+        if orders and orders != list(range(orders[0], orders[0] + len(orders))): fail('同一场次的镜头编号重复或顺序不连续。')
+    used_dialogues, used_events, manual_ids = [], set(), set()
     for shot in shots:
         if not math.isfinite(shot['durationSeconds']): fail('镜头时长必须是有效数字。')
         scene = scenes[shot['sceneId']]
@@ -161,12 +184,31 @@ def validate(result, script, context):
         for d in shot['dialogueIds']:
             if d not in dialogues or dialogues[d]['sceneId'] != shot['sceneId']: fail('镜头台词引用错误。')
             used_dialogues.append(d)
+        overrides = shot.get('dialogueOverrides', [])
+        if len({d['id'] for d in overrides}) != len(overrides) or any(d['id'] not in shot['dialogueIds'] for d in overrides):
+            fail('人工改写台词必须对应本镜的原文台词，且不能重复。')
+        additions = shot.get('dialogueAdditions', [])
+        added_ids = [d['id'] for d in additions]
+        if len(set(added_ids)) != len(added_ids) or set(added_ids) & (set(dialogues) | manual_ids):
+            fail('新增台词编号重复，请重新添加。')
+        manual_ids.update(added_ids)
+        if any(not d.get('deleted') and not d['text'].strip() for d in [*overrides, *additions]):
+            fail('有空白台词，请补充内容或删除这一句；当前修改可以先保存。')
+        if any(d.get('speakerId') and d['speakerId'] not in characters for d in [*overrides, *additions]):
+            fail('台词说话人已不存在，可改为现有角色或手动填写名称。')
+        order = shot.get('dialogueOrder')
+        if order is not None and (len(set(order)) != len(order) or set(order) != set(shot['dialogueIds']) | set(added_ids)):
+            fail('台词顺序与当前台词不一致，请重新排序。')
         for e in shot['eventIds']:
             if e not in events or events[e]['sceneId'] != shot['sceneId']: fail('镜头事件引用错误。')
             used_events.add(e)
-    if len(used_dialogues) != len(set(used_dialogues)) or set(used_dialogues) != set(dialogues):
+    omitted_dialogues = {d for s in removed for d in s['dialogueIds']}
+    omitted_events = {e for s in removed for e in s['eventIds']}
+    if not omitted_dialogues <= set(dialogues) or not omitted_events <= set(events):
+        fail('已删除镜头含有不存在的原文引用。')
+    if len(used_dialogues) != len(set(used_dialogues)) or set(used_dialogues) | omitted_dialogues != set(dialogues):
         fail('分镜遗漏或重复分配了原文台词，请保留结果后重新设计。')
-    if used_events != set(events): fail('分镜遗漏了剧本事件。')
+    if used_events | omitted_events != set(events): fail('分镜遗漏了剧本事件。')
     if sum(len(a['states']) for a in assets.values()) > 250: fail('状态物料过多，请按集制作。')
     return result
 
@@ -177,6 +219,10 @@ def parse(text, script, context):
     if text.startswith('```json\n') and text.endswith('```'): text = text[8:-3].strip()
     try: result = json.loads(text)
     except (ValueError, RecursionError): fail('AI 制作方案未完整返回，原任务记录已保留。')
+    if isinstance(result, dict) and (result.get('removedShots') or result.get('shotOrder')):
+        fail('AI 返回不能冒充人工删除镜头。')
+    if isinstance(result, dict) and isinstance(result.get('shots'), list) and any(isinstance(s, dict) and any(s.get(k) for k in ('dialogueOverrides', 'dialogueAdditions', 'dialogueOrder')) for s in result['shots']):
+        fail('AI 返回不能冒充人工台词改写，请保留原文台词引用。')
     return validate(result, script, context)
 
 
@@ -188,11 +234,28 @@ def shot_entity_id(script_id, shot_id):
     return 'ent_shot_' + hashlib.sha256((script_id+'\0'+shot_id).encode()).hexdigest()[:24]
 
 
+MASTER_STATE_ID = '__character_master__'
+SCENE_MASTER_STATE_ID = '__scene_master__'
+
+
+def production_states(asset):
+    """The identity master is independent of all screenplay states, including state zero."""
+    if asset['category'] == 'scene':
+        return [{'id': SCENE_MASTER_STATE_ID, 'name':'场景主多视图',
+                 'description':'场景空间基准；固定建筑、出入口、陈设和相对位置，不带日夜或剧情破坏等变化。',
+                 'imagePrompt':'同一场景的正视、反打、俯视、侧视，空间结构与陈设一致。'}] + asset['states']
+    if asset['category'] != 'character':
+        return asset['states']
+    return [{'id': MASTER_STATE_ID, 'name': '人物主多视图',
+             'description': '角色身份基准；中性站姿，完整展示五官、发型、体型与基础服装，不带剧情动作、伤情或束缚。',
+             'imagePrompt': '同一人物的正面全身、侧面全身、背面全身、头部特写，身份一致，简洁中性背景。'}] + asset['states']
+
+
 def candidates(result, script):
     rows = []
     names = set()
     for asset in result['assets']:
-        for state in asset['states']:
+        for state in production_states(asset):
             name = (asset['name'] + ' · ' + state['name'])[:110]
             base, n = name, 2
             while name in names:
@@ -252,7 +315,9 @@ class ProductionService(AnalysisService):
         data = self._get(ctx, identity)['data']
         plan = self.services.workflow.get_plan(ctx, result['projectId'])
         project = self.services.workflow.get_project(ctx, result['projectId'])
-        result['stale'] = (project['scriptIds'][-1] != result['scriptId'] or plan['stylePrompt'] != data['context']['stylePrompt'])
+        current_analysis = self.services.analysis.get(ctx, data['context']['analysisId'])
+        result['stale'] = (project['scriptIds'][-1] != result['scriptId'] or plan['stylePrompt'] != data['context']['stylePrompt']
+            or current_analysis.get('result') != data['context']['analysis'])
         # Exact source dialogue remains separate from AI-authored production prose.
         result['dialogues'] = copy.deepcopy(data['context']['analysis']['dialogues'])
         result['characters'] = [{'id': c['id'], 'name': c['name']} for c in data['context']['analysis']['characters']]
@@ -294,17 +359,20 @@ class ProductionService(AnalysisService):
         result['bindings'] = []
         result['shotBindings'] = [{'shotId':s['id'], 'entityId':shot_entity_id(result['scriptId'],s['id'])}
                                   for s in (result.get('result') or result.get('draftResult') or {}).get('shots', [])]
+        result['bindingVersion'] = project.get('productionBindingVersions', {}).get(identity, 0)
         if result['result']:
-            script = self.services.workflow.get_script(ctx, result['projectId'], result['scriptId'])
-            for candidate in candidates(result['result'], script):
-                entity = next((e for e in plan['entities'] if e['id'] == candidate['id']), None)
-                result['bindings'].append({'entityId': candidate['id'], 'name': candidate['name'],
-                    'saved': entity is not None, 'changed': bool(entity and any(entity.get(k) != candidate[k] for k in ('description', 'variant', 'quote')))})
-            for asset in result['result']['assets']:
-                for state in asset['states']:
-                    binding = next(b for b in result['bindings'] if b['entityId'] == entity_id(result['scriptId'], asset['id'], state['id']))
-                    binding.update(assetId=asset['id'], stateId=state['id'])
+            from .production_bindings import describe
+            library = self.services.workflow.list_assets(ctx, result['projectId'])['items']
+            result['bindings'] = describe(result, project, plan, script, library, data['ownership'])
         return result
+
+    def save_binding(self, ctx, identity, body):
+        from .production_bindings import save
+        return save(self, ctx, identity, body)
+
+    def export_storyboard(self, ctx, identity, *, preview=False):
+        from .storyboard_export import export
+        return export(self, ctx, identity, preview=preview)
 
     def save_review(self, ctx, identity, body):
         from .production_review import inspect
@@ -332,6 +400,9 @@ class ProductionService(AnalysisService):
                 or type(body.get('expectedEditVersion')) is not int or body['expectedEditVersion'] != (legacy['version'] if legacy else 0)):
                 raise WorkflowError('VERSION_CONFLICT', '方案已被另一页面修改，请刷新核对；本机修改仍保留。', 409)
             payload = {'jobId': identity, 'result': copy.deepcopy(edited), 'validated': not issues}
+            if old:
+                tx.create('production.review_history', {'jobId': identity, 'reviewVersion': old['version'],
+                    'result': copy.deepcopy(old['data']['result'])})
             if old: tx.update('production.reviews', identity, payload, expected_version=old['version'])
             else: tx.create('production.reviews', payload, record_id=identity)
             # The full review includes previous shot edits; retire their overlay
@@ -354,9 +425,10 @@ class ProductionService(AnalysisService):
     def prepare_image(self, ctx, identity, body):
         """Human-operated canvas generation. Preparation still requires submit confirmation."""
         from backend.workflow.service import owner_key
-        public_input(body, {'assetId','stateId','shotId','recipe','prompt','sourceRevisionIds','settings',
+        public_input(body, {'assetId','stateId','shotId','recipe','prompt','sourceRevisionIds','settings','modelId','extraReferenceIds',
+                            'editRevisionId','editSha256','editNote','confirmEditReference','expectedEditEntityVersion',
                             'expectedReviewVersion','expectedEditVersion','expectedPlanVersion',
-                            'expectedSelectionRevision','idempotencyKey'})
+                            'expectedSelectionRevision','idempotencyKey','expectedArtDirectionVersion'})
         job = self.get(ctx, identity)
         if job['status'] != 'ready' or job['stale']:
             raise WorkflowError('PRODUCTION_NOT_READY', '当前方案有未核对内容，请先保存修改。', 409)
@@ -371,7 +443,7 @@ class ProductionService(AnalysisService):
             raise WorkflowError('SELECTION_CHANGED', '当前账号选择已变化，请重新核对。', 409)
         recipe = body.get('recipe')
         script = self.services.workflow.get_script(ctx, job['projectId'], job['scriptId'])
-        if recipe == 'storyboard_image':
+        if recipe in ('storyboard_image','image25_storyboard'):
             packet = self.reference_packet(ctx, identity, body.get('shotId'))
             if not packet['ready']:
                 raise WorkflowError('REFERENCE_REQUIRED', '本镜还有物料未制图、未审核或未选定版本，请在引用卡片中处理。', 409)
@@ -382,19 +454,29 @@ class ProductionService(AnalysisService):
                 mapping={r['assetId']:r['name'] for r in packet['references']}
                 prompt=MENTION.sub(lambda m:mapping.get(m.group(1),'未绑定物料'),prompt)
                 prompt='\n'.join(r['name']+'='+ '{{reference:'+r['revisionId']+'}}' for r in packet['references'])+'\n'+prompt
-            candidate = {'id':shot_entity_id(job['scriptId'],shot['id']), 'category':'shot',
-                         'name':f"分镜 {job['result']['shots'].index(shot)+1:03d} · {shot['purpose']}"[:120],
-                         'description':('方案签名：'+hashlib.sha256(json.dumps({'shot':shot,'refs':refs},ensure_ascii=False,sort_keys=True).encode()).hexdigest()+'\n'+shot['purpose'])[:4000],
-                         'origin':'manual','quote':'','variant':'分镜静帧'}
-        elif recipe in ('mj_style','image2_asset','nano_refine'):
+            from backend.workflow.production_coverage import shot_candidate
+            candidate = shot_candidate(job['scriptId'], shot, refs, job['result']['shots'].index(shot)+1)
+        elif recipe in ('mj_style','image25_style','image2_asset','image25_asset','nano_refine'):
             target = entity_id(job['scriptId'], str(body.get('assetId')), str(body.get('stateId')))
             candidate = next((e for e in candidates(job['result'],script) if e['id']==target), None)
             if candidate is None:
                 raise WorkflowError('NOT_FOUND', '未找到这个物料状态。', 404)
+            binding = next(b for b in job['bindings'] if b['assetId'] == body.get('assetId') and b['stateId'] == body.get('stateId'))
+            if binding.get('linked'):
+                if binding['changed'] or not binding['saved']:
+                    raise WorkflowError('BINDING_CHANGED', '关联依据已变化，请重新核对已有档案的适用性。', 409)
+                plan = self.services.workflow.get_plan(ctx, job['projectId'])
+                existing = next(e for e in plan['entities'] if e['id'] == binding['entityId'])
+                allowed = {'id','category','name','description','origin','quote','scriptId','variant'}
+                candidate = {k:copy.deepcopy(v) for k,v in existing.items() if k in allowed}
             prompt = body.get('prompt')
             refs = body.get('sourceRevisionIds', [])
         else:
             raise WorkflowError('GENERATION_DISABLED', '请选择已接入的图片制作方式。', 422)
+        extras=body.get('extraReferenceIds',[])
+        if not isinstance(extras,list) or any(not isinstance(r,str) for r in extras) or len(extras)>19:
+            raise WorkflowError('INPUT_INVALID','补充参考列表无效。',422)
+        refs=list(dict.fromkeys([*refs,*extras]))
         if not isinstance(prompt,str) or not 1<=len(prompt.strip())<=20000:
             raise WorkflowError('INPUT_INVALID', '请填写有效的生图提示词。', 422)
         plan = self.services.workflow.get_plan(ctx,job['projectId'])
@@ -407,8 +489,27 @@ class ProductionService(AnalysisService):
             entities = [{k:copy.deepcopy(v) for k,v in e.items() if k in allowed} for e in plan['entities'] if e['id']!=candidate['id']]+[candidate]
             self.services.workflow.save_plan(ctx,job['projectId'],{'expectedVersion':plan['version'],
                 'stylePrompt':plan['stylePrompt'],'entities':entities})
+        from backend.workflow.art_direction import apply, inherited_references
+        workflow = self.services.workflow
+        with workflow.repository.transaction(ctx) as tx:
+            project = workflow._project(tx, job['projectId'])
+            if body.get('expectedArtDirectionVersion', 0) != (project.get('artDirection') or {}).get('version', 0):
+                raise WorkflowError('VERSION_CONFLICT', '本剧风格已变化，请刷新并核对新的制作要求。', 409)
+            refs, prompt = inherited_references(project.get('artDirection'), candidate['category'], refs, prompt)
+            prompt, _ = apply(workflow, tx, project, prompt, owner, recipe)
+        if body.get('editRevisionId'):
+            from backend.workflow.image_edit import editing_reference
+            seed_id, original_refs, retired_refs = editing_reference(workflow, ctx, job['projectId'], candidate['id'], owner, recipe, body)
+            refs = list(dict.fromkeys([rid for rid in [*refs, *original_refs, seed_id] if rid not in retired_refs]))
+            for retired in retired_refs:
+                prompt = prompt.replace('{{reference:' + retired + '}}', '{{reference:' + seed_id + '}}')
+            if len(refs) > 20:
+                raise WorkflowError('INPUT_INVALID', '原图和已有参考合计不能超过 20 张，请减少补充参考。', 422)
+            note = body.get('editNote', '').strip() or '保持人物、场景、构图与动作要求，再生成一版供选择。'
+            prompt += '\n本次编辑基准原图={{reference:' + seed_id + '}}。以该原图为基础修改，保留未要求改变的部分。\n本次修改意见：' + note
         return self.services.tasks.prepare(ctx,{'projectId':job['projectId'],'entityId':candidate['id'],
-            'recipe':recipe,'prompt':prompt,'sourceRevisionIds':refs,'settings':body.get('settings',{})},
+            'recipe':recipe,'prompt':prompt,'sourceRevisionIds':refs,'settings':body.get('settings',{}),
+            **({'modelId':body['modelId']} if 'modelId' in body else {})},
             body.get('expectedSelectionRevision'),body.get('idempotencyKey'))
 
     @staticmethod
@@ -497,7 +598,10 @@ class ProductionService(AnalysisService):
             raise WorkflowError('PRODUCTION_NOT_READY', '方案未完成或原文/风格已变化，请先核对。', 409)
         plan = self.services.workflow.get_plan(ctx, job['projectId'])
         script = self.services.workflow.get_script(ctx, job['projectId'], job['scriptId'])
-        added = candidates(job['result'], script)
+        linked = {entity_id(job['scriptId'], b['assetId'], b['stateId']) for b in job['bindings'] if b.get('linked') and b['saved']}
+        if any(b.get('linked') and b['changed'] for b in job['bindings']):
+            raise WorkflowError('BINDING_CHANGED', '已有物料的关联依据已变化，请先核对。', 409)
+        added = [e for e in candidates(job['result'], script) if e['id'] not in linked]
         old = copy.deepcopy(plan['entities'])
         ids = {e['id'] for e in old}
         # Add only: never overwrite user edits or silently remove old assets.

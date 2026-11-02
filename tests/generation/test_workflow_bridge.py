@@ -83,6 +83,21 @@ class WorkflowBridgeTests(unittest.TestCase):
         self.assertEqual(reference.stage, 'style')
         self.assertTrue(reference.approved)
 
+    def test_image2_preparation_accepts_task_snapshot_but_rereads_actual_review(self):
+        task = self.finish_style(); output = task['outputs'][0]
+        spec = {'projectId': self.project['id'], 'entityId': 'entity_one', 'recipe': 'image2_asset',
+                'prompt': 'Synthetic four views', 'settings': {}, 'sourceRevisionIds': [output['revisionId']]}
+        with self.assertRaises(Exception):
+            self.tasks.prepare(self.f.ctx, spec, 1, 'asset-before-review')
+        asset = next(a for a in self.workflow.list_assets(self.f.ctx, self.project['id'])['items'] if a['id'] == output['assetId'])
+        self.workflow.review(self.f.ctx, output['assetId'], {'revisionId': output['revisionId'],
+            'sha256': output['sha256'], 'decision': 'approved', 'note': 'Synthetic test review', 'expectedVersion': asset['version']})
+        prepared = self.tasks.prepare(self.f.ctx, spec, 1, 'asset-after-review')
+        self.assertEqual(prepared['task']['status'], 'draft', prepared['task'].get('error'))
+        self.assertTrue(prepared['confirmation'])
+        self.assertEqual(prepared['confirmation']['summary']['sourceRevisionIds'], [output['revisionId']])
+        self.assertEqual(self.f.count('generation_submit'), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

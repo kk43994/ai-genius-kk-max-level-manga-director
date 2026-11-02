@@ -20,6 +20,13 @@ AUTH_CODES = frozenset({
 })
 
 PREPARATION_CODES = {
+    "PROVIDER_ACCOUNT_READ_UNAVAILABLE":"LibTV 暂时无法读取原账号资料。已有任务与回执保留，请稍后查询原任务；无需重复生成。",
+    "INPUT_INVALID":"模型不接受当前制作参数。请检查画幅、数量或必填选项；尚未提交的记录可以取消后重新准备。",
+    "SOURCE_CHANGED":"参考图版本或审核状态已变化，请重新选择已审核的有效图片。",
+    "SOURCE_REVIEW_REQUIRED":"请先选用并审核参考图，再准备这次生成。",
+    "UPLOAD_UNCONFIRMED":"参考图上传或官方内容检查尚未完成，请核对原任务。",
+    "IDEMPOTENCY_CONFLICT":"这份准备记录的内容已改变。尚未提交的记录可取消后重新准备；已提交任务只能查询原结果。",
+    "ORIGINAL_RECEIPT_REQUIRED":"原任务缺少可恢复的官方回执，已保留记录；请检查接入状态。",
     "PROVIDER_RECEIPT_MISMATCH":"官方回执、节点或图片归属尚未核对一致，已暂停收取；不会重新生成。",
     "PROVIDER_UNAVAILABLE":"暂未收到官方任务状态，请稍后继续收取原任务。",
     "UNSAFE_MEDIA_URL":"素材下载地址未通过网络校验，原生成和导出记录已保留。",
@@ -44,8 +51,17 @@ PREPARATION_CODES = {
 def provider_failure(exc, *, attempted=False):
     # Never stringify an upstream exception: it may contain tokens/signed URLs.
     code = getattr(exc, "code", None)
+    if code == 'REFERENCE_SETUP_STOPPED':
+        return ('failed', {'code':code,'message':'参考节点校验曾中断，已核实未调用收费生成。可以重新准备，原记录保留。',
+            'retryable':True,'details':{'generationSubmitted':False}})
+    if code == 'REFERENCE_PREFLIGHT_REJECTED':
+        return ('failed', {'code':code, 'message':'项目同时有其他更新，官方拒绝了这次提交；已核实原节点未生成。请重新准备，原记录保留。',
+            'retryable':True, 'details':{'generationSubmitted':False}})
     if code in PREPARATION_CODES:
-        return ("needs_attention", {"code":code,"message":PREPARATION_CODES[code],
+        message = PREPARATION_CODES[code]
+        if not attempted and code in {'PROVIDER_UNAVAILABLE', 'PROVIDER_ACCOUNT_READ_UNAVAILABLE', 'PROVIDER_PROTOCOL_ERROR'}:
+            message = '生成前的官方资料核验未完成，尚未提交收费生成。可取消这条准备记录，连接恢复后重新准备。'
+        return ("needs_attention", {"code":code,"message":message,
             "retryable":False,"details":{"submissionAttempted":bool(attempted)}})
     if code in AUTH_CODES:
         return ("blocked_authorization", {

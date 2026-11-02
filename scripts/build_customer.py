@@ -23,7 +23,7 @@ def build(output, base, api):
     public.mkdir(parents=True); server.mkdir()
     for source in sorted((ROOT/'frontend').rglob('*')):
         if source.is_symlink(): raise ValueError('Frontend cannot contain symlinks')
-        if source.is_file() and source.suffix in {'.html','.js','.mjs','.css','.svg','.png','.jpg','.webp','.ico','.woff2'}:
+        if source.is_file() and source.suffix in {'.html','.js','.mjs','.css','.svg','.png','.jpg','.webp','.ico','.woff2','.txt'}:
             dest=public/source.relative_to(ROOT/'frontend');dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,dest)
     shutil.copytree(ROOT/'scripts/browser',public/'_app')
     html=entry_html((public/'asset-lab.html').read_text(),{'publicBasePath':base,'apiBase':api,'apiVersion':1,'mode':'customer-preview'})

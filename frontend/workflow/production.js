@@ -2,17 +2,12 @@ import {escapeHTML as esc, assetURL, categories, belongsToSelection} from './mod
 import {elapsedLabel} from './progress.js';
 import {returnedResult, reviewDraft} from './production-editor.js';
 import {productionBoard} from './production-board.js';
+import {overviewShots} from './storyboard-overview.js';
 import {linkedText} from './production-references.js';
 
 export const productionRunning = job => ['preparing','submitting','running','reviewing'].includes(job?.status);
-const dialogueKinds = {dialogue:'对白',inner_monologue:'内心独白',narration:'旁白',voiceover:'画外音',offscreen:'画外对白',system_voice:'系统音',unknown:'待确认'};
-export function dialogueText(job, shot) {
-  const names=new Map((job.characters||[]).map(c=>[c.id,c.name]));
-  return shot.dialogueIds.map(id=>{
-    const d=job.dialogues.find(d=>d.id===id);
-    return d?{...d,label:`${names.get(d.speakerId)||d.speakerLabel||'未署名'} · ${dialogueKinds[d.kind]||d.kind}`} : null;
-  }).filter(Boolean);
-}
+export {dialogueLines as dialogueText} from './dialogue-editor.js';
+import {dialogueLines as dialogueText} from './dialogue-editor.js';
 export function referenceCards(job,shot,assets,selection,apiBase) {
   return shot.references.map(ref=>{
     const item=returnedResult(job).assets.find(a=>a.id===ref.assetId), state=item?.states.find(s=>s.id===ref.stateId);
@@ -22,7 +17,8 @@ export function referenceCards(job,shot,assets,selection,apiBase) {
     const candidates=job.status==='ready'&&!job.stale&&!binding?.changed?(asset?.revisions||[]).filter(r=>['asset','refine'].includes(r.stage)&&r.status==='ready'&&r.review==='approved'&&belongsToSelection(r,job.ownership||selection)):[];
     const versions=[...candidates].sort((a,b)=>({refine:3,asset:2}[b.stage]-{refine:3,asset:2}[a.stage])||b.createdAt.localeCompare(a.createdAt));
     const revision=ref.revisionId?versions.find(r=>r.id===ref.revisionId):versions[0];
-    return {name:`${item?.name||ref.assetId} · ${state?.name||ref.stateId}`,category:item?.category,entityId:binding?.entityId,
+    const history=ref.revisionId?(asset?.revisions||[]).find(r=>r.id===ref.revisionId&&['asset','refine'].includes(r.stage)&&belongsToSelection(r,job.ownership||selection)):null;
+    return {historyRevisionId:!revision?history?.id:null,historySrc:!revision&&history?assetURL(apiBase,asset.id,history.id,true):null,assetId:ref.assetId,stateId:ref.stateId,name:`${item?.name||ref.assetId} · ${state?.name||ref.stateId}`,category:item?.category,entityId:binding?.entityId,
       saved:binding?.saved,changed:binding?.changed,revisionId:revision?.id,pinned:Boolean(ref.revisionId),versions,src:revision?assetURL(apiBase,asset.id,revision.id,true):null};
   });
 }
@@ -34,13 +30,15 @@ export function timelineAt(shots,elapsed) {
   for(let i=0;i<shots.length;i++){const end=start+shots[i].durationSeconds;if(elapsed<end)return {index:i,start,end};start=end;}
   return {index:Math.max(0,shots.length-1),start:Math.max(0,start-(shots.at(-1)?.durationSeconds||0)),end:start};
 }
-export function previewFrame(job,index,{assets=[],selection,apiBase='/api/v1'}={}) {
+export function previewFrame(job,index,{assets=[],coverage={},selection,apiBase='/api/v1'}={}) {
   const shot=returnedResult(job).shots[index];if(!shot)return '';
   const lines=dialogueText(job,shot);
+  const chosen=overviewShots({job,assets,coverage,selection})[index];
+  const frame=chosen?.ready?chosen.revision:null;
   const cards=referenceCards(job,shot,assets,selection,apiBase);
-  return `<div class="wf-production-screen" data-ratio="${esc(returnedResult(job).aspectRatio)}"><p class="wf-eyebrow">镜头 ${String(index+1).padStart(3,'0')} · ${esc(shot.framing)}</p><h4>${esc(shot.purpose)}</h4>${cardsHtml(cards)}<p class="wf-production-action">${linkedText(shot.beat,returnedResult(job),shot)}</p><p>${esc(shot.performance)}</p>${lines.map(d=>`<p class="wf-production-dialogue"><small>${esc(d.label)}</small><br>${esc(d.text)}</p>`).join('')}<p class="wf-muted">${cards.some(c=>c.src)?'已审核资产示意 · 尚非最终分镜画面':'文字图板预演 · 分镜图片尚未生成'}</p></div><p class="wf-muted">镜头：${esc(shot.camera)}<br>声音设计：${esc(shot.sound)}</p>`;
+  return `<div class="wf-production-screen" data-ratio="${esc(returnedResult(job).aspectRatio)}"><p class="wf-eyebrow">镜头 ${String(index+1).padStart(3,'0')} · ${esc(shot.framing)}</p><h4>${esc(shot.purpose)}</h4>${frame?`<figure class="canvas-preview-frame"><img src="${esc(assetURL(apiBase,frame.assetId,frame.id,false))}" alt="已选分镜 ${index+1}"></figure>`:cardsHtml(cards)}<p class="wf-production-action">${linkedText(shot.beat,returnedResult(job),shot)}</p><p>${esc(shot.performance)}</p>${lines.map(d=>`<p class="wf-production-dialogue"><small>${esc(d.label)}</small><br>${esc(d.text)}</p>`).join('')}<p class="wf-muted">${frame?'已选分镜静帧 · 按镜头时长预演':cards.some(c=>c.src)?'已审核资产示意 · 此镜尚无当前已选分镜图':'文字图板预演 · 分镜图片尚未生成'}</p><button type="button" data-canvas-return-shot="${esc(shot.id)}">回到当前镜头</button></div><p class="wf-muted">镜头：${esc(shot.camera)}<br>声音设计：${esc(shot.sound)}</p>`;
 }
-export function productionPanel({script,analysis,job,enabled,connected,busy,error='',models=[],modelId,assets=[],selection,apiBase,draft=null,review=null,view={},tasks=[],generationDraft={}}) {
+export function productionPanel({script,analysis,job,enabled,connected,busy,error='',models=[],modelId,assets=[],coverage={},selection,apiBase,draft=null,review=null,view={},tasks=[],generationDraft={},phase,project,imageCatalog,imageContracts,imageModelsLoading,imageModelsError}) {
   if(!script)return '<section class="wf-panel"><h3>先导入剧本</h3><button data-wf-nav="plan">返回剧本</button></section>';
   const ready=job?.status==='ready',running=productionRunning(job),canStart=!job||ready||job.canRetry;
   const result=review?.result||(draft&&returnedResult(job)?reviewDraft(job,draft).result:returnedResult(job));
@@ -53,7 +51,7 @@ export function productionPanel({script,analysis,job,enabled,connected,busy,erro
     if(job?.canRevalidate)html+='<button data-wf-action="production-revalidate">重新读取原返回结果</button>';
     return html+'</section>';
   }
-  return productionBoard({script,analysis,job,enabled,connected,busy,error,models,modelId,assets,selection,apiBase,draft,review,result,startControls,view,tasks,generationDraft},{referenceCards,cardsHtml,dialogueText,previewFrame});
+  return productionBoard({script,analysis,job,enabled,connected,busy,error,models,modelId,assets,coverage,selection,apiBase,draft,review,result,startControls,view,tasks,generationDraft,phase,project,imageCatalog,imageContracts,imageModelsLoading,imageModelsError},{referenceCards,cardsHtml,dialogueText,previewFrame});
 }
 
 export function createPreview({root,getContext,onStatus=()=>{}}) {

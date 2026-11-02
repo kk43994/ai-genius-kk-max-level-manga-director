@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from .errors import TaskError
 
-RECIPES = frozenset({"mj_style", "image2_asset", "nano_refine", "storyboard_image", "script_analysis"})
+RECIPES = frozenset({"mj_style", "image25_style", "image2_asset", "image25_asset", "nano_refine", "storyboard_image", "image25_storyboard", "script_analysis"})
 ACTIVE = frozenset({"preparing", "submitting", "queued", "running", "downloading"})
 TERMINAL = frozenset({"completed", "cancelled"})
 RECEIPT_KEYS = frozenset({"taskId", "projectId", "nodeId", "requestId"})
@@ -97,13 +97,16 @@ def owner_match(first, second):
 
 
 def validate_spec(spec):
-    keys = {"projectId", "recipe", "entityId", "prompt", "sourceRevisionIds", "settings"}
+    keys = {"projectId", "recipe", "entityId", "prompt", "sourceRevisionIds", "settings", "modelId"}
     if not isinstance(spec, dict) or set(spec) - keys:
         raise TaskError("VALIDATION_FAILED", "任务含不支持的字段，不能指定归属或凭据。", 422)
     if spec.get("recipe") not in RECIPES:
         raise TaskError("VIDEO_OR_RECIPE_DISABLED", "当前仅支持已定义的资产步骤，视频生成暂停。", 403)
     for key in ("projectId", "entityId"):
         opaque(spec.get(key), key)
+    if 'modelId' in spec and (not isinstance(spec['modelId'], str) or not spec['modelId'].strip()
+            or spec['modelId'] != spec['modelId'].strip() or len(spec['modelId']) > 200):
+        raise TaskError('VALIDATION_FAILED', '请选择有效的图片模型。', 422)
     prompt = spec.get("prompt")
     if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 50000:
         raise TaskError("VALIDATION_FAILED", "请填写不超过 50000 字的提示词。", 422)
@@ -163,7 +166,7 @@ def safe_prepared(value, request_hash, max_outputs):
 
 def workflow_snapshot(value, sources):
     required = {"entityVersion", "styleVersion", "sourceHashes"}
-    if not isinstance(value, dict) or not required <= value.keys() or set(value) - (required | {"planVersion"}):
+    if not isinstance(value, dict) or not required <= value.keys() or set(value) - (required | {"planVersion", "artDirectionVersion"}):
         raise TaskError("WORKFLOW_SNAPSHOT_MISSING", "任务缺少服务端资产版本快照，已停止处理。", 409)
     if any(type(value[k]) is not int or value[k] < 0 for k in value if k != "sourceHashes"):
         raise TaskError("WORKFLOW_SNAPSHOT_MISSING", "资产版本快照格式无效。", 409)
@@ -179,6 +182,9 @@ def public_task(task):
             "providerReceipt", "submissionAttempted", "submittedAt", "error", "cost",
             "cancellation", "remoteStatus", "preparedAt", "completedAt")
     result = {key: deepcopy(task[key]) for key in keys if key in task}
+    result['modelId'] = task.get('spec', {}).get('modelId')
+    result['modelKey'] = (task.get('prepared') or {}).get('modelKey')
+    result['count'] = (task.get('prepared') or {}).get('count', task.get('spec', {}).get('settings', {}).get('count', 1))
     result["workflowSnapshot"] = deepcopy(task.get("inputs", {}).get("workflowSnapshot"))
     result["canRecover"] = bool(task["submissionAttempted"] and task.get("providerReceipt")
                                 and task["status"] not in TERMINAL)

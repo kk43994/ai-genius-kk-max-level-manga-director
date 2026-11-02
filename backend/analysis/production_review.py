@@ -15,7 +15,11 @@ def decode(text):
         value = json.loads(text)
     except (ValueError, RecursionError):
         return None
-    return value if Draft202012Validator(SCHEMA).is_valid(value) else None
+    if not Draft202012Validator(SCHEMA).is_valid(value):
+        return None
+    if value.get('removedShots') or value.get('shotOrder') or any(any(s.get(k) for k in ('dialogueOverrides', 'dialogueAdditions', 'dialogueOrder')) for s in value['shots']):
+        return None
+    return value
 
 
 def inspect(result, script, context):

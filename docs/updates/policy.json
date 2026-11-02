@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "7329c2f99c89201173c861a80e43cb9a5bcbaa40",
+  "baselineDescription": "工作台优化前源码快照；此后每次程序升级登记独立记录。"
+}

@@ -4,6 +4,8 @@ The default contract was verified through browser-approved account-read OAuth.
 Alternative contracts still require an explicit audited tool and subject path.
 """
 import json
+import logging
+import re
 from dataclasses import dataclass
 
 from backend.auth.errors import AuthError
@@ -50,6 +52,7 @@ class MCPReadSession:
         if result.status in (401, 403):
             raise AuthError('PROVIDER_AUTHORIZATION_REQUIRED')
         if result.status not in (200, 202, 204):
+            logging.getLogger(__name__).error('MCP HTTP rejected: status=%s', result.status)
             raise AuthError('PROVIDER_UNAVAILABLE')
         session = next((v for k, v in result.headers.items() if k.lower() == 'mcp-session-id'), None)
         if session:
@@ -93,9 +96,17 @@ class MCPReadSession:
         if result.get('isError'):
             blocks=result.get('content', [])
             text=blocks[0].get('text','') if isinstance(blocks,list) and len(blocks)==1 and isinstance(blocks[0],dict) else ''
+            code = re.match(r'^Error executing tool '+re.escape(tool['name'])+r': ([A-Z][A-Z0-9_]{2,63}):', text) if isinstance(text,str) else None
+            status = re.search(r'\b(?:HTTP(?:/\d(?:\.\d)?)?\s+|status(?:_code| code)?\s*[:=]?\s*)([45]\d{2})\b', text) if isinstance(text,str) else None
+            logging.getLogger(__name__).error('MCP tool returned error: tool=%s provider_code=%s upstream_status=%s',
+                tool['name'], code.group(1) if code else 'UNCLASSIFIED', status.group(1) if status else 'UNCLASSIFIED')
+            if tool['name']=='account_user' and code and code.group(1)=='UPSTREAM_HTTP_ERROR':
+                raise AuthError('PROVIDER_ACCOUNT_READ_UNAVAILABLE')
             # A narrow observed preflight rejection, not an ambiguous timeout.
             if tool['name']=='create_node' and isinstance(text,str) and text.startswith('Error executing tool create_node: NODE_NAME_CONFLICT:'):
                 raise AuthError('PROVIDER_NODE_NAME_CONFLICT')
+            if tool['name']=='update_node' and code and code.group(1)=='SNAPSHOT_REVISION_MISMATCH':
+                raise AuthError('PROVIDER_SNAPSHOT_REVISION_MISMATCH')
             raise AuthError(error_code)
         if isinstance(result.get('structuredContent'), dict):
             return result['structuredContent']
@@ -128,6 +139,12 @@ LIBTV_ACCOUNT_IDENTITY = IdentityReadContract(
     'Official https://mcp.liblib.tv/mcp tools/list and account_user; '
     'browser OAuth libtv:account:read verified 2026-10-27; repeat user.uuid read matched.')
 
+LIBTV_DOCTOR_IDENTITY = IdentityReadContract(
+    'doctor', ('identity', 'userUuid'), ('identity', 'nickname'), evidence=
+    'Official Remote MCP doctor.identity.userUuid matched account_user.user.uuid '
+    'during browser-approved account-read verification on 2026-10-27; '
+    'see backend/auth/OFFICIAL_READ_EVIDENCE.md.')
+
 
 class ReadOnlyMCPIdentityVerifier:
     available = True
@@ -149,8 +166,19 @@ class ReadOnlyMCPIdentityVerifier:
 
     def read_snapshot(self, tokens):
         session = MCPReadSession(self._http, tokens['access_token'])
-        matches = [t for t in session.tools() if t.get('name') == self._contract.tool_name]
+        return self.read_session(session, session.tools())
+
+    def read_session(self, session, catalog):
+        contract = self._contract
+        matches = [t for t in catalog if t.get('name') == contract.tool_name]
+        # A removed legacy endpoint is not an expired grant. Only the audited
+        # official doctor read can replace it; malformed/duplicate legacy tools
+        # and failures from a present account_user must still fail closed.
+        if not matches and contract == LIBTV_ACCOUNT_IDENTITY:
+            contract = LIBTV_DOCTOR_IDENTITY
+            matches = [t for t in catalog if t.get('name') == contract.tool_name]
         if len(matches) != 1:
+            logging.getLogger(__name__).error('Identity contract rejected: reason=tool_count count=%d available=%s', len(matches), ','.join(t['name'] for t in catalog if isinstance(t.get('name'), str) and re.fullmatch(r'[A-Za-z0-9_]{1,80}', t['name']))[:2000])
             raise AuthError('PROVIDER_IDENTITY_UNAVAILABLE')
         tool = matches[0]
         annotations = tool.get('annotations') or {}
@@ -158,13 +186,23 @@ class ReadOnlyMCPIdentityVerifier:
         if (annotations.get('readOnlyHint') is not True
                 or annotations.get('destructiveHint') is not False
                 or schema.get('type') != 'object' or schema.get('required')):
+            logging.getLogger(__name__).error('Identity contract rejected: reason=tool_schema readonly=%s nondestructive=%s object=%s has_required=%s', annotations.get('readOnlyHint') is True, annotations.get('destructiveHint') is False, schema.get('type') == 'object', bool(schema.get('required')))
             raise AuthError('PROVIDER_IDENTITY_UNAVAILABLE')
         identity = session.read_identity(tool, {})
-        subject = self._path(identity, self._contract.subject_path)
-        name = self._path(identity, self._contract.display_name_path) if self._contract.display_name_path else None
+        subject = self._path(identity, contract.subject_path)
+        name = self._path(identity, contract.display_name_path) if contract.display_name_path else None
         if (not isinstance(subject, str) or not subject or len(subject) > 512
                 or any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in subject)):
+            logging.getLogger(__name__).error('Identity contract rejected: reason=subject_shape present=%s string=%s', subject is not None, isinstance(subject, str))
             raise AuthError('PROVIDER_IDENTITY_UNAVAILABLE')
+        if contract == LIBTV_DOCTOR_IDENTITY:
+            # Same membership fields, now nested under doctor.identity. This
+            # shape was rechecked via browser OAuth + refresh on 2026-11-03.
+            data = identity['identity']
+            identity = {'user': {'uuid': subject, 'nickname': name, 'id': data.get('userId')},
+                        'accounts': data.get('accounts'),
+                        'activeAccountId': data.get('activeAccountId'),
+                        'activeTeamId': data.get('activeTeamId')}
         return VerifiedIdentity(subject=subject, display_name=name if isinstance(name, str) else None), identity
 
     def verify(self, tokens):
