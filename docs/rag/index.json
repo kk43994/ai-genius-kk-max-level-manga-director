@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "0.3.0-preview.4",
+  "version": "0.3.0-preview.5",
   "updatedAt": "2026-11-02",
   "scope": "project-knowledge-source",
   "entries": [
@@ -177,6 +177,18 @@
         "自动更新"
       ],
       "status": "in-development"
+    },
+    {
+      "id": "release-0.3.0-preview.5",
+      "file": "docs/versions/0.3.0-preview.5.md",
+      "keywords": [
+        "公共更新源",
+        "更新提示",
+        "发布",
+        "旧版本",
+        "安装"
+      ],
+      "status": "publishing"
     }
   ]
 }

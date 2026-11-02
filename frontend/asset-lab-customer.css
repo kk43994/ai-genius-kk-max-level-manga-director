@@ -1,6 +1,12 @@
 /* Load after preserved workflow CSS. Only the customer shell opts into these rules. */
 /* Keep navigation and long-page target clicks stationary while controls rerender. */
 html { scroll-padding-top: 110px; scroll-behavior: auto; }
+.local-update-notice{position:fixed;right:24px;top:84px;z-index:1000;width:min(380px,calc(100vw - 32px));padding:20px;background:#242424;color:#f5f5f5;border:1px solid #666;border-radius:14px;box-shadow:0 12px 48px #0008;box-sizing:border-box;}
+.local-update-notice[hidden]{display:none;}
+.local-update-notice strong{font-size:17px;}
+.local-update-notice p{margin:12px 0;line-height:1.6;}
+.local-update-notice button{margin:4px 8px 0 0;}
+@media(max-width:600px){.local-update-notice{right:16px;top:76px;}}
 .customer-shell { font: 14px/1.5 var(--lab-font); color: var(--lab-ink); background: var(--lab-bg); }
 .customer-shell [hidden], .lab-symbols { display: none !important; }
 .customer-shell :where(button, a, input, select, textarea, summary):focus-visible { outline: 3px solid var(--lab-focus); outline-offset: 3px; }
