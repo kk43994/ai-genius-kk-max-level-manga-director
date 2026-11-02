@@ -22,6 +22,22 @@
       "status": "per-iteration-source-history"
     },
     {
+      "id": "repository-presentation",
+      "file": "docs/rag/repository-presentation.md",
+      "keywords": [
+        "GitHub",
+        "仓库",
+        "公开",
+        "README",
+        "品牌",
+        "主视觉",
+        "主图",
+        "改名",
+        "imagegen"
+      ],
+      "status": "repository-presentation"
+    },
+    {
       "id": "human-editing",
       "file": "docs/rag/human-editing.md",
       "keywords": [
