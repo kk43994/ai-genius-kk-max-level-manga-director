@@ -190,10 +190,15 @@ def shot_entity_id(script_id, shot_id):
 
 
 MASTER_STATE_ID = '__character_master__'
+SCENE_MASTER_STATE_ID = '__scene_master__'
 
 
 def production_states(asset):
     """The identity master is independent of all screenplay states, including state zero."""
+    if asset['category'] == 'scene':
+        return [{'id': SCENE_MASTER_STATE_ID, 'name':'场景主多视图',
+                 'description':'场景空间基准；固定建筑、出入口、陈设和相对位置，不带日夜或剧情破坏等变化。',
+                 'imagePrompt':'同一场景的正视、反打、俯视、侧视，空间结构与陈设一致。'}] + asset['states']
     if asset['category'] != 'character':
         return asset['states']
     return [{'id': MASTER_STATE_ID, 'name': '人物主多视图',
@@ -436,12 +441,13 @@ class ProductionService(AnalysisService):
             entities = [{k:copy.deepcopy(v) for k,v in e.items() if k in allowed} for e in plan['entities'] if e['id']!=candidate['id']]+[candidate]
             self.services.workflow.save_plan(ctx,job['projectId'],{'expectedVersion':plan['version'],
                 'stylePrompt':plan['stylePrompt'],'entities':entities})
-        from backend.workflow.art_direction import apply
+        from backend.workflow.art_direction import apply, inherited_references
         workflow = self.services.workflow
         with workflow.repository.transaction(ctx) as tx:
             project = workflow._project(tx, job['projectId'])
             if body.get('expectedArtDirectionVersion', 0) != (project.get('artDirection') or {}).get('version', 0):
                 raise WorkflowError('VERSION_CONFLICT', '本剧风格已变化，请刷新并核对新的制作要求。', 409)
+            refs, prompt = inherited_references(project.get('artDirection'), candidate['category'], refs, prompt)
             prompt, _ = apply(workflow, tx, project, prompt, owner, recipe)
         if body.get('editRevisionId'):
             from backend.workflow.image_edit import editing_reference

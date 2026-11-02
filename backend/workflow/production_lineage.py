@@ -15,7 +15,7 @@ def members(tx, project):
 
 
 def _members(tx, project):
-    from backend.analysis.production import ACTIVE, candidates, entity_id, production_states, MASTER_STATE_ID
+    from backend.analysis.production import ACTIVE, candidates, entity_id, production_states, MASTER_STATE_ID, SCENE_MASTER_STATE_ID
     from backend.analysis.production_bindings import fingerprint
     from backend.analysis.production_review import decode, inspect
     snapshot = getattr(tx, 'production', {}).get(project['id'], {})
@@ -49,7 +49,7 @@ def _members(tx, project):
                 if link else all(entity.get(k, '') == candidate.get(k, '')
                                  for k in ('category', 'name', 'description', 'variant', 'quote'))))
             membership.setdefault(identity, []).append(dict(assetId=asset['id'], category=asset['category'],
-                role='master' if state['id'] == MASTER_STATE_ID else 'state', valid=applicable))
+                role='master' if state['id'] in (MASTER_STATE_ID, SCENE_MASTER_STATE_ID) else 'state', valid=applicable))
     return {key: rows[0] if len(rows) == 1 else dict(assetId=None, category='character', role='ambiguous', valid=False)
             for key, rows in membership.items()}
 
@@ -67,10 +67,12 @@ def image2_source_allowed(tx, project, target, source):
     a, b = rows.get(target), rows.get(source['entityId'])
     if target.startswith('ent_pd_') and not a:
         return False
-    if a and a['category'] == 'character':
+    if a and a['category'] in ('character','scene'):
         if not (a['valid'] and b and b['valid'] and a['assetId'] == b['assetId']):
             return False
         if a['role'] == 'state':
+            if a['category'] == 'scene' and legacy_scene_source(tx, target, source):
+                return True
             return b['role'] == 'master' and source['stage'] == 'asset'
         # Existing approved MJ identities stay usable without rewriting history.
         return source['stage'] == 'style'
@@ -81,3 +83,19 @@ def image2_source_allowed(tx, project, target, source):
 def character_state(tx, project, target):
     member = members(tx, project).get(target)
     return bool(member and member['category'] == 'character' and member['role'] == 'state')
+
+
+def legacy_scene_source(tx, target, source):
+    # Keep original scene assets usable; no new state can skip its spatial master.
+    # Caller already checked the exact same scene family and current design.
+    # Older releases allowed one approved scene style across its day/night states.
+    return source['stage'] == 'style' and any(
+        r['entityId'] == target and r['stage'] == 'asset' and r.get('sourceRevisionIds',[])[:1] == [source['id']]
+        for r in tx.state['revisions'].values())
+
+
+def scene_state(tx, project, target):
+    member = members(tx, project).get(target)
+    if not member or member['category'] != 'scene' or member['role'] != 'state':
+        return False
+    return not any(r['entityId'] == target and r['stage'] == 'asset' for r in tx.state['revisions'].values())

@@ -34,7 +34,7 @@ class BindingTests(unittest.TestCase):
         self.assertTrue(linked['bindings'][1]['saved']); self.assertFalse(linked['bindings'][1]['changed'])
         self.assertEqual(self.workflow.get_plan(self.ctx, self.project['id']), before)
         candidate = self.production.candidate(self.ctx, job['id'])
-        self.assertEqual(candidate['addedCount'], 5)
+        self.assertEqual(candidate['addedCount'], 6)
         self.assertEqual(len(self.provider.submissions), 1)
 
     def test_link_rejects_missing_confirmation_wrong_category_and_foreign_workspace(self):

@@ -159,6 +159,10 @@ class WorkflowService:
             if (revision['artDirectionVersion'] != direction.get('version', 0) or not style_source
                     or not self._valid(tx, style_source, True, seen)):
                 return False
+            for item in direction.get('samples', {}).values():
+                r = tx.state['revisions'].get(item['revisionId'])
+                if not r or r['sha256'] != item['sha256'] or not self._valid(tx, r, True, seen):
+                    return False
         for index, source_id in enumerate(revision['sourceRevisionIds']):
             source = tx.state['revisions'].get(source_id)
             if not source or not self._valid(tx, source, True, seen):
@@ -220,7 +224,8 @@ class WorkflowService:
         with self.repository.transaction(ctx) as tx:
             from .art_direction import describe
             project = self._project(tx, project_id)
-            return {**self._public_project(project), 'artDirection': describe(self, tx, project)}
+            from .art_studies import describe as studies
+            return {**self._public_project(project), 'artDirection': describe(self, tx, project), 'artStudies':studies(project), 'promptRecipes':copy.deepcopy(project.get('promptRecipes',[])), 'promptRecipeVersion':project.get('promptRecipeVersion',0)}
 
     def confirm_art_direction(self, ctx, project_id, payload):
         from .art_direction import confirm
@@ -382,7 +387,9 @@ class WorkflowService:
                 raise WorkflowError('PLAN_REVIEW_REQUIRED', '请先核对并确认自动拆出的资产清单。', 409)
             entity = self._entity(project, payload.get('entityId'))
             from .art_direction import apply
-            prompt, direction_version = apply(self, tx, project, prompt, ownership, recipe)
+            from .art_studies import describe as study_entities
+            exploratory = recipe in ('mj_style','image25_style') and entity['id'] in {r['entityId'] for r in study_entities(project).values()}
+            prompt, direction_version = (prompt, 0) if exploratory else apply(self, tx, project, prompt, ownership, recipe)
             from .production_lineage import members
             if recipe not in ('mj_style','image25_style') and entity['id'] in members(tx, project) and not direction_version:
                 raise WorkflowError('STYLE_REVIEW_REQUIRED', '请先确认本剧风格，再制作主多视图和剧情状态。', 409)
@@ -391,7 +398,8 @@ class WorkflowService:
                     invalid('分镜图片需要镜头档案和已审核的物料参考图。')
                 for rid in refs:
                     source = self._source(tx, project['id'], entity['id'], rid, ownership, cross_entity=True)
-                    if source['stage'] not in ('asset', 'refine', 'reference'):
+                    from .art_direction import is_style_reference
+                    if source['stage'] not in ('asset', 'refine', 'reference') and not is_style_reference(project, source):
                         invalid('分镜引用须为已审核的 Image2 或 Nano 物料图。')
                 return dict(projectId=project['id'], entityId=entity['id'], recipe=recipe, prompt=prompt,
                             settings=copy.deepcopy(settings), sourceRevisionIds=refs,
@@ -409,9 +417,9 @@ class WorkflowService:
                 prompt = (prompt or repair['prompt']) + '\n返修意见：' + repair['reviewNote']
             stage = STAGES[recipe]
             source = None
-            from .production_lineage import character_state
-            if stage == 'style' and character_state(tx, project, entity['id']):
-                invalid('请在人物基础形象中探索风格；剧情状态须参考已确认的人物主多视图。')
+            from .production_lineage import character_state, scene_state
+            if stage == 'style' and (character_state(tx, project, entity['id']) or scene_state(tx, project, entity['id'])):
+                invalid('请先制作人物或场景主形象；剧情状态须参考已确认的主多视图。')
             primary_count = 0 if stage == 'style' else 1
             for rid in refs[primary_count:]:
                 self._source(tx, project['id'], entity['id'], rid, ownership, cross_entity=True)

@@ -2,7 +2,7 @@
 // and never invents a new key for an uncertain submission.
 import {belongsToSelection} from './model.js';
 
-export function missingStoryboardShots({job,result,assets=[],tasks=[],selection},referenceCards){
+export function missingStoryboardShots({job,result,assets=[],tasks=[],selection,limit=8},referenceCards){
  if(!job||job.stale||job.status!=='ready')return [];
  return result.shots.flatMap((shot,index)=>{
   const binding=(job.shotBindings||[]).find(b=>b.shotId===shot.id);
@@ -13,7 +13,7 @@ export function missingStoryboardShots({job,result,assets=[],tasks=[],selection}
   if(library?.revisions.some(r=>r.stage==='storyboard'&&belongsToSelection(r,job.ownership||selection)))return [];
   const refs=referenceCards({...job,result},shot,assets,selection,'/api/v1');
   return refs.length&&refs.every(r=>r.pinned&&r.src&&!r.changed)?[{shot,index}]:[];
- }).slice(0,8);
+ }).slice(0,limit);
 }
 
 // An explicit repair batch creates new tasks only for reviewed rejections.

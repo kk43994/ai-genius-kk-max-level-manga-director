@@ -14,6 +14,14 @@ export function storyLayout(sceneIds,characterIds,sceneBottom=580) {
 export function storyWorkflowLayout(rows) {
   const positions={},scenes=rows.filter(n=>n.id.startsWith('scene:'));
   let y=70;
+  const productionTemplate=rows.some(n=>n.id.startsWith('art:'));
+  if(productionTemplate){
+    const art=rows.filter(n=>n.id.startsWith('art:'));
+    art.forEach(n=>{positions[n.id]={x:40,y};y+=Math.max(460,n.height||0)+80;});
+    const materials=rows.filter(n=>n.id.startsWith('material:')||n.id.startsWith('asset:'));
+    for(let i=0;i<materials.length;i+=4){const group=materials.slice(i,i+4);group.forEach((n,j)=>positions[n.id]={x:40+j*340,y});y+=Math.max(520,...group.map(n=>n.height||0))+60;}
+    y+=40;
+  }
   for(const scene of scenes){
     positions[scene.id]={x:40,y};
     const shots=rows.filter(n=>(n.id.startsWith('shot:')||n.id.startsWith('beat:'))&&n.sceneId===scene.id.slice(6));
@@ -23,7 +31,7 @@ export function storyWorkflowLayout(rows) {
   const people=rows.filter(n=>n.id.startsWith('character:'));
   people.forEach((n,i)=>positions[n.id]={x:40+i*340,y});
   y+=Math.max(260,...people.map(n=>n.height||0))+80;
-  const assets=rows.filter(n=>n.id.startsWith('asset:'));
+  const assets=productionTemplate?[]:rows.filter(n=>n.id.startsWith('asset:'));
   for(let i=0;i<assets.length;i+=4){const group=assets.slice(i,i+4);group.forEach((n,j)=>positions[n.id]={x:40+j*340,y});y+=Math.max(480,...group.map(n=>n.height||0))+60;}
   return positions;
 }
@@ -36,7 +44,7 @@ export function mountStoryCanvas(root,{storage,storageKey='asset-lab:story-canva
   const finite=n=>typeof n==='number'&&Number.isFinite(n)&&Math.abs(n)<1e6;
   function current(){const el=viewport();if(!el)return null;return {el,key:el.dataset.storyKey,state:views.get(el.dataset.storyKey)};}
   function nodes(ctx){if(!ctx)return [];return [...ctx.el.querySelectorAll('[data-story-node]')];}
-  function defaults(ctx,measured=false){const rows=nodes(ctx);return ctx.el.closest('[data-story-unified],[data-story-framework]')?storyWorkflowLayout(rows.map(n=>({id:n.dataset.storyNode,sceneId:n.dataset.storySceneId,height:measured?n.offsetHeight:0}))):storyLayout(rows.filter(n=>n.dataset.storyNode.startsWith('scene:')).map(n=>n.dataset.storyNode.slice(6)),rows.filter(n=>n.dataset.storyNode.startsWith('character:')).map(n=>n.dataset.storyNode.slice(10)),Math.max(500,...rows.filter(n=>n.dataset.storyNode.startsWith('scene:')).map(n=>measured?n.offsetHeight:0))+70);}
+  function defaults(ctx,measured=false){const rows=nodes(ctx);return ctx.el.closest('[data-production-template],[data-story-unified],[data-story-framework]')?storyWorkflowLayout(rows.map(n=>({id:n.dataset.storyNode,sceneId:n.dataset.storySceneId,height:measured?n.offsetHeight:0}))):storyLayout(rows.filter(n=>n.dataset.storyNode.startsWith('scene:')).map(n=>n.dataset.storyNode.slice(6)),rows.filter(n=>n.dataset.storyNode.startsWith('character:')).map(n=>n.dataset.storyNode.slice(10)),Math.max(500,...rows.filter(n=>n.dataset.storyNode.startsWith('scene:')).map(n=>measured?n.offsetHeight:0))+70);}
   function save(){clearTimeout(saveTimer);const ctx=current();if(!ctx?.state)return;try{storage?.setItem(storageKey+':'+encodeURIComponent(ctx.key),JSON.stringify(ctx.state));}catch{/* Layout is optional; screenplay data is untouched. */}}
   root.ownerDocument.defaultView.addEventListener('beforeunload',save,{signal:abort.signal});
   function draw(){
@@ -66,7 +74,8 @@ export function mountStoryCanvas(root,{storage,storageKey='asset-lab:story-canva
   function focus(expanded){const ctx=current();if(!ctx)return;ctx.state.expanded=expanded;const shell=ctx.el.closest('.story-canvas');shell.classList.toggle('story-canvas-expanded',expanded);const button=shell.querySelector('[data-story-canvas-command="fullscreen"]');button.setAttribute('aria-pressed',String(expanded));button.textContent=expanded?'退出专注':'专注画布';}
   function command(action){const ctx=current();if(!ctx)return;
     if(action==='fit')return fit();if(action==='arrange')return arrange();if(action==='reset')return locate(0);
-    if(action==='assets')return locateNode(nodes(ctx).find(n=>n.dataset.storyNode.startsWith('asset:'))||nodes(ctx).find(n=>n.dataset.storyNode.startsWith('character:')));
+    if(action==='art')return locateNode(nodes(ctx).find(n=>n.dataset.storyNode.startsWith('art:')));
+    if(action==='assets')return locateNode(nodes(ctx).find(n=>n.dataset.storyNode.startsWith('material:'))||nodes(ctx).find(n=>n.dataset.storyNode.startsWith('asset:'))||nodes(ctx).find(n=>n.dataset.storyNode.startsWith('character:')));
     if(action==='attention'){const pending=nodes(ctx).filter(n=>n.dataset.storyReady==='false');const index=pending.findIndex(n=>n.dataset.storyNode===ctx.state.attention);const next=pending[(index+1)%pending.length];if(next){ctx.state.attention=next.dataset.storyNode;locateNode(next);}return;}
     if(action==='fullscreen'){focus(!ctx.state.expanded);return;}
     ctx.state.view=zoomAt(ctx.state.view,ctx.state.view.scale*(action==='in'?1.2:1/1.2),{x:ctx.el.clientWidth/2,y:ctx.el.clientHeight/2});draw();

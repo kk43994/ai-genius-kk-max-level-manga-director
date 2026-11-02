@@ -2,7 +2,7 @@ import {escapeHTML as esc,assetURL,belongsToSelection} from './model.js';
 import {returnedResult} from './production-editor.js';
 import {readableText} from './production-references.js';
 import {dialogueText,referenceCards} from './production.js';
-import {MASTER_STATE_ID} from './production-generation.js';
+import {MASTER_STATE_ID,SCENE_MASTER_STATE_ID} from './production-generation.js';
 
 const paragraph=value=>esc(value||'').replaceAll('\n','<br>');
 const number=i=>String(i+1).padStart(3,'0');
@@ -46,14 +46,14 @@ export function overviewAssetCards({job,assets=[],selection,apiBase='/api/v1'},c
     const owner=job.ownership||selection;
     return result.assets.flatMap((asset,index)=>{
       if(asset.category!==category)return [];
-      const states=category==='character'?[{id:MASTER_STATE_ID,name:'人物主多视图'},...asset.states]:asset.states;
+      const states=category==='character'?[{id:MASTER_STATE_ID,name:'人物主多视图'},...asset.states]:category==='scene'?[{id:SCENE_MASTER_STATE_ID,name:'场景主多视图'},...asset.states]:asset.states;
       return states.map((state,si)=>{
         const binding=(job.bindings||[]).find(b=>b.assetId===asset.id&&b.stateId===state.id);
         const library=assets.find(a=>a.active&&a.entityId===binding?.entityId);
         const candidates=job.status==='ready'&&!job.stale&&binding?.saved&&!binding.changed?(library?.revisions||[]).filter(r=>['asset','refine'].includes(r.stage)&&r.status==='ready'&&belongsToSelection(r,owner)):[];
         const r=latest(candidates.filter(r=>r.review==='approved'))||latest(candidates);
-        const stateIndex=category==='character'?Math.max(0,si-1):si;
-        return `<article class="overview-asset-card" ${canvas?`data-story-node="asset:${esc(asset.id)}:${esc(state.id)}" data-story-category="${esc(category)}"`: ''}>${canvas?`<button type="button" class="story-drag" data-story-drag aria-label="移动 ${esc(asset.name)} ${esc(state.name)}">⠿</button>`:''}<h5>${esc(asset.name)}</h5><p>${esc(state.name)}</p>${r?imageButton(r,`${asset.name} · ${state.name}`,apiBase):'<div class="overview-empty">多视图待制作或待更新</div>'}<div class="wf-actions"><span class="wf-tag ${esc(r?.review||'pending')}">${labels[r?.review]||'待制作'}</span><button data-overview-asset="${index}" data-overview-state="${stateIndex}" data-overview-master="${state.id===MASTER_STATE_ID}">查看资产</button></div></article>`;
+        const stateIndex=['character','scene'].includes(category)?Math.max(0,si-1):si;
+        return `<article class="overview-asset-card" ${canvas?`data-story-node="asset:${esc(asset.id)}:${esc(state.id)}" data-story-category="${esc(category)}"`: ''}>${canvas?`<button type="button" class="story-drag" data-story-drag aria-label="移动 ${esc(asset.name)} ${esc(state.name)}">⠿</button>`:''}<h5>${esc(asset.name)}</h5><p>${esc(state.name)}</p>${r?imageButton(r,`${asset.name} · ${state.name}`,apiBase):'<div class="overview-empty">多视图待制作或待更新</div>'}<div class="wf-actions"><span class="wf-tag ${esc(r?.review||'pending')}">${labels[r?.review]||'待制作'}</span><button data-overview-asset="${index}" data-overview-state="${stateIndex}" data-overview-master="${[MASTER_STATE_ID,SCENE_MASTER_STATE_ID].includes(state.id)}">查看资产</button></div></article>`;
       });
     }).join('');
   }

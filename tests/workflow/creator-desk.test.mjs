@@ -76,7 +76,8 @@ test('asset defaults lead with the current subject and do not duplicate the conf
  const options={result:{assets:[{id:'room',name:'空庭院',category:'scene',design:'石墙与木门',states:[{id:'day',imagePrompt:'无人物的白天空庭院'}]}],styleBible:'旧风格人物说明'},job:{bindings:[]},view:{kind:'assets',index:0,stage:'style'},project:{artDirection:{notes:'其他角色穿白衣'}}};
  const c=generationContext(options);
  assert.match(c.prompt,/^本次制作对象：空庭院/);
- assert.match(c.prompt,/无人物的白天空庭院/);
+ assert.match(c.prompt,/无人物的基础空间/);
+ assert.equal(c.state.id,'__scene_master__');
  assert.doesNotMatch(c.prompt,/其他角色穿白衣|旧风格人物说明/);
 });
 test('state assets require the same character approved master, while style exploration has no state selector',()=>{
@@ -142,4 +143,9 @@ test('verified partial delivery permits downstream creation without hiding unres
  assert.match(submit(generationInspector(options)),/disabled/);
  options.tasks.pop();options.tasks[0].providerReceipt=null;
  assert.match(submit(generationInspector(options)),/disabled/);
+});
+
+test('scene state sources stay on their own approved spatial master',()=>{
+ const options={result:{assets:[{id:'room',category:'scene',name:'庭院',states:[{id:'night',name:'夜晚',imagePrompt:'月光照进庭院'}]}]},job:{bindings:[{assetId:'room',stateId:'__scene_master__',entityId:'master',saved:true},{assetId:'room',stateId:'night',entityId:'night',saved:true}],ownership:owner},view:{kind:'assets',index:0,stage:'asset',characterLayer:'state'},assets:[{entityId:'master',active:true,revisions:[{...revision('master','asset'),entityId:'master',review:'approved'}]}]};
+ const context=generationContext(options);assert.deepEqual(context.sources.map(r=>r.id),['master']);assert.equal(context.mode.label,'生成此场景状态多视图');assert.match(context.prompt,/保留建筑、出入口、陈设和尺度/);
 });

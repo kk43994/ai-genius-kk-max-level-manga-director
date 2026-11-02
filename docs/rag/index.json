@@ -247,6 +247,21 @@
         "填空"
       ],
       "status": "in-development"
+    },
+    {
+      "id": "canvas-production-line",
+      "file": "docs/rag/canvas-production-line.md",
+      "keywords": [
+        "固定流程",
+        "流水线",
+        "美术试做",
+        "画布",
+        "占位",
+        "主多视图",
+        "图板预演",
+        "提示词规范"
+      ],
+      "status": "local-implemented-provider-verification-pending"
     }
   ]
 }

@@ -51,7 +51,8 @@ def register_routes(router, services):
         # a refresh just like the rest of the editable workflow. None of these
         # fields authorizes a provider call or changes an existing job's owner.
         prefixes = ("plan:", "compose:", "review:", "flow:", "analysis:", "prompt:",
-                    "prompt-view:", "prompt-backup:", "production:", "boardgen:", "art-direction:")
+                    "prompt-view:", "prompt-backup:", "production:", "boardgen:", "art-direction:",
+                    "art-bundle:", "prompt-recipe:")
         if any(key not in allowed and not key.startswith(prefixes)
                for key in content["workflow"]):
             raise invalid("草稿包含不支持的字段")

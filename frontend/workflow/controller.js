@@ -3,14 +3,18 @@ import {promptPanel, promptProcessing, usablePrompt, promptIssue} from './prompt
 import {productionPanel, productionRunning, createPreview, referenceCards} from './production.js';
 import {returnedResult, reviewDraft, setReviewValue, valueAt, textLines} from './production-editor.js';
 import {assetToken,referenceLabel,readableText,storedText,linkedText,referencePicker,bindReference,removeReference,appendManualProp} from './production-references.js';
-import {generationContext,generationGallery} from './production-generation.js';
+import {generationContext,generationGallery,generationInspector} from './production-generation.js';
 import {sourceImagePicker} from './image-choices.js';
 import {NANO_CLEANUP_PROMPT,selectedNanoModel,nanoCleanupSource} from './nano-cleanup.js';
 import {versionPicker,versionTarget} from './version-picker.js';
 import {extraReferences,referencePrompt,libraryPanel,referencePool,chooseExtraReference} from './image-references.js';
 import {batchSize,parallelGroups,missingStoryboardShots,repairStoryboardShots} from './generation-batch.js';
 import {selectedImageModel,collectImageSettings} from './image-models.js';
-import {creatorDesk} from './creator-desk.js';
+import {promptRecipePanel} from './prompt-recipes.js';
+import {canvasBatchPanel} from './canvas-batch.js';
+import {artStudiesPanel,artModel,studyPrompt,resolvedArtSamples} from './art-studies.js';
+import {analysisMaterials} from './canvas-template.js';
+import {creatorDesk,directionForm,styleSummary} from './creator-desk.js';
 import {overviewShots} from './storyboard-overview.js';
 import {storyCards} from './story-cards.js';
 import {mountStoryCanvas} from './story-canvas.js';
@@ -62,14 +66,19 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const boardViews=new Map(),canvas=mountCanvas(root),storyCanvas=mountStoryCanvas(root,{storage:layoutStorage,storageKey:`asset-lab:story-canvas:v2:${encodeURIComponent(apiBase)}:${encodeURIComponent(session.tenant.id)}`});
   let referenceCursor=null, directorDrag=null, suppressDirectorClickUntil=0;
   const currentProduction=()=>drafts.get(`production:review:${production?.id}`)?.result||returnedResult(production);
-  const boardGenerationKey=()=>`boardgen:identity-v2:${boardView().characterLayer||'master'}:${production?.id}:${boardView().kind}:${boardView().index}:${boardView().state||0}:${boardView().stage}`;
-  const boardView=()=>{const v=boardViews.get(production?.id)||{};return stages.includes(page)?{...v,kind:'assets',index:v.kind==='shots'?0:(v.index||0),state:v.state||0,stage:page==='style'?'style':page==='refine'?'refine':v.stage==='refine'?'refine':'asset'}:v;};
+  const artBundleKey=()=>`art-bundle:${selected}`;
+  const artGenerationDraft=()=>({modelId:artModel(canvasDrawer?.role,imageCatalog)?.id||selectedImageModel({},imageCatalog).id,...(drafts.get(boardGenerationKey())||{})});
+  const boardGenerationKey=()=>canvasDrawer?.type==='batch'?`boardgen:batch:${production?.id}`:canvasDrawer?.type==='art'?`boardgen:art:${selected}:${canvasDrawer.role}`:`boardgen:identity-v2:${boardView().characterLayer||'master'}:${production?.id}:${boardView().kind}:${boardView().index}:${boardView().state||0}:${boardView().stage}`;
+  const phase=()=>canvasDrawer?.phase||page;
+  const boardView=()=>{const v=boardViews.get(production?.id)||{},page=phase();return stages.includes(page)?{...v,kind:'assets',index:v.kind==='shots'?0:(v.index||0),state:v.state||0,stage:page==='style'?'style':page==='refine'?'refine':v.stage==='refine'?'refine':'asset'}:v;};
   function updateBoard(patch){if(!production)return;const previous=boardView();if(['kind','index','state','characterLayer','stage'].some(k=>Object.hasOwn(patch,k)&&patch[k]!==previous[k]))reviewId=null;boardViews.set(production.id,{...previous,...patch});render();const chosen=selectedImageModel(drafts.get(boardGenerationKey())||{},imageCatalog);if(!imageModelsLoading&&!imageContracts[chosen.id])void loadImageModels();}
-  const preview = createPreview({root,getContext:()=>({job:production,assets,selection:session.selection,apiBase}),onStatus:message=>announce(message)});
+  const preview = createPreview({root,getContext:()=>({job:production,assets,coverage,selection:session.selection,apiBase}),onStatus:message=>announce(message)});
   let collecting = false;
   const collectionAttempts = new Map();
   let coverage = {total:0, ready:0, complete:false}, capabilities = {scriptAnalysis:false}, taskError = '';
   let selected = drafts.get('quick-start')?.text ? '' : drafts.get('selectedProject') || '', page = normalizePage(drafts.get('page') || 'plan');
+  let canvasDrawer=stages.includes(page)?{type:'production',phase:page}:page==='production'?{type:'production',phase:'production'}:null, drawerTrigger=null;
+  if(canvasDrawer)page='plan';
   let selectedEntity = drafts.get('selectedEntity') || '', editing = false, reviewId = null, prepared = null, submittingBatch = false, reviewing = false, recoveringTask = false;
   let filter = 'all', search = '', saveError = '', creating = Boolean(drafts.get('quick-start')?.text), focusedBeforeReview;
   const status = () => root.querySelector('[data-wf-status]');
@@ -81,7 +90,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const composeKey = () => `compose:${selected}:${selectedEntity}:${page}`;
   const image = (assetId, revisionId, thumb = true) => esc(assetURL(apiBase,assetId,revisionId,thumb));
   const path = relative => apiBase + relative;
-  const dirty = () => Object.keys(drafts.data).some(k => k.startsWith('plan:') || k.startsWith('compose:') || k.startsWith('review:') || k.startsWith('production:edits:') || k.startsWith('production:review:') || k.startsWith('analysis:review:') || k.startsWith('boardgen:') || k.startsWith('art-direction:') || (k==='quick-start'&&drafts.get(k)?.text));
+  const dirty = () => Object.keys(drafts.data).some(k => k.startsWith('plan:') || k.startsWith('compose:') || k.startsWith('review:') || k.startsWith('production:edits:') || k.startsWith('production:review:') || k.startsWith('analysis:review:') || k.startsWith('boardgen:') || k.startsWith('art-direction:') || k.startsWith('art-bundle:') || k.startsWith('prompt-recipe:') || (k==='quick-start'&&drafts.get(k)?.text));
   const guide = () => scripts.length && !plan.entities.length && !drafts.get(planKey()) ? {kind:'analysis',title:analysis?.status==='ready'?'核对 AI 分析，建立资产清单':'先完成 AI 剧本分析',detail:analysis?.message||'用 AI 理解角色、场景、时间、地点、事件与台词。'} : nextAction({project, plan:{...plan,needsReview:plan.needsReview||Boolean(drafts.get(planKey()))}, assets, tasks, bundles, selection:session.selection, taskError, styleCount:session.features?.imageGeneration ? 4 : 1});
 
 
@@ -110,7 +119,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function options(values, selectedValue) { return values.map(([value,text]) => `<option value="${esc(value)}" ${value === selectedValue ? 'selected' : ''}>${esc(text)}</option>`).join(''); }
   function nav() {
-    const entries = [['plan','剧情总览'],['style','风格探索'],['asset','资产制作'],['production','导演编排']];
+    const entries = [['plan','制作画布'],['review','任务与版本']];
     return `<nav class="wf-tabs" aria-label="资产制作步骤">${entries.map(([id,title]) => `<button type="button" data-wf-nav="${id}" ${(page === id||(page==='refine'&&id==='asset')||(page==='review'&&id==='plan')) ? 'aria-current="step"' : ''}>${title}</button>`).join('')}</nav>`;
   }
   function stepNavigation() { return nav(); }
@@ -127,13 +136,13 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function render() {
     if (!alive) return;
     if(rerollId!==reviewId)rerollId=null;
-    const view=boardView(),viewKey=JSON.stringify([selected,page,selectedEntity,production?.id,view.kind,view.index,view.state,view.stage,view.characterLayer,view.inspector]);
+    const view=boardView(),viewKey=JSON.stringify([selected,page,selectedEntity,production?.id,view.kind,view.index,view.state,view.stage,view.characterLayer,view.inspector,canvasDrawer]);
     const openStates=new Map(renderedViewKey===viewKey?disclosureStates().map(({node,key})=>[key,node.open]):[]);
     preview.reset();
     doc.body.dataset.workflowPage=page;
     const title = project ? project.name : projects.length ? '开始一个新项目' : '开始你的第一个项目';
     const chooser = projects.length ? `<label><span class="sr-only">当前项目</span><select data-wf-project>${!selected?'<option value="">选择已有项目</option>':''}${options(projects.map(p=>[p.id,p.name]),selected)}</select></label>` : '';
-    root.innerHTML = `<section class="wf" aria-label="资产工作流"><div class="wf-toolbar"><div><span class="wf-muted">从一份剧本，到一套可用资产</span><h2>${esc(title)}</h2></div><div class="wf-actions">${chooser}<button type="button" data-wf-action="new-project" ${busy?'disabled':''}>＋ 新项目</button><button type="button" data-wf-action="refresh" ${busy ? 'disabled' : ''}>刷新状态</button></div></div>${renderStatus()}${productionDraftControls()}<div data-wf-operation></div>${project ? stepNavigation() : ''}${loading ? '<p class="wf-muted" role="status">正在读取已保存项目…</p>' : !project ? createView() : page === 'plan' ? planView() : page === 'production' ? productionView() : stages.includes(page) ? creatorView() : page === 'review' ? reviewView()+tasksView(selectedEntity) : planView()}${libraryPanel(remoteLibrary)}${reviewId ? reviewDetail() : ''}${prepared ? confirmationView() : ''}</section>`;
+    root.innerHTML = `<section class="wf" aria-label="资产工作流"><div class="wf-toolbar"><div><span class="wf-muted">从一份剧本，到一套可用资产</span><h2>${esc(title)}</h2></div><div class="wf-actions">${chooser}<button type="button" data-wf-action="new-project" ${busy?'disabled':''}>＋ 新项目</button><button type="button" data-wf-action="refresh" ${busy ? 'disabled' : ''}>刷新状态</button></div></div>${renderStatus()}${productionDraftControls()}<div data-wf-operation></div>${project ? stepNavigation() : ''}${loading ? '<p class="wf-muted" role="status">正在读取已保存项目…</p>' : !project ? createView() : page === 'plan' ? planView() : page === 'production' ? productionView() : stages.includes(page) ? creatorView() : page === 'review' ? reviewView()+tasksView(selectedEntity) : planView()}${canvasPanelView()}${libraryPanel(remoteLibrary)}${reviewId ? reviewDetail() : ''}${prepared ? confirmationView() : ''}</section>`;
     for(const {node,key} of disclosureStates())if(openStates.has(key))node.open=openStates.get(key);
     renderedViewKey=viewKey;
     renderProgress(); renderLibrary(); canvas.refresh(); storyCanvas.refresh();
@@ -176,19 +185,42 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const warnings = [...new Set(scripts.flatMap(s=>s.analysis?.warnings||[]))];
     const header = `<section class="wf-panel story-source-bar"><div class="wf-actions"><label class="wf-link">导入剧本<input data-wf-upload type="file" accept=".txt,.md,.docx" hidden></label><button type="button" data-wf-action="edit-plan">${plan.entities.length ? '编辑资产清单' : '手工填写清单'}</button></div>${warnings.length?`<div class="wf-note">${warnings.map(w=>esc(w)).join('<br>')}</div>`:''}${scripts.map(sourceView).join('')}</section>${analysisView()}`;
     if (editing || draft) return header + planEditor(draft || {expectedVersion:plan.version, entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});
-    return header + (analysis?.status==='ready' ? (production&&returnedResult(production)?`<section class="wf-panel"><h3>制作清单已返回</h3><p>${currentProduction().assets.length} 项物料 · ${currentProduction().shots.length} 个镜头</p><button class="primary" data-wf-action="production-open-review">${production.validationIssues?.length?`核对并修改 ${production.validationIssues.length} 处问题`:'修改制作清单与镜头'}</button><button data-wf-nav="style" ${production.validationIssues?.length?'disabled':''}>探索风格 →</button><details data-production-review-panel><summary>制作方案与原文核对</summary>${productionView()}</details></section>`:productionView()) : '') + (production||assets.length||bundles.length?deliveryView():'') + (plan.entities.length?`<details><summary>已有清单与历史档案</summary><div data-wf-archives>${archivesView()}</div></details>`:'');
+    return header + (analysis?.status==='ready'?`<section class="wf-panel"><div class="wf-actions"><button data-wf-action="open-production-plan">${production&&returnedResult(production)?'修改制作清单与镜头':'细化物料与分镜'}</button>${production&&returnedResult(production)?'<button data-canvas-preview>图板预演</button>':''}</div></section>`:'') + (production||assets.length||bundles.length?deliveryView():'') + (plan.entities.length?`<details><summary>已有清单与历史档案</summary><div data-wf-archives>${archivesView()}</div></details>`:'');
   }
   function archivesView() {
     const archives = buildCustomerArchives(assets,plan);
     return (archives.length ? `<div class="wf-section-title"><h3>本项目档案</h3><span class="wf-muted">${archives.length} 项 · 未生成的条目也保留在这里</span></div><div class="wf-grid">${archives.map(a=>archiveCard(a)).join('')}</div>` : empty('等待 AI 分析结果','分析完成后核对六类信息，再建立角色与地点资产清单。'));
   }
-  function productionView() { return productionPanel({script:scripts.at(-1),analysis,job:production,enabled:capabilities.scriptAnalysis,connected:Boolean(session.selection?.providerAccountId&&session.selection?.spaceId),busy,error:productionError||error||saveError,models:capabilities.analysis?.models||[],modelId:drafts.get('text-model')||capabilities.analysis?.defaultModelId,assets,selection:session.selection,apiBase,draft:drafts.get(`production:edits:${production?.id}`),review:drafts.get(`production:review:${production?.id}`),view:boardView(),tasks,generationDraft:drafts.get(boardGenerationKey())||{},phase:page==='production'?'director':'plan',project,imageCatalog,imageContracts,imageModelsLoading,imageModelsError}); }
+  function productionView(panel=false) { return productionPanel({script:scripts.at(-1),analysis,job:production,enabled:capabilities.scriptAnalysis,connected:Boolean(session.selection?.providerAccountId&&session.selection?.spaceId),busy,error:productionError||error||saveError,models:capabilities.analysis?.models||[],modelId:drafts.get('text-model')||capabilities.analysis?.defaultModelId,assets,coverage,selection:session.selection,apiBase,draft:drafts.get(`production:edits:${production?.id}`),review:drafts.get(`production:review:${production?.id}`),view:panel?{kind:'shots',index:0,inspector:'shots',...boardView()}:boardView(),tasks,generationDraft:drafts.get(boardGenerationKey())||{},phase:panel?'canvas':page==='production'?'director':'plan',project,imageCatalog,imageContracts,imageModelsLoading,imageModelsError}); }
   function creatorView(){
     if(!production||!returnedResult(production))return `<section class="wf-panel"><h3>先整理本剧的制作清单</h3><button data-wf-nav="plan">返回剧情总览</button></section>`+(plan.entities.length?`<details><summary>继续使用已有档案制作</summary>${composeView()}</details>`:'');
     return creatorDesk({page:page==='refine'?'asset':page,project,result:currentProduction(),job:production,assets,selection:session.selection,view:boardView(),apiBase,busy,tasks,
       review:drafts.get(`production:review:${production.id}`),draft:drafts.get(`production:edits:${production.id}`),generationDraft:drafts.get(boardGenerationKey())||{},directionDraft:drafts.get(`art-direction:${selected}`),imageCatalog,imageContracts,imageModelsLoading,imageModelsError});
   }
-  function analysisView() { const overview={job:production,assets,coverage,selection:session.selection,apiBase,tasks,unsaved:Boolean(drafts.get(`production:review:${production?.id}`)||drafts.get(`production:edits:${production?.id}`)||drafts.get(`analysis:review:${analysis?.id}`))};const shots=overviewShots(overview);const legacy=shots.length&&!(analysis?.result||analysis?.draftResult)?storyCards({characters:[],scenes:[...new Set(shots.map(r=>r.shot.sceneId))].map((id,i)=>({id,title:`场次 ${i+1}`,order:i,summary:'已保存分镜；原文分析可在下方补充。'}))},{overview,shots,apiBase,canvasKey:production.id}):'';return legacy+analysisPanel({overview,shots,apiBase,script:scripts.at(-1),analysis,draft:drafts.get(`analysis:review:${analysis?.id}`),enabled:capabilities.scriptAnalysis,connected:Boolean(session.selection?.providerAccountId&&session.selection?.spaceId),busy,error:analysisError,models:capabilities.analysis?.models||[],modelId:drafts.get('text-model')||capabilities.analysis?.defaultModelId}); }
+  function openCanvasPanel(value,trigger){
+    drawerTrigger=trigger||doc.activeElement;canvasDrawer=value;page='plan';persist('page',page);render();
+    root.querySelector('[data-canvas-drawer]')?.focus({preventScroll:true});
+    if(value.type==='production'||value.type==='batch'||value.type==='art'&&value.role!=='standard')void loadImageModels();
+  }
+  function closeCanvasPanel(){canvasDrawer=null;render();if(drawerTrigger?.isConnected)drawerTrigger.focus({preventScroll:true});else root.querySelector('[data-story-viewport]')?.focus({preventScroll:true});}
+  function canvasPanelView(){
+    if(page!=='plan'||!canvasDrawer)return '';
+    const v=boardView(),result=currentProduction();let title='制作',body='';
+    if(canvasDrawer.type==='recipes'){title='提示词规范';body=promptRecipePanel({revision:assets.flatMap(a=>a.revisions).find(r=>r.id===canvasDrawer.revisionId),project,assets,apiBase,busy,draft:drafts.get(`prompt-recipe:${selected}:${canvasDrawer.revisionId}`)||{}});
+    }else if(canvasDrawer.type==='batch'&&result){title='批量补分镜图';body=canvasBatchPanel({job:production,result:returnedResult(production),assets,tasks,selection:session.selection,draft:drafts.get(boardGenerationKey())||{},catalog:imageCatalog,contracts:imageContracts,busy,loading:imageModelsLoading,error:imageModelsError});
+    }else if(canvasDrawer.type==='art'){title='全剧美术试做';body=artStudiesPanel({role:canvasDrawer.role,project,assets,apiBase,selection:session.selection,busy,draft:artGenerationDraft(),bundle:drafts.get(artBundleKey())||{},catalog:imageCatalog,contracts:imageContracts,loading:imageModelsLoading,error:imageModelsError,analysis:analysis?.result||analysis?.draftResult,tasks});
+    }else if(canvasDrawer.type==='material'){
+      const item=analysisMaterials(analysis?.result||analysis?.draftResult||{}).find(r=>r.id===canvasDrawer.id);
+      title=item?.name||'关键道具';body=`<p>${esc(item?.description||'制作方案返回后，可补充剧本中的关键道具。')}</p><p class="wf-muted">先确认全剧美术标准，再细化物料与镜头。这里保留剧本分析中的设定。</p><button data-canvas-art="standard">全剧美术试做</button><details><summary>细化物料与分镜</summary>${productionView()}</details>`;
+    }else if(!result){title='细化物料与分镜';body=productionView();
+    }else if(stages.includes(phase())){
+      title=result.assets[v.index||0]?.name||'选择物料';
+      const opts={project,result,job:production,assets,selection:session.selection,view:v,apiBase,busy,tasks,phase:phase()==='style'?'style':'asset',review:drafts.get(`production:review:${production.id}`),generationDraft:drafts.get(boardGenerationKey())||{},directionDraft:drafts.get(`art-direction:${selected}`),imageCatalog,imageContracts,imageModelsLoading,imageModelsError,canvasMode:true};
+      body=`<label>当前物料<select data-canvas-asset>${result.assets.map((a,i)=>`<option value="${i}" ${i===(v.index||0)?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>${phase()==='style'&&project.artDirection?styleSummary(project,apiBase):''}${generationInspector(opts)}${phase()==='style'?`<button type="button" data-creator-go-stage="asset">去生成${result.assets[v.index||0]?.category==='character'?'人物主多视图':result.assets[v.index||0]?.category==='scene'?'场景主多视图':'道具白底图'} →</button>`:''}`;
+    }else {title=v.inspector==='preview'?'图板预演':v.inspector==='issues'?'核对原文与关联':`镜头 ${String((v.index||0)+1).padStart(3,'0')}`;body=productionView(true);}
+    return `<aside class="canvas-drawer" data-canvas-drawer tabindex="-1" role="region" aria-label="${esc(title)}制作面板"><header><div><h3>${esc(title)}</h3><p>修改留在当前卡片 · 草稿自动保留</p></div><button type="button" data-canvas-close aria-label="关闭制作面板">×</button></header><div class="canvas-drawer-body">${body}</div></aside>`;
+  }
+  function analysisView() { const overview={project,job:production,assets,coverage,selection:session.selection,apiBase,tasks,unsaved:Boolean(drafts.get(`production:review:${production?.id}`)||drafts.get(`production:edits:${production?.id}`)||drafts.get(`analysis:review:${analysis?.id}`))};const shots=overviewShots(overview);const legacy=shots.length&&!(analysis?.result||analysis?.draftResult)?storyCards({characters:[],scenes:[...new Set(shots.map(r=>r.shot.sceneId))].map((id,i)=>({id,title:`场次 ${i+1}`,order:i,summary:'已保存分镜；原文分析可在下方补充。'}))},{overview,shots,apiBase,canvasKey:production.id}):'';return legacy+analysisPanel({overview,shots,apiBase,script:scripts.at(-1),analysis,draft:drafts.get(`analysis:review:${analysis?.id}`),enabled:capabilities.scriptAnalysis,connected:Boolean(session.selection?.providerAccountId&&session.selection?.spaceId),busy,error:analysisError,models:capabilities.analysis?.models||[],modelId:drafts.get('text-model')||capabilities.analysis?.defaultModelId}); }
   function archiveCard(a) {
     return `<article class="wf-entity">${a.cover ? `<div class="wf-cover"><button class="wf-image-button" data-wf-review="${esc(a.cover.id)}" aria-label="查看 ${esc(a.name)} 原图与审核"><img src="${image(a.assetId,a.cover.id)}" alt="${esc(a.name)} ${esc(stageLabels[a.cover.stage])}" loading="lazy"></button></div>` : '<div class="wf-cover"><span class="wf-muted">待制作</span></div>'}<p>${tag('',categories[a.category])}</p><h3>${esc(a.name)}</h3><p class="wf-muted">${esc(a.description || '设定待补充')}</p><div class="wf-stage-line">${stages.map(s=>`<span class="${a.stages[s] ? 'done' : ''}">${esc(stageLabels[s])} ${a.stages[s]?'✓':a.revisions.some(r=>r.stage===s&&r.status==='ready'&&r.review==='pending')?'待审核':a.revisions.some(r=>r.stage===s&&r.review==='changes_requested')?'待返修':'待制作'}</span>`).join('')}</div><div class="wf-actions"><button data-wf-entity="${esc(a.id)}" data-wf-stage="${a.stages.asset?'refine':a.stages.style?'asset':'style'}">继续制作</button><button data-wf-archive="${esc(a.id)}">版本与审核 (${a.revisions.length})</button></div></article>`;
   }
@@ -283,7 +315,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     imageModelsLoading=true;imageModelsError='';render();
     try{
       if(refresh||!imageCatalog){const response=await api.request('/image-models',{quietProgress:true});if(serial!==imageModelSerial)return;imageCatalog=response;}
-      const draft=drafts.get(rerollId?rerollKey():boardGenerationKey())||{};
+      const draft=rerollId?(drafts.get(rerollKey())||{}):canvasDrawer?.type==='art'?artGenerationDraft():drafts.get(boardGenerationKey())||{};
       const chosen=rerollId&&rerollMode==='nano'?selectedNanoModel(draft,imageCatalog):selectedImageModel(draft,imageCatalog);
       if(!chosen)throw new Error('当前官方目录未返回 Nano 图片模型，请检查账号授权或刷新目录。');
       if(refresh||!imageContracts[chosen.id]){const contract=await api.request('/image-models?model='+encodeURIComponent(chosen.id),{quietProgress:true});if(serial!==imageModelSerial)return;imageContracts[chosen.id]=contract;}
@@ -361,11 +393,15 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       polling=false;
       if(alive&&serial===requestSerial&&projectId===selected){
         // Keep form nodes and their caret intact while refreshing background status.
-        if(['production',...stages].includes(page)&&production&&returnedResult(production)){
-          const c=(stages.includes(page)||boardView().inspector==='generate')?generationContext({result:currentProduction(),job:production,view:boardView(),assets,selection:session.selection}):null;
-          const gallery=root.querySelector('[data-board-generation-gallery]');if(gallery&&c&&mediaChanged)gallery.innerHTML=generationGallery(c.versions,apiBase,{stage:c.shot?'storyboard':boardView().stage,category:c.asset?.category,master:c.master,direction:page==='style',busy:busy||c.binding?.changed||Boolean(drafts.get(`production:review:${production.id}`))});
+        if((['production',...stages].includes(page)||canvasDrawer?.type==='production')&&production&&returnedResult(production)){
+          const c=(stages.includes(phase())||boardView().inspector==='generate')?generationContext({result:currentProduction(),job:production,view:boardView(),assets,selection:session.selection}):null;
+          const gallery=root.querySelector('[data-board-generation-gallery]');if(gallery&&c&&mediaChanged)gallery.innerHTML=generationGallery(c.versions,apiBase,{stage:c.shot?'storyboard':boardView().stage,category:c.asset?.category,master:c.master,direction:!canvasDrawer&&phase()==='style',busy:busy||c.binding?.changed||Boolean(drafts.get(`production:review:${production.id}`))});
           const feedback=root.querySelector('[data-board-generation-feedback]');if(feedback&&c)feedback.innerHTML=tasksView(c.binding?.entityId);
           if(mediaChanged){const temp=doc.createElement('div');temp.innerHTML=productionView();const old=root.querySelector('[data-board-stage]'),fresh=temp.querySelector('[data-board-stage]');if(old&&fresh){old.replaceChildren(...fresh.childNodes);canvas.refresh();}}
+        }
+        if(canvasDrawer?.type==='art'&&(mediaChanged||tasksChanged)){
+          const temp=doc.createElement('div');temp.innerHTML=canvasPanelView();
+          for(const selector of ['[data-art-gallery]','[data-art-feedback]']){const old=root.querySelector(selector),fresh=temp.querySelector(selector);if(old&&fresh)old.replaceChildren(...fresh.childNodes);}
         }
         const taskPanel=root.querySelector('[data-wf-task-feedback]');if(taskPanel&&!taskPanel.closest('[data-board-generation-feedback]'))taskPanel.outerHTML=tasksView(selectedEntity);
         if(mediaChanged){
@@ -443,7 +479,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(next.kind==='archive')return perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/bundles`,{method:'POST',body:{expectedVersion:project.version}});page='plan';persist('page',page);await load();});
   }
   function continueAfterReview() {
-    if(!production&&page!=='production'&&drafts.get(`flow:${selected}`))setTimeout(()=>{if(alive&&!busy)void continueFlow();},0);
+    if(!canvasDrawer&&!production&&page!=='production'&&drafts.get(`flow:${selected}`))setTimeout(()=>{if(alive&&!busy&&!canvasDrawer)void continueFlow();},0);
   }
   async function perform(operation) {
     if(busy)return;busy=true;busyStartedAt=Date.now();error='';notice='';render();
@@ -464,13 +500,17 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(['prompt','sourceRevisionId','count','ratio','selectionRevision'].some(k=>current[k]!==draft[k]))current.prepareKey=key();
     return current;
   }
-  function navigate(next) {
-    if(next==='production'&&stages.includes(page)&&production){const v=boardView();boardViews.set(production.id,{...v,kind:'shots',inspector:'shots',index:v.returnShot||0});}
-    page=normalizePage(next);if(!['plan','production',...stages,'review'].includes(page))page='plan';
-    reviewId=null;persist('page',page);render();if(stages.includes(page)||page==='production')void loadImageModels();root.scrollIntoView({behavior:'instant',block:'start'});
+  function navigate(next,{object=false}={}) {
+    if(next==='style'&&!object)return openCanvasPanel({type:'art',role:'standard'});
+    if(stages.includes(next)||next==='production'){
+      if(next==='production'&&stages.includes(phase())&&production){const v=boardView();boardViews.set(production.id,{...v,kind:'shots',inspector:'shots',index:v.returnShot||0});}
+      reviewId=null;return openCanvasPanel({type:'production',phase:next});
+    }
+    canvasDrawer=null;page=normalizePage(next);if(!['plan','review'].includes(page))page='plan';
+    reviewId=null;persist('page',page);render();root.scrollIntoView({behavior:'instant',block:'start'});
   }
   async function switchProject(id) {
-    if(busy||id===selected)return;returnStoryShot=null;storyRefreshPending=false;librarySerial++;remoteLibrary={open:false};clearTimeout(flowTimer);flowTimer=null;creating=false;selected=id;selectedEntity='';reviewId=null;prepared=null;editing=false;
+    if(busy||id===selected)return;canvasDrawer=null;returnStoryShot=null;storyRefreshPending=false;librarySerial++;remoteLibrary={open:false};clearTimeout(flowTimer);flowTimer=null;creating=false;selected=id;selectedEntity='';reviewId=null;prepared=null;editing=false;
     persist('selectedProject',id);persist('selectedEntity','');await load({initial:true});
   }
   function openReview(id, button) {
@@ -606,7 +646,9 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(target.hasAttribute('data-wf-analysis-json')&&analysis){persist(`analysis:review:${analysis.id}`,{...(drafts.get(`analysis:review:${analysis.id}`)||analysisDraft(analysis)),raw:target.value});return;}
     if(target.hasAttribute('data-director-filter')){const q=target.value.toLocaleLowerCase();root.querySelectorAll('[data-director-asset-row]').forEach(row=>row.hidden=!row.textContent.toLocaleLowerCase().includes(q));return;}
     if(target.hasAttribute('data-creator-filter')){const q=target.value.toLocaleLowerCase();root.querySelectorAll('[data-creator-catalog] > button').forEach(b=>b.hidden=!b.textContent.toLocaleLowerCase().includes(q));return;}
-    if(target.hasAttribute('data-image-model')){const values=Object.fromEntries(new FormData(target.closest('form')));for(const name of Object.keys(values))if(name.startsWith('param:'))delete values[name];persist(rerollId&&target.closest('form')?.dataset.wfForm==='version-reroll'?rerollKey():boardGenerationKey(),{...values,prepareKey:key()});void loadImageModels();return;}
+    if(target.hasAttribute('data-image-model')){const formData=new FormData(target.closest('form')),values=Object.fromEntries(formData);if(canvasDrawer?.type==='batch')values.shotIds=formData.getAll('shotIds');for(const name of Object.keys(values))if(name.startsWith('param:'))delete values[name];persist(rerollId&&target.closest('form')?.dataset.wfForm==='version-reroll'?rerollKey():boardGenerationKey(),{...values,prepareKey:key()});void loadImageModels();return;}
+    if(target.hasAttribute('data-art-subject')){const form=target.closest('form'),inputs=Object.fromEntries(new FormData(form));persist(boardGenerationKey(),{...inputs,prompt:studyPrompt(canvasDrawer.role,analysis?.result||analysis?.draftResult,inputs.subjectId),prepareKey:key()});render();return;}
+    if(target.hasAttribute('data-canvas-asset')){updateBoard({index:Number(target.value),kind:'assets',state:0,characterLayer:'master'});return;}
     if(target.hasAttribute('data-board-generation-state')){updateBoard({state:Number(target.value)});return;}
     if(target.hasAttribute('data-reference-search')){
       const host=target.closest('[data-reference-picker]'),path=host.dataset.referencePicker,result=currentProduction(),shot=result.shots[Number(path.split('.')[1])];
@@ -638,9 +680,13 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
 if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId}`,{note:target.value});return;}
     const form=target.closest('[data-wf-form]');if(!form)return;
     if(form.dataset.wfForm==='library-search')return loadLibrary(form.elements.name.value);
+    if(form.dataset.wfForm==='prompt-recipe'){persist(`prompt-recipe:${selected}:${canvasDrawer.revisionId}`,{...Object.fromEntries(new FormData(form)),evidenceRevisionIds:new FormData(form).getAll('evidenceRevisionIds')});return;}
+    if(form.dataset.wfForm==='art-generation'){persist(boardGenerationKey(),{...Object.fromEntries(new FormData(form)),prepareKey:key()});return;}
+    if(form.dataset.wfForm==='art-standard'){persist(artBundleKey(),{...(drafts.get(artBundleKey())||{}),...Object.fromEntries(new FormData(form))});return;}
     if(form.dataset.wfForm==='art-direction'){persist(`art-direction:${selected}`,Object.fromEntries(new FormData(form)));return;}
     if(form.dataset.wfForm==='plan')persist(planKey(),capturePlan(form));
     if(form.dataset.wfForm==='version-reroll'){persist(rerollKey(),{...Object.fromEntries(new FormData(form)),prepareKey:key()});return;}
+    if(form.dataset.wfForm==='board-generation'&&canvasDrawer?.type==='batch'){persist(boardGenerationKey(),{...Object.fromEntries(new FormData(form)),shotIds:new FormData(form).getAll('shotIds')});return;}
     if(form.dataset.wfForm==='board-generation'){persist(boardGenerationKey(),{...Object.fromEntries(new FormData(form)),prepareKey:key()});return;}
     if(form.dataset.wfForm==='compose'){if(target.name!=='promptReviewed'&&form.elements.promptReviewed)form.elements.promptReviewed.checked=false;persist(composeKey(),captureCompose(form));}
     if(form.dataset.wfForm==='create')persist('new-project',Object.fromEntries(new FormData(form)));
@@ -668,6 +714,27 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
         announce(`已带上原图，准备 ${ready.length} 组${nano?' Nano 洗图':'重抽'}。${failed.length?failed.length+' 组未准备成功，原记录保留。':''}核对费用后提交；当前选用版本未改变。`);
       });
     }
+    if(form.dataset.wfForm==='prompt-recipe'){
+      const values=Object.fromEntries(new FormData(form)),r=assets.flatMap(a=>a.revisions).find(r=>r.id===values.revisionId);if(!r)return;
+      const body={...values,evidenceRevisionIds:new FormData(form).getAll('evidenceRevisionIds'),sha256:r.sha256,expectedVersion:project.promptRecipeVersion||0};
+      return perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/prompt-recipes`,{method:'POST',body});removeDraft(`prompt-recipe:${selected}:${r.id}`);canvasDrawer={type:'recipes'};await load();announce('提示词规范已保存，原图和任务记录保留。');});
+    }
+    if(form.dataset.wfForm==='art-standard'){
+      const notes=form.elements.notes.value,bundle=drafts.get(artBundleKey())||{},samples=resolvedArtSamples(bundle,project,assets);
+      persist(artBundleKey(),{...bundle,notes});
+      return perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/art-direction`,{method:'PUT',body:{notes,samples:Object.fromEntries(Object.entries(samples).map(([role,r])=>[role,{revisionId:r.id,sha256:r.sha256}])),expectedVersion:project.artDirection?.version||0,confirmStyle:true}});removeDraft(artBundleKey());await load();announce('全剧美术标准已确认。人物与场景画风已固定，可以继续制作主资产。');});
+    }
+    if(form.dataset.wfForm==='art-generation'){
+      const role=canvasDrawer.role,inputs=Object.fromEntries(new FormData(form)),name=boardGenerationKey(),draft={...inputs,prepareKey:event.submitter?.hasAttribute('data-art-reroll')?key():drafts.get(name)?.prepareKey||key()};persist(name,draft);
+      return perform(async()=>{
+        if(drafts.get(planKey()))throw Error('请先保存资产清单草稿，再开始试做。');
+        const model=selectedImageModel(draft,imageCatalog),samples=resolvedArtSamples(drafts.get(artBundleKey())||{},project,assets);
+        const body={role,prompt:draft.prompt,settings:collectImageSettings(inputs,imageContracts[model.id]),modelId:model.id,expectedPlanVersion:plan.version,expectedSelectionRevision:session.selection.revision,expectedArtDirectionVersion:project.artDirection?.version||0,...(role==='trial'?{samples:Object.fromEntries(['character','scene'].filter(k=>samples[k]).map(k=>[k,{revisionId:samples[k].id,sha256:samples[k].sha256}]))}:{})};
+        const submit=async i=>{const r=await api.request(`/projects/${encodeURIComponent(selected)}/art-studies/prepare`,{method:'POST',body:{...body,idempotencyKey:draft.prepareKey+':group:'+i}});if(!r.confirmation)throw Error(r.task?.error?.message||'尚未准备完成，请查看原任务。');return r;};
+        const first=await submit(0),rest=await parallelGroups(Array.from({length:batchSize(inputs.groups)-1},(_,i)=>i+1),submit),ready=[first,...rest.filter(r=>r.status==='fulfilled').map(r=>r.value)];
+        prepared={...first,batch:ready};selectedEntity=first.task.entityId;await load();announce(`已准备 ${ready.length} 组美术候选，核对费用后一起提交。${rest.some(r=>r.status==='rejected')?'部分组未准备完成，本次仅提交清单内的组。':''}`);
+      });
+    }
     if(form.dataset.wfForm==='art-direction'){
       const body=Object.fromEntries(new FormData(form));persist(`art-direction:${selected}`,body);
       const asset=assets.find(a=>a.revisions.some(r=>r.id===body.revisionId)),r=asset?.revisions.find(r=>r.id===body.revisionId);if(!r)return;
@@ -683,26 +750,33 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
         const repair=event.submitter.hasAttribute('data-generation-repair-shots');
         if(drafts.get(`production:review:${production?.id}`)||drafts.get(`production:edits:${production?.id}`))throw new Error('请先保存镜头编排，再批量准备分镜。');
         tasks=(await loadTasks(selected)).items;taskError='';
-        const result=returnedResult(production),targets=(repair?repairStoryboardShots:missingStoryboardShots)({job:production,result,assets,tasks,selection:session.selection},referenceCards);
+        const result=returnedResult(production),explicit=event.submitter.hasAttribute('data-generation-selected-shots'),chosenShots=new FormData(form).getAll('shotIds');
+        if(explicit&&(!chosenShots.length||chosenShots.length>8))throw Error('请勾选 1 至 8 个镜头。');
+        const eligible=(repair?repairStoryboardShots:missingStoryboardShots)({job:production,result,assets,tasks,selection:session.selection,limit:explicit?Infinity:8},referenceCards),targets=explicit?eligible.filter(r=>chosenShots.includes(r.shot.id)):eligible;
+        if(explicit&&targets.length!==chosenShots.length)throw Error('部分镜头状态已变化，请重新核对可生成的镜头；本次尚未准备。');
         if(!targets.length)throw new Error(repair?'没有可批量返修的镜头。只包含最新图片已退回、参考齐全且没有处理中或待核对任务的镜头。':'没有可批量准备的镜头。请先固定参考；已有图片或任务请逐镜查看，避免重复生成。');
         const chosen=selectedImageModel(inputs,imageCatalog),settings=collectImageSettings(inputs,imageContracts[chosen.id]);
         const batchKey=key(),ready=[],failed=[];
-        // Establish each shot archive with the latest plan version. Paid submits
-        // remain concurrent only after the user reviews this complete batch.
-        for(const {shot,index} of targets){
-          announce(`正在准备${repair?'返修':''}镜头 ${String(index+1).padStart(3,'0')} · 本批 ${ready.length+failed.length+1}/${targets.length}，尚未提交收费生成。`);
+        await parallelGroups(targets,async({shot,index})=>{
+          announce(`正在准备镜头 ${String(index+1).padStart(3,'0')}；本批 ${targets.length} 镜，尚未提交收费生成。`);
           try{
-            const currentPlan=await api.request(`/projects/${encodeURIComponent(selected)}/plan`);
-            const c=generationContext({result,job:production,view:{kind:'shots',index,stage:'storyboard'},assets,selection:session.selection});
-            const response=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/images/prepare`,{method:'POST',body:{
-              recipe:'image25_storyboard',modelId:chosen.id,prompt:c.prompt,settings,shotId:shot.id,
-              expectedReviewVersion:production.reviewVersion,expectedEditVersion:production.editVersion,expectedPlanVersion:currentPlan.version,
-              expectedSelectionRevision:session.selection.revision,expectedArtDirectionVersion:project.artDirection?.version||0,
-              idempotencyKey:batchKey+':shot:'+shot.id}});
-            if(!response.confirmation)throw new Error(response.task?.error?.message||'准备未完成');
-            ready.push({...response,targetName:`镜头 ${String(index+1).padStart(3,'0')} · ${shot.purpose}`});
+            let response;
+            // Archive writes use optimistic plan versions; only a definite
+            // pre-submit conflict retries, always under the same idempotency key.
+            for(let attempt=0;attempt<3;attempt++){
+              const currentPlan=await api.request(`/projects/${encodeURIComponent(selected)}/plan`);
+              const c=generationContext({result,job:production,view:{kind:'shots',index,stage:'storyboard'},assets,selection:session.selection});
+              try{response=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/images/prepare`,{method:'POST',body:{
+                recipe:'image25_storyboard',modelId:chosen.id,prompt:c.prompt,settings,shotId:shot.id,
+                expectedReviewVersion:production.reviewVersion,expectedEditVersion:production.editVersion,expectedPlanVersion:currentPlan.version,
+                expectedSelectionRevision:session.selection.revision,expectedArtDirectionVersion:project.artDirection?.version||0,
+                idempotencyKey:batchKey+':shot:'+shot.id}});break;}catch(e){if(e.code!=='VERSION_CONFLICT'||attempt===2)throw e;}
+            }
+            if(!response?.confirmation)throw Error(response?.task?.error?.message||'准备未完成');
+            ready.push({...response,targetName:`镜头 ${String(index+1).padStart(3,'0')} · ${shot.purpose}`,shotIndex:index});
           }catch(e){failed.push(`镜头 ${String(index+1).padStart(3,'0')}：${e.message}`);}
-        }
+        });
+        ready.sort((a,b)=>a.shotIndex-b.shotIndex);
         prepared=ready.length?{...ready[0],batch:ready,multipleShots:true}:null;
         await load();announce(`已准备 ${ready.length} 个镜头，使用各镜已保存提示词与固定参考。${failed.length?failed.join('；'):repair?'返修会新建生成任务，核对清单与费用后一起提交。':'核对清单后一起提交生成。'}`);
       });
@@ -773,13 +847,28 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(button.hasAttribute('data-library-close')){librarySerial++;remoteLibrary.open=false;render();return;}
     if(button.hasAttribute('data-library-asset')){const serial=++librarySerial;remoteLibrary.loading=true;remoteLibrary.error='';render();try{const detail=await api.request('/libtv-assets?projectId='+encodeURIComponent(selected)+'&assetId='+encodeURIComponent(button.dataset.libraryAsset),{quietProgress:true});if(serial===librarySerial)remoteLibrary.detail=detail;}catch(e){if(serial===librarySerial)remoteLibrary.error=e.message;}finally{if(serial===librarySerial){remoteLibrary.loading=false;render();}}return;}
     if(button.hasAttribute('data-library-import')){const item=remoteLibrary.detail;if(!item)return;return perform(async()=>{const reply=await api.request(`/projects/${encodeURIComponent(selected)}/library-references`,{method:'POST',body:{assetId:item.id,expectedAssetVersion:item.version,imageIndex:Number(button.dataset.libraryImport),expectedSelectionRevision:session.selection.revision}});remoteLibrary.open=false;await load();openReview(reply.revision.id);announce('素材库图片已保存为项目参考，请看图确认。');});}
+    if(button.hasAttribute('data-canvas-recipes')){openCanvasPanel({type:'recipes'},button);return;}
+    if(button.hasAttribute('data-prompt-save')){reviewId=null;openCanvasPanel({type:'recipes',revisionId:button.dataset.promptSave},button);return;}
+    if(button.hasAttribute('data-prompt-use')){const recipe=project.promptRecipes?.find(r=>r.id===button.dataset.promptUse),c=generationContext({result:currentProduction(),job:production,view:boardView(),assets,selection:session.selection});if(recipe){persist(boardGenerationKey(),{...(drafts.get(boardGenerationKey())||{}),prompt:recipe.prompt.replaceAll('{{主体}}',c.asset?.name||c.shot?.purpose||'当前对象').replaceAll('{{参考图}}','（以本次所选参考图为准）'),prepareKey:key()});render();announce('已载入可编辑的要求；请核对当前对象、模型和参考，再准备生成。');}return;}
+    if(button.hasAttribute('data-canvas-return-shot')){const shotId=button.dataset.canvasReturnShot;closeCanvasPanel();storyCanvas.locateShot(shotId);return;}
+    if(button.hasAttribute('data-canvas-batch')){openCanvasPanel({type:'batch'},button);return;}
+    if(button.hasAttribute('data-canvas-preview')){if(production)boardViews.set(production.id,{kind:'shots',index:0,inspector:'preview',stage:'storyboard'});openCanvasPanel({type:'production',phase:'production'},button);return;}
+    if(button.hasAttribute('data-canvas-close')){closeCanvasPanel();return;}
+    if(button.hasAttribute('data-canvas-art')){openCanvasPanel({type:'art',role:button.dataset.canvasArt},button);return;}
+    if(button.hasAttribute('data-art-pick')){
+      const r=assets.flatMap(a=>a.revisions).find(r=>r.id===button.dataset.artPick),role=button.dataset.artRole;if(!r||r.status!=='ready')return;
+      if(r.review!=='approved')await decide('approved',{revisionId:r.id,note:'人工点选为全剧'+role+'试做样板'});
+      const approved=assets.flatMap(a=>a.revisions).find(v=>v.id===r.id&&v.review==='approved'&&v.status==='ready');if(!approved)return;
+      const bundle=drafts.get(artBundleKey())||{};persist(artBundleKey(),{...bundle,samples:{...(bundle.samples||{}),[role]:{revisionId:r.id,sha256:r.sha256}}});render();announce('已选好样板。三项试做都选定后，再确认全剧美术标准。');return;
+    }
+    if(button.hasAttribute('data-canvas-material')){openCanvasPanel({type:'material',id:button.dataset.canvasMaterial},button);return;}
     if(button.hasAttribute('data-overview-shot')){
       const index=Number(button.dataset.overviewShot);if(!returnedResult(production)?.shots[index])return;
-      boardViews.set(production.id,{kind:'shots',index,inspector:button.hasAttribute('data-overview-generate')?'generate':'shots',stage:'storyboard'});returnStoryShot=returnedResult(production).shots[index].id;storyCanvas.exitFocus();navigate('production');return;
+      boardViews.set(production.id,{kind:'shots',index,inspector:button.hasAttribute('data-overview-generate')?'generate':'shots',stage:'storyboard'});openCanvasPanel({type:'production',phase:'production'},button);return;
     }
     if(button.hasAttribute('data-overview-asset')){
       const index=Number(button.dataset.overviewAsset),state=Number(button.dataset.overviewState);if(!returnedResult(production)?.assets[index]?.states[state])return;
-      storyCanvas.exitFocus();boardViews.set(production.id,{kind:'assets',index,state,inspector:'generate',stage:'asset',characterLayer:button.dataset.overviewMaster==='true'?'master':'state'});navigate('asset');return;
+      boardViews.set(production.id,{kind:'assets',index,state,inspector:'generate',stage:'asset',characterLayer:button.dataset.overviewMaster==='true'?'master':'state'});navigate('asset');return;
     }
     if(button.hasAttribute('data-image-models-refresh')){await loadImageModels(true);return;}
     if(button.hasAttribute('data-wf-download')){event.preventDefault();const url=new URL(button.href);const relative=url.pathname.slice(apiBase.length);if(relative.endsWith('/storyboard-export')&&drafts.get(`production:review:${production?.id}`)){announce('请先保存镜头编排，再下载图文分镜脚本。');return;}return perform(async()=>{const blob=await api.request(relative,{responseType:'blob'});const link=doc.createElement('a');const objectUrl=URL.createObjectURL(blob);link.href=objectUrl;link.download=relative.endsWith('/storyboard-export')?'分镜脚本与图片.zip':'asset-lab-approved-assets.zip';link.hidden=true;doc.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);announce('交付包已交给浏览器下载。');});}
@@ -793,7 +882,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     }
     if(button.hasAttribute('data-character-layer')){updateBoard({characterLayer:button.dataset.characterLayer,stage:'asset'});return;}
     if(button.hasAttribute('data-creator-select')){updateBoard({index:Number(button.dataset.creatorSelect),kind:'assets',state:0,characterLayer:'master'});return;}
-    if(button.hasAttribute('data-creator-go-stage')){const next=button.dataset.creatorGoStage;if(next==='asset')boardViews.set(production.id,{...boardView(),stage:'asset'});return navigate(next);}
+    if(button.hasAttribute('data-creator-go-stage')){const next=button.dataset.creatorGoStage;if(next==='asset')boardViews.set(production.id,{...boardView(),stage:'asset'});return navigate(next,{object:true});}
     if(button.hasAttribute('data-creator-direction')){persist(`art-direction:${selected}`,{revisionId:button.dataset.creatorDirection});render();root.querySelector('.creator-direction')?.scrollIntoView({block:'center'});return;}
     if(button.hasAttribute('data-creator-direction-cancel')){removeDraft(`art-direction:${selected}`);render();return;}
     if(button.hasAttribute('data-creator-keep')){
@@ -808,12 +897,12 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
         expectedEditVersion:production.editVersion,expectedBindingVersion:production.bindingVersion,confirmApplicable:true};
       return perform(async()=>{production=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/bindings`,{method:'PUT',body});await load();announce('已有档案已关联，原图与审核状态保留。');});
     }
-    if(button.hasAttribute('data-board-generate')){if(button.dataset.boardGenerate==='assets'&&page==='production'){boardViews.set(production.id,{...boardView(),returnShot:boardView().returnShot??boardView().index??0});page='asset';persist('page',page);}updateBoard({inspector:'generate',kind:button.dataset.boardGenerate,index:Number(button.dataset.boardIndex),state:Number(button.dataset.boardStateIndex)||0,characterLayer:'state',stage:button.dataset.boardGenerate==='shots'?'storyboard':'style'});return;}
+    if(button.hasAttribute('data-board-generate')){if(canvasDrawer)canvasDrawer.phase=button.dataset.boardGenerate==='assets'?'asset':'production';if(button.dataset.boardGenerate==='assets'&&page==='production'){boardViews.set(production.id,{...boardView(),returnShot:boardView().returnShot??boardView().index??0});page='asset';persist('page',page);}updateBoard({inspector:'generate',kind:button.dataset.boardGenerate,index:Number(button.dataset.boardIndex),state:Number(button.dataset.boardStateIndex)||0,characterLayer:'state',stage:button.dataset.boardGenerate==='shots'?'storyboard':'style'});return;}
     if(button.hasAttribute('data-board-generation-stage')){updateBoard({stage:button.dataset.boardGenerationStage});return;}
     if(button.hasAttribute('data-board-reference-open')){
       const result=currentProduction(),index=Number(button.dataset.boardReferenceOpen);if(!result?.assets[index])return;
       const si=result.shots.findIndex(s=>s.id===button.dataset.shotId),ref=result.shots[si]?.references.find(r=>r.assetId===result.assets[index].id);
-      updateBoard({inspector:'assets',index,state:Math.max(0,result.assets[index].states.findIndex(s=>s.id===ref?.stateId)),returnShot:si});return;
+      updateBoard({kind:'assets',inspector:'assets',index,state:Math.max(0,result.assets[index].states.findIndex(s=>s.id===ref?.stateId)),returnShot:si});return;
     }
     if(button.hasAttribute('data-board-reference-picker')){openReferencePicker(button.dataset.boardReferencePicker);return;}
     if(button.hasAttribute('data-board-reference-picker-close')){button.closest('[data-reference-picker]').hidden=true;referenceCursor=null;return;}
@@ -857,13 +946,13 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     }
     if(button.dataset.boardZoom){canvas.command(button.dataset.boardZoom);return;}
     if(button.dataset.boardLocate){canvas.locate(button.dataset.boardLocate);return;}
-    if(button.dataset.boardSelect){updateBoard({inspector:button.dataset.boardSelect,index:Number(button.dataset.boardIndex),state:0});return;}
+    if(button.dataset.boardSelect){if(canvasDrawer)canvasDrawer.phase='production';updateBoard({kind:button.dataset.boardSelect,inspector:button.dataset.boardSelect,index:Number(button.dataset.boardIndex),state:0});return;}
     if(button.dataset.boardInspector){updateBoard({inspector:button.dataset.boardInspector});return;}
     if(button.hasAttribute('data-board-state')){updateBoard({state:Number(button.dataset.boardState)});return;}
-    if(button.hasAttribute('data-board-close')){updateBoard({inspector:null});return;}
+    if(button.hasAttribute('data-board-close')){if(canvasDrawer)closeCanvasPanel();else updateBoard({inspector:null});return;}
     if(button.hasAttribute('data-board-focus')){updateBoard({focus:!boardView().focus});return;}
     if(button.dataset.wfNav)return navigate(button.dataset.wfNav);
-    if(button.dataset.wfEntity){selectedEntity=button.dataset.wfEntity;persist('selectedEntity',selectedEntity);return navigate(button.dataset.wfStage);}
+    if(button.dataset.wfEntity){selectedEntity=button.dataset.wfEntity;persist('selectedEntity',selectedEntity);const result=returnedResult(production),binding=production?.bindings?.find(b=>b.entityId===selectedEntity);if(binding){boardViews.set(production.id,{kind:'assets',index:result.assets.findIndex(a=>a.id===binding.assetId),state:Math.max(0,result.assets.find(a=>a.id===binding.assetId)?.states.findIndex(s=>s.id===binding.stateId)||0),characterLayer:binding.stateId.startsWith('__')?'master':'state',stage:button.dataset.wfStage});return navigate(button.dataset.wfStage,{object:true});}openCanvasPanel({type:'art',role:'standard'});announce('这份独立档案可从已有候选中选用，或在具体物料中明确关联。');return;}
     if(button.dataset.wfArchive){selectedEntity=button.dataset.wfArchive;persist('selectedEntity',selectedEntity);return navigate('review');}
     if(button.dataset.wfReview)return openReview(button.dataset.wfReview,button);
     if(button.dataset.wfRepair)return repair(button.dataset.wfRepair);
@@ -890,7 +979,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
       if(body.raw!==undefined){try{body.result=JSON.parse(body.raw);}catch{announce('内容尚不是完整 JSON，修改仍保留，请补齐后保存。');return;}delete body.raw;}
       return perform(async()=>{analysis=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/review`,{method:'PUT',body});removeDraft(name);analysisError='';announce(analysis.validationIssues.length?`修改已保存，仍有 ${analysis.validationIssues.length} 处标红待核对。`:'修改已保存，原文核对通过，可以继续制作。');});
     }
-    if(action==='production-open-review'){page='plan';persist('page',page);updateBoard({inspector:production.validationIssues?.length?'issues':'handoff'});root.querySelector('[data-production-review-panel]')?.scrollIntoView({block:'start'});return;}
+    if(action==='production-open-review'){page='plan';canvasDrawer={type:'production',phase:'production'};persist('page',page);updateBoard({inspector:production.validationIssues?.length?'issues':'handoff'});root.querySelector('[data-production-review-panel]')?.scrollIntoView({block:'start'});return;}
     if(button.hasAttribute('data-shot-remove')){
       const result=currentProduction(),index=Number(button.dataset.shotRemove),shot=result.shots[index];
       if(!shot||shot.dialogueIds.length||shot.purpose!=='补充镜头 · 请编辑动作与构图')return;
@@ -908,7 +997,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(action==='production-prev')return preview.jump(-1);
     if(action==='production-next')return preview.jump(1);
     if(action==='production-rewind')return preview.rewind();
-    if(action==='open-production-plan'){if(production&&returnedResult(production))return navigate('style');const node=root.querySelector('[data-wf-production]');node?.scrollIntoView({block:'start',behavior:'smooth'});return;}
+    if(action==='open-production-plan'){if(production)boardViews.set(production.id,{...boardView(),inspector:production.validationIssues?.length?'issues':'handoff'});openCanvasPanel({type:'production',phase:'production'},button);return;}
     if(action==='production-start'){
       if(drafts.get(`analysis:review:${analysis?.id}`)){announce('请先保存分析修改，再整理制作清单。');return;}
       if(!root.querySelector('[data-wf-production-spend]')?.checked){announce('请先确认本次 AI 制作设计使用账号积分。');return;}
@@ -999,7 +1088,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     }
     if(action==='connect'){events.dispatchEvent(new CustomEvent('workflow:connect'));return;}
     if(action==='refresh')return perform(()=>load());
-    if(action==='new-project'){production=null;productionError='';analysis=null;analysisError='';promptJobs=[];promptError='';creating=true;project=null;selected='';selectedEntity='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};reviewId=null;prepared=null;render();root.querySelector('input[name=name]')?.focus();return;}
+    if(action==='new-project'){canvasDrawer=null;production=null;productionError='';analysis=null;analysisError='';promptJobs=[];promptError='';creating=true;project=null;selected='';selectedEntity='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};reviewId=null;prepared=null;render();root.querySelector('input[name=name]')?.focus();return;}
     if(action==='edit-plan'){editing=true;if(!drafts.get(planKey()))persist(planKey(),{expectedVersion:plan.version,entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});render();return;}
     if(action==='add-entity'){const draft=drafts.get(planKey())||{expectedVersion:plan.version,entities:[],stylePrompt:plan.stylePrompt};if(draft.entities.length>=300){announce('一个项目最多 300 项资产。');return;}draft.entities.push({id:'ent_'+key().replaceAll('-',''),category:'character',name:'',description:'',variant:'',origin:'manual',quote:'',scriptId:''});persist(planKey(),draft);render();root.querySelector('[data-wf-row]:last-of-type input[data-field=name]')?.focus();return;}
     if(action==='close-review'){reviewId=null;rerollId=null;render();focusedBeforeReview?.isConnected&&focusedBeforeReview.focus();return;}
@@ -1094,6 +1183,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(revision){page='review';persist('page',page);openReview(revision.id);return;}
     page='review';persist('page',page);render();root.querySelector('[data-wf-task-feedback]')?.scrollIntoView({block:'start'});announce('已定位到这项任务的原档案。');
   });
+  listen(root,'keydown',e=>{if(e.key==='Escape'&&canvasDrawer&&!reviewId&&!prepared&&!remoteLibrary.open){e.preventDefault();e.stopPropagation();closeCanvasPanel();}});
   listen(events,'workflow:navigate',e=>navigate(e.detail?.page||'plan'));
   listen(events,'workflow:manual-plan',()=>{if(project){editing=true;navigate('plan');}else{render();root.querySelector('input[name=name]')?.focus();}});
   listen(events,'selection:changed',e=>{session={...session,selection:e.detail?.selection||e.detail};librarySerial++;remoteLibrary={open:false};imageModelSerial++;imageCatalog=null;imageContracts={};imageModelsError='';imageModelsLoading=false;render();});

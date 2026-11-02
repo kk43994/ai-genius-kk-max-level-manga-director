@@ -155,6 +155,10 @@ class ComposedHTTPTests(unittest.TestCase):
             'prompt-view:prj_fixture:ent_fixture': 'pmt_fixture',
             'prompt-backup:prj_fixture:ent_fixture:style': {'prompt': '此前手写的制作要求'},
             'compose:prj_fixture:ent_fixture:style': {'prompt': '已编辑的 AI 提示词', 'promptJobId': 'pmt_fixture'},
+            'boardgen:art:prj_fixture:character': {'subjectId': 'ent_fixture', 'prepareKey': 'original-art-request', 'modelId': 'mj-v8.2', 'groups': '1', 'prompt': '人物风格草稿'},
+            'art-bundle:prj_fixture': {'samples': {'character': 'rev_fixture'}, 'notes': '全剧美术草稿，不代表确认'},
+            'boardgen:batch:prd_fixture': {'shotIds': ['shot_fixture'], 'modelId': 'lib-image-2.5-s'},
+            'prompt-recipe:prj_fixture:rev_fixture': {'name': '规范草稿', 'notes': '尚未验证', 'prompt': '{{主体}}，白底', 'evidenceRevisionIds': ['rev_fixture']},
         }, 'accountSelection': None}
         status, _, body = self.request('/drafts/browser', 'PUT', cookie=cookie,
             csrf=session['csrfToken'], body={'expectedVersion': 0, 'content': content})

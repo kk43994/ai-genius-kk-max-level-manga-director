@@ -75,6 +75,10 @@ def register_routes(router, services):
     add('GET', '/projects', lambda c, p, b, q: workflow.list_projects(c))
     add('POST', '/projects', lambda c, p, b, q: workflow.create_project(c, b))
     add('GET', '/projects/{projectId}', lambda c, p, b, q: workflow.get_project(c, p['projectId']))
+    from .prompt_recipes import save as save_prompt_recipe
+    add('POST', '/projects/{projectId}/prompt-recipes', lambda c,p,b,q: save_prompt_recipe(workflow,c,p['projectId'],b))
+    from .art_studies import prepare as prepare_art_study
+    add('POST', '/projects/{projectId}/art-studies/prepare', lambda c,p,b,q: prepare_art_study(workflow,c,p['projectId'],b))
     add('PUT', '/projects/{projectId}/art-direction', lambda c,p,b,q: workflow.confirm_art_direction(c,p['projectId'],b))
     add('PATCH', '/projects/{projectId}', lambda c, p, b, q: workflow.update_project(c, p['projectId'], b))
     add('POST', '/projects/{projectId}/scripts', lambda c, p, b, q: workflow.import_script(c, p['projectId'], b))

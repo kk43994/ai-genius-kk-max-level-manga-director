@@ -113,7 +113,7 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(job['dialogues'],self.analysis['result']['dialogues'])
         self.assertEqual(self.services.analysis.get(self.ctx,self.analysis['id'])['result'],self.analysis['result'])
         candidate=self.production.candidate(self.ctx,job['id'])
-        self.assertEqual(candidate['addedCount'],6)
+        self.assertEqual(candidate['addedCount'],7)
         self.workflow.save_plan(self.ctx,self.project['id'],{k:candidate[k] for k in ('expectedVersion','entities','stylePrompt')})
         self.assertEqual(self.production.candidate(self.ctx,job['id'])['addedCount'],0)
         self.assertTrue(all(b['saved'] for b in self.production.get(self.ctx,job['id'])['bindings']))
@@ -232,7 +232,7 @@ class ProductionTests(unittest.TestCase):
         edited['assets'][0]['evidence'][0]['quote']=original_quote
         ready=self.production.save_review(self.ctx,job['id'],{'expectedVersion':1,'expectedEditVersion':0,'result':edited})
         self.assertEqual(ready['status'],'ready');self.assertEqual(ready['validationIssues'],[])
-        self.assertEqual(self.production.candidate(self.ctx,job['id'])['addedCount'],6)
+        self.assertEqual(self.production.candidate(self.ctx,job['id'])['addedCount'],7)
         self.assertEqual(len(self.provider.submissions),1)
         self.assertEqual(self.production._get(self.ctx,job['id'])['data'],raw)
         self.assertEqual(self.production.get(self.ctx,job['id'])['result'],edited)

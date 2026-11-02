@@ -1,3 +1,4 @@
+@import url("./canvas-production.css");
 @import url("./story-cards.css");
 .wf {--wf-ink:#24322c;--wf-muted:#718077;--wf-line:#dce3dc;--wf-accent:#285e45;color:var(--wf-ink);padding:8px 0 28px}
 .wf button,.wf input,.wf select,.wf textarea{font:inherit}.wf button,.wf-link{min-height:38px;border:1px solid var(--wf-line);border-radius:10px;background:#fff;color:var(--wf-ink);padding:8px 13px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}.wf button:hover,.wf-link:hover{border-color:#7c9f8b;background:#f3f8f2}.wf button:disabled{cursor:not-allowed;opacity:.5}.wf button.primary{background:var(--wf-accent);color:white;border-color:var(--wf-accent)}
