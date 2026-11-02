@@ -47,3 +47,5 @@ WorkflowRepository 在同一只读快照中读取项目、当前方案、人工�
 实现：`frontend/workflow/storyboard-overview.js`、`controller.js`、`production-board.js`、`workflow.css`；核验：`tests/workflow/storyboard-overview.test.mjs` 和现有覆盖测试。真实 Chrome 当前已显示 22 镜、15 张已保留、7 镜待处理；已验证场次筛选、待处理筛选、图片放大审核、回到指定镜头编辑及进入人物主多视图。此记录不是最终 22 镜全部质量通过或 ZIP 落盘的声明。
 
 总览布局补充：右侧任务列表改为顶部“任务”抽屉，保留随时查询入口，为相邻分镜并排比较让出宽度；窄屏维持单栏，场次标签不拆字。
+
+总览后台刷新不仅跟随图片变化，也跟随任务状态变化；即使没有新图，排队转为待查询时仍更新提示，并保留使用者已展开的连续性内容。合成浏览器 4 项通过，确认轮询不创建生成或恢复请求；相关模块 10 项回归通过。

@@ -320,7 +320,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   async function pollTasks() {
     const projectId=selected, serial=requestSerial;
-    polling=true;let mediaChanged=false;
+    polling=true;let mediaChanged=false,tasksChanged=false;
     try {
       if(analysis?.canRefresh){const updated=await api.request(`/analyses/${encodeURIComponent(analysis.id)}/refresh`,{method:'POST',body:{}});if(!alive||serial!==requestSerial||projectId!==selected)return;analysis=updated;analysisError='';const panel=root.querySelector('[data-wf-analysis]');if(panel&&!drafts.get(`analysis:review:${analysis.id}`))panel.outerHTML=analysisView();}
       // Prompt polling updates only its own panel, preserving an edited composer.
@@ -340,6 +340,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       mediaChanged=JSON.stringify(assets)!==JSON.stringify(received.items||[]);
       assets=received.items||[];coverage=received.coverage||coverage;
       const added=assets.flatMap(a=>a.revisions).filter(r=>!previous.has(r.id)&&r.status==='ready').length;
+      tasksChanged=JSON.stringify(tasks)!==JSON.stringify(result.items);
       tasks=result.items;taskError='';lastChecked=new Date();
       if(added)announce(`${added} 张图片已自动返回，缩略图已更新，等待你审核。`);
     } catch(e) {
@@ -361,9 +362,9 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
         const reviewPanel=root.querySelector('[data-wf-review-list]');if(reviewPanel)reviewPanel.outerHTML=reviewView();
         const archives=root.querySelector('[data-wf-archives]');if(archives)archives.innerHTML=archivesView();
         renderLibrary();
-        if(page==='delivery'&&!busy&&!reviewId)render();
         const countNode=doc.getElementById('reviewCount');if(countNode)countNode.textContent=assets.flatMap(a=>a.revisions).filter(r=>r.review==='pending'&&r.status==='ready').length;
         }
+        if(page==='delivery'&&(mediaChanged||tasksChanged)&&!busy&&!reviewId)render();
         const guidePanel=root.querySelector('.wf-guide');if(guidePanel)guidePanel.outerHTML=guideView();
         events.dispatchEvent(new CustomEvent('workflow:tasks-refreshed',{detail:{projectId}}));
         scheduleFlow();
