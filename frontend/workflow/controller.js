@@ -5,6 +5,7 @@ import {returnedResult, reviewDraft, setReviewValue, valueAt, textLines} from '.
 import {assetToken,referenceLabel,readableText,storedText,linkedText,referencePicker,bindReference,removeReference,appendManualProp} from './production-references.js';
 import {generationContext,generationGallery} from './production-generation.js';
 import {sourceImagePicker} from './image-choices.js';
+import {NANO_CLEANUP_PROMPT,selectedNanoModel,nanoCleanupSource} from './nano-cleanup.js';
 import {versionPicker,versionTarget} from './version-picker.js';
 import {extraReferences,referencePrompt,libraryPanel,referencePool,chooseExtraReference} from './image-references.js';
 import {batchSize,parallelGroups,missingStoryboardShots,repairStoryboardShots} from './generation-batch.js';
@@ -55,8 +56,8 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const entityPrompt = () => {const entityId=currentEntity()?.id,viewId=drafts.get(`prompt-view:${selected}:${entityId}`);return promptJobs.find(job=>job.entityId===entityId&&job.id===viewId)||promptJobs.find(job=>job.entityId===entityId);};
   let production = null, productionError = '';
   let returnStoryShot = null, storyRefreshPending = false;
-  let remoteLibrary={open:false},librarySerial=0,rerollId=null;
-  const rerollKey=()=>`boardgen:reroll:${rerollId}`;
+  let remoteLibrary={open:false},librarySerial=0,rerollId=null,rerollMode='reroll';
+  const rerollKey=()=>`boardgen:${rerollMode==='nano'?'nano-cleanup':'reroll'}:${rerollId}`;
   let imageCatalog=null,imageContracts={},imageModelsLoading=false,imageModelsError='',imageCatalogOwner='',imageModelSerial=0;
   const boardViews=new Map(),canvas=mountCanvas(root),storyCanvas=mountStoryCanvas(root,{storage:layoutStorage,storageKey:`asset-lab:story-canvas:v2:${encodeURIComponent(apiBase)}:${encodeURIComponent(session.tenant.id)}`});
   let referenceCursor=null, directorDrag=null, suppressDirectorClickUntil=0;
@@ -238,7 +239,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function reviewDetail() {
     const asset = assets.find(a=>a.revisions.some(r=>r.id===reviewId)), r=asset?.revisions.find(r=>r.id===reviewId); if(!r)return '';
-    return versionPicker({asset,revision:r,job:production,selection:session.selection,apiBase,reroll:rerollId===r.id,
+    return versionPicker({asset,revision:r,job:production,selection:session.selection,apiBase,reroll:rerollId===r.id,mode:rerollMode,allAssets:assets,
       draft:drafts.get(rerollKey())||{},catalog:imageCatalog,contracts:imageContracts,loading:imageModelsLoading,error:imageModelsError,actionError:error,
       busy:reviewing||busy&&!submittingBatch&&!recoveringTask});
   }
@@ -249,7 +250,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const costs=batch.map(r=>r.cost||r.task.cost||{}),cost=costs.every(c=>c.state==='known'&&c.unit===costs[0].unit)?{state:'known',amount:costs.reduce((n,c)=>n+Number(c.amount),0),unit:costs[0].unit}:{state:'unknown'};
     const archiveName=plan.entities.find(e=>e.id===task.entityId)?.name||assets.find(a=>a.entityId===task.entityId)?.name||'当前任务档案';
     const targetName=['mj_style','image25_style'].includes(task.recipe)?archiveName.replace(/ · 人物主多视图$/,''):archiveName;
-    const purpose={mj_style:'基础形象与风格候选',image25_style:'基础形象与风格候选',image2_asset:'规范资产图',image25_asset:'Image2.5 规范资产图',nano_refine:'资产精修图',storyboard_image:'分镜图',image25_storyboard:'Image2.5 分镜图'}[task.recipe]||'候选图';
+    const purpose=prepared.operationLabel||{mj_style:'基础形象与风格候选',image25_style:'基础形象与风格候选',image2_asset:'规范资产图',image25_asset:'Image2.5 规范资产图',nano_refine:'资产精修图',storyboard_image:'分镜图',image25_storyboard:'Image2.5 分镜图'}[task.recipe]||'候选图';
     const references=(task.sourceRevisionIds||[]).map(id=>{const a=assets.find(a=>a.revisions.some(r=>r.id===id));return a?`${a.name} · ${id.slice(-6)}`:`图片版本 ${id.slice(-6)}`;});
     return `<section class="wf-panel" data-confirmation tabindex="-1"><h3>${submittingBatch?'正在提交这批图片':'核对这次任务'}</h3>${submittingBatch?'<p role="status">正在上传参考并等待各组回执，请勿重复提交。</p><progress aria-label="正在提交图片任务"></progress>':''}<p><b>${batch.length} 组 · 共 ${total} 张</b> · 确认后并发生成</p>${batch.length>1?`<ol>${batch.map((r,i)=>`<li>${esc(r.targetName||`第 ${i+1} 组`)} · ${esc(r.confirmation.summary.modelKey)} · ${r.confirmation.summary.count} 张 · ${esc(r.task.id.slice(-6))}</li>`).join('')}</ol>`:''}<p><strong>制作对象：${esc(prepared.multipleShots?'本批清单中的分镜':targetName)}</strong> · ${esc(purpose)}</p>${prepared.multipleShots?batch.map(r=>`<details><summary>${esc(r.targetName)} · 参考与提示词</summary><p>${(r.task.sourceRevisionIds||[]).map(id=>{const a=assets.find(a=>a.revisions.some(v=>v.id===id));return esc((a?.name||'图片版本')+' · '+id.slice(-6));}).join('；')}</p><pre class="wf-prompt-text">${esc((r.confirmation.summary.prompt||'').replace(/\{\{reference:[^}]+\}\}/g,'（已绑定参考图片）'))}</pre></details>`).join(''):references.length?`<p>已固定参考：${references.map(esc).join('；')}</p>`:''}<details><summary>${prepared.multipleShots?'首镜完整提示词（其他镜头见上方）':'本次实际发送的完整提示词'}</summary><pre class="wf-prompt-text">${esc((prepared.confirmation?.summary?.prompt||'提示词暂不可读，请保留任务后刷新核对。').replace(/\{\{reference:[^}]+\}\}/g,'（已绑定参考图片）'))}</pre></details><p>模型：${esc(prepared.confirmation?.summary?.modelKey||recipeLabels[task.recipe]||task.recipe)}</p><p>每组生成 ${esc(prepared.confirmation?.summary?.count || task.spec?.settings?.count || 1)} 张候选图</p><p class="wf-note">任务账号：${esc(task.ownership?.accountLabelAtCreation||task.ownership?.providerAccountId)}<br>工作空间：${esc(task.ownership?.spaceNameAtCreation||task.ownership?.spaceId)}<br>费用：${cost.state==='known'?esc(`${cost.amount} ${cost.unit}`):'未知 · 不能视为免费'}</p><p class="wf-muted">切换页面上的账号不会改变这个任务的归属。${!enabled?'当前版本未启用图片提交；准备记录已保存。':''}</p><div class="wf-actions"><button data-wf-action="close-confirmation">${submittingBatch?'收起并查看任务进度':'保留准备记录'}</button><button data-wf-action="submit-task" class="primary" ${!enabled||busy?'disabled':''}>${batch.length>1?'确认并提交这 '+batch.length+' 组':'确认并提交生成'}</button></div></section>`;
   }
@@ -282,7 +283,9 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     imageModelsLoading=true;imageModelsError='';render();
     try{
       if(refresh||!imageCatalog){const response=await api.request('/image-models',{quietProgress:true});if(serial!==imageModelSerial)return;imageCatalog=response;}
-      const chosen=selectedImageModel(drafts.get(rerollId?rerollKey():boardGenerationKey())||{},imageCatalog);
+      const draft=drafts.get(rerollId?rerollKey():boardGenerationKey())||{};
+      const chosen=rerollId&&rerollMode==='nano'?selectedNanoModel(draft,imageCatalog):selectedImageModel(draft,imageCatalog);
+      if(!chosen)throw new Error('当前官方目录未返回 Nano 图片模型，请检查账号授权或刷新目录。');
       if(refresh||!imageContracts[chosen.id]){const contract=await api.request('/image-models?model='+encodeURIComponent(chosen.id),{quietProgress:true});if(serial!==imageModelSerial)return;imageContracts[chosen.id]=contract;}
     }catch(e){if(serial===imageModelSerial)imageModelsError=e.message||'模型目录暂时无法读取。';}
     finally{if(serial===imageModelSerial){imageModelsLoading=false;render();}}
@@ -495,10 +498,11 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(!error&&!keepOpen)continueAfterReview();
   }
   function repair(id) {openReview(id);startReroll(id);}
-  function startReroll(id){
-    const r=assets.flatMap(a=>a.revisions).find(r=>r.id===id);
+  function startReroll(id,mode='reroll'){
+    let r=assets.flatMap(a=>a.revisions).find(r=>r.id===id);
+    if(mode==='nano'){if(!['asset','storyboard'].includes(r?.stage))return;r=nanoCleanupSource(r,assets);id=r?.id;}
     if(!r||(r.status!=='ready'&&!r.reconfirmation)||!versionTarget(production,r)||!belongsToSelection(r,session.selection))return;
-    rerollId=id;reviewId=id;persist(rerollKey(),{...drafts.get(rerollKey()),prepareKey:key()});render();void loadImageModels();
+    rerollMode=mode;rerollId=id;reviewId=id;persist(rerollKey(),{...drafts.get(rerollKey()),prepareKey:key()});render();void loadImageModels();
   }
   async function upload(file) {
     if(!file)return;if(!selected){error='请先创建一个项目，再导入剧本。';render();return;}
@@ -649,17 +653,19 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
       if(!target)return;const inputs=Object.fromEntries(new FormData(form));
       const draft={...inputs,prepareKey:drafts.get(rerollKey())?.prepareKey||key()};persist(rerollKey(),draft);
       return perform(async()=>{
-        if(drafts.get(`production:review:${production.id}`)||drafts.get(`production:edits:${production.id}`))throw new Error('请先保存镜头编排，再准备重抽。');
-        const chosen=selectedImageModel(draft,imageCatalog),settings=collectImageSettings(inputs,imageContracts[chosen.id]);
-        const body={...target,prompt:r.prompt||'沿用原图设计与当前制作要求。',sourceRevisionIds:r.stage==='asset'||r.stage==='refine'?r.sourceRevisionIds.slice(0,1):[],
-          editRevisionId:r.id,editSha256:r.sha256,expectedEditEntityVersion:r.reconfirmation?.entityVersion,editNote:inputs.editNote||'',confirmEditReference:true,modelId:chosen.id,settings,
+        if(rerollMode!=='nano'&&(drafts.get(`production:review:${production.id}`)||drafts.get(`production:edits:${production.id}`)))throw new Error('请先保存镜头编排，再准备重抽。');
+        const nano=rerollMode==='nano',chosen=nano?selectedNanoModel(draft,imageCatalog):selectedImageModel(draft,imageCatalog);
+        if(!chosen||nano&&chosen.id!==inputs.modelId)throw new Error('请选择当前官方目录中可用的 Nano 模型。');
+        const settings=collectImageSettings(inputs,imageContracts[chosen.id]);
+        const body={...target,prompt:nano?NANO_CLEANUP_PROMPT:r.prompt||'沿用原图设计与当前制作要求。',sourceRevisionIds:r.stage==='asset'||r.stage==='refine'?r.sourceRevisionIds.slice(0,1):[],
+          editRevisionId:r.id,editSha256:r.sha256,expectedEditEntityVersion:r.reconfirmation?.entityVersion,editNote:inputs.editNote||(nano?'只做保真清理，保持原图人物、构图、动作与画风，不重新设计。':''),confirmEditReference:true,modelId:chosen.id,settings,
           expectedReviewVersion:production.reviewVersion,expectedEditVersion:production.editVersion,expectedPlanVersion:plan.version,
           expectedSelectionRevision:session.selection.revision,expectedArtDirectionVersion:project.artDirection?.version||0};
         const prepareGroup=async i=>{const response=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/images/prepare`,{method:'POST',body:{...body,idempotencyKey:draft.prepareKey+':group:'+i}});if(!response.confirmation)throw new Error(response.task?.error?.message||'重抽准备未完成，请查看原记录。');return response;};
         const first=await prepareGroup(0),rest=await parallelGroups(Array.from({length:batchSize(inputs.groups)-1},(_,i)=>i+1),prepareGroup);
         const ready=[first,...rest.filter(r=>r.status==='fulfilled').map(r=>r.value)],failed=rest.filter(r=>r.status==='rejected');
-        prepared={...first,batch:ready,rerollRevisionId:r.id};selectedEntity=first.task.entityId;await load();
-        announce(`已带上原图与修改意见，准备 ${ready.length} 组重抽。${failed.length?failed.length+' 组未准备成功，原记录保留。':''}核对费用后提交；当前选用版本未改变。`);
+        prepared={...first,batch:ready,rerollRevisionId:r.id,operationLabel:nano?'Nano 保真洗图':null};selectedEntity=first.task.entityId;await load();
+        announce(`已带上原图，准备 ${ready.length} 组${nano?' Nano 洗图':'重抽'}。${failed.length?failed.length+' 组未准备成功，原记录保留。':''}核对费用后提交；当前选用版本未改变。`);
       });
     }
     if(form.dataset.wfForm==='art-direction'){
@@ -750,6 +756,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     const button=event.target.closest('button,a');if(!button||button.disabled)return;
     if(button.hasAttribute('data-version-select')){const r=assets.flatMap(a=>a.revisions).find(r=>r.id===button.dataset.versionSelect);if(r&&(r.status!=='ready'||r.review==='approved')){openReview(r.id,button);return;}return decide('approved',{revisionId:button.dataset.versionSelect,note:'人工点击版本图片选用',keepOpen:true});}
     if(button.hasAttribute('data-version-confirm'))return decide('approved',{revisionId:button.dataset.versionConfirm,note:'人工核对当前镜头方案，确认旧版画面仍适用并选用',keepOpen:true,confirmCurrentBasis:true});
+    if(button.hasAttribute('data-version-nano')){startReroll(button.dataset.versionNano,'nano');return;}
     if(button.hasAttribute('data-version-reroll')){startReroll(button.dataset.versionReroll);return;}
     if(button.hasAttribute('data-version-cancel')){rerollId=null;render();return;}
     if(button.hasAttribute('data-extra-reference-remove')){
