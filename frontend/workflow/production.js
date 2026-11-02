@@ -22,7 +22,7 @@ export function referenceCards(job,shot,assets,selection,apiBase) {
     const candidates=job.status==='ready'&&!job.stale&&!binding?.changed?(asset?.revisions||[]).filter(r=>['asset','refine'].includes(r.stage)&&r.status==='ready'&&r.review==='approved'&&belongsToSelection(r,job.ownership||selection)):[];
     const versions=[...candidates].sort((a,b)=>({refine:3,asset:2}[b.stage]-{refine:3,asset:2}[a.stage])||b.createdAt.localeCompare(a.createdAt));
     const revision=ref.revisionId?versions.find(r=>r.id===ref.revisionId):versions[0];
-    return {name:`${item?.name||ref.assetId} · ${state?.name||ref.stateId}`,category:item?.category,entityId:binding?.entityId,
+    return {assetId:ref.assetId,stateId:ref.stateId,name:`${item?.name||ref.assetId} · ${state?.name||ref.stateId}`,category:item?.category,entityId:binding?.entityId,
       saved:binding?.saved,changed:binding?.changed,revisionId:revision?.id,pinned:Boolean(ref.revisionId),versions,src:revision?assetURL(apiBase,asset.id,revision.id,true):null};
   });
 }

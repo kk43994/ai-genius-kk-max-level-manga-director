@@ -4,7 +4,8 @@ import {productionPanel, productionRunning, createPreview, referenceCards} from 
 import {returnedResult, reviewDraft, setReviewValue, valueAt, textLines} from './production-editor.js';
 import {assetToken,referenceLabel,readableText,storedText,linkedText,referencePicker,bindReference,removeReference,appendManualProp} from './production-references.js';
 import {generationContext,generationGallery} from './production-generation.js';
-import {extraReferences,referencePrompt,libraryPanel} from './image-references.js';
+import {sourceImagePicker} from './image-choices.js';
+import {extraReferences,referencePrompt,libraryPanel,referencePool,chooseExtraReference} from './image-references.js';
 import {batchSize,parallelGroups,missingStoryboardShots,repairStoryboardShots} from './generation-batch.js';
 import {selectedImageModel,collectImageSettings} from './image-models.js';
 import {creatorDesk} from './creator-desk.js';
@@ -198,7 +199,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if (selectedEntity !== e.id) selectedEntity = e.id;
     const draft = getCompose(), sources = approvedSources(currentAsset(),page,session.selection);
     const selectedSource = sources.find(s=>s.id===draft.sourceRevisionId), connected = session.selection?.providerAccountId && session.selection?.spaceId;
-    return `${promptsView()}<section class="wf-panel"><h3>${esc(stageLabels[page])}</h3><p class="wf-muted">${page==='style'?'探索风格，先由你选定这一版，再制作 Image2 资产。':page==='asset'?'已审核的 MJ 风格作为依据，制作可复用的角色、场景和道具。':'使用原始 Image2 文件精修。退回后的 Nano 图片不会被当作新的原图。'}</p><form data-wf-form="compose" class="wf-compose"><label>资产档案<select data-wf-entity-select>${options(plan.entities.map(item=>[item.id,`${categories[item.category]} · ${item.name}`]),selectedEntity)}</select></label>${page!=='style'?`<label>上一阶段已审核参考<select name="sourceRevisionId" required><option value="">请选择当前账号 / 空间的已审核版本</option>${options(sources.map(r=>[r.id,`${revisionLabel(r)} · ${r.id.slice(-6)} · 已审核`]),draft.sourceRevisionId)}</select></label>${selectedSource?`<div class="wf-reference"><img src="${image(selectedSource.assetId,selectedSource.id)}" alt="已审核参考原图"><span class="wf-muted">${esc(selectedSource.ownership.accountLabelAtCreation || selectedSource.ownership.providerAccountId)} / ${esc(selectedSource.ownership.spaceNameAtCreation || selectedSource.ownership.spaceId)}</span></div>`:'<p class="wf-note">尚未选择可用参考。每一步需要先通过人工审核，且不能混用其他账号或空间的图片。</p>'}`:''}<label>本次实际发送的制作要求<textarea name="prompt" rows="10" maxlength="20000" required placeholder="先在上方点击 AI 编写，再使用并核对提示词。">${esc(draft.prompt)}</textarea></label><details><summary>手工编写 / 调整提示词</summary><label class="wf-analysis-check"><input type="checkbox" name="manualPrompt" ${draft.manualPrompt?'checked':''}> 我自行编写完整的制作要求，不使用上方 AI 草稿</label></details><label class="wf-analysis-check"><input type="checkbox" name="promptReviewed" required> 我已核对提示词、剧本事实和视觉设计选择</label><div class="wf-form-grid"><label>候选数量<select name="count">${options(page==='style'&&session.features?.imageGeneration?[['4','4 张（MJ 一组）']]:[['1','1 张'],['2','2 张'],['4','4 张']],String(draft.count))}</select></label><label>画幅（可选）<select name="ratio">${options([['','使用官方模型默认'],['16:9','16:9'],['9:16','9:16'],['1:1','1:1']],draft.ratio)}</select></label></div>${!connected?'<div class="wf-note">请先选择已授权的 LibTV 账号与空间。当前草稿会保留。</div>':''}<div class="wf-actions"><button class="primary" type="submit" ${!connected || (page!=='style'&&!selectedSource)?'disabled':''}>准备任务并核对</button><button type="button" data-wf-nav="review">查看返回结果</button></div><p class="wf-muted">准备不会提交生成。模型与参数以官方适配器核验为准；金额未知时不会显示为免费。${session.features?.imageGeneration?'提交后使用当前已授权账号的 LibTV 积分。':'图片提交服务尚未启用。'}</p></form></section><div data-wf-returned>${returnedView(e.id)}</div>${tasksView(e.id)}`;
+    return `${promptsView()}<section class="wf-panel"><h3>${esc(stageLabels[page])}</h3><p class="wf-muted">${page==='style'?'探索风格，先由你选定这一版，再制作 Image2 资产。':page==='asset'?'已审核的 MJ 风格作为依据，制作可复用的角色、场景和道具。':'使用原始 Image2 文件精修。退回后的 Nano 图片不会被当作新的原图。'}</p><form data-wf-form="compose" class="wf-compose"><label>资产档案<select data-wf-entity-select>${options(plan.entities.map(item=>[item.id,`${categories[item.category]} · ${item.name}`]),selectedEntity)}</select></label>${page!=='style'?`${sourceImagePicker(sources,draft.sourceRevisionId,apiBase,{title:'上一阶段已审核参考'})}${selectedSource?'':'<p class="wf-note">尚未选择可用参考。每一步需要先通过人工审核，且不能混用其他账号或空间的图片。</p>'}`:''}<label>本次实际发送的制作要求<textarea name="prompt" rows="10" maxlength="20000" required placeholder="先在上方点击 AI 编写，再使用并核对提示词。">${esc(draft.prompt)}</textarea></label><details><summary>手工编写 / 调整提示词</summary><label class="wf-analysis-check"><input type="checkbox" name="manualPrompt" ${draft.manualPrompt?'checked':''}> 我自行编写完整的制作要求，不使用上方 AI 草稿</label></details><label class="wf-analysis-check"><input type="checkbox" name="promptReviewed" required> 我已核对提示词、剧本事实和视觉设计选择</label><div class="wf-form-grid"><label>候选数量<select name="count">${options(page==='style'&&session.features?.imageGeneration?[['4','4 张（MJ 一组）']]:[['1','1 张'],['2','2 张'],['4','4 张']],String(draft.count))}</select></label><label>画幅（可选）<select name="ratio">${options([['','使用官方模型默认'],['16:9','16:9'],['9:16','9:16'],['1:1','1:1']],draft.ratio)}</select></label></div>${!connected?'<div class="wf-note">请先选择已授权的 LibTV 账号与空间。当前草稿会保留。</div>':''}<div class="wf-actions"><button class="primary" type="submit" ${!connected || (page!=='style'&&!selectedSource)?'disabled':''}>准备任务并核对</button><button type="button" data-wf-nav="review">查看返回结果</button></div><p class="wf-muted">准备不会提交生成。模型与参数以官方适配器核验为准；金额未知时不会显示为免费。${session.features?.imageGeneration?'提交后使用当前已授权账号的 LibTV 积分。':'图片提交服务尚未启用。'}</p></form></section><div data-wf-returned>${returnedView(e.id)}</div>${tasksView(e.id)}`;
   }
   function promptsView() {
     const entity=currentEntity();if(!entity)return '';
@@ -207,7 +208,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function returnedView(entityId) {
     const asset=assets.find(a=>a.entityId===entityId&&a.active);
     const rows=(asset?.revisions||[]).filter(r=>r.status==='ready'&&r.review==='pending'&&r.stage===page);
-    return rows.length ? `<section class="wf-panel"><div class="wf-section-title"><h3>已返回 · ${rows.length} 张候选图待审核</h3><button data-wf-nav="review">进入审核</button></div><p class="wf-muted">图片已保存到当前项目，点击缩略图查看原图并决定是否保留。</p><div class="wf-review-list">${rows.map(r=>`<article class="wf-revision"><div class="wf-cover"><button class="wf-image-button" data-wf-review="${esc(r.id)}" aria-label="查看 ${esc(asset.name)} 候选图"><img src="${image(asset.id,r.id)}" alt="${esc(asset.name)} ${esc(revisionLabel(r))}" loading="lazy"></button></div><p>${esc(revisionLabel(r))} · 待人工审核</p><button data-wf-review="${esc(r.id)}">查看并审核</button></article>`).join('')}</div></section>` : '';
+    return rows.length ? `<section class="wf-panel"><div class="wf-section-title"><h3>已返回 · ${rows.length} 张候选图待审核</h3><button data-wf-nav="review">进入审核</button></div>${generationGallery(rows,apiBase,{category:asset.category,busy:reviewing||busy&&!submittingBatch&&!recoveringTask})}</section>` : '';
   }
   function taskLabel(task) {
     if(task.status!=='completed')return label(task.status);
@@ -225,7 +226,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function allRevisions() { return assets.filter(a=>!selectedEntity || a.entityId===selectedEntity).flatMap(a=>a.revisions.map(r=>({...r,asset:a}))); }
   function reviewView() {
     const rows = allRevisions().sort((a,b)=>(a.review==='pending'?-1:0)-(b.review==='pending'?-1:0)||b.createdAt.localeCompare(a.createdAt));
-    return `<section class="wf-panel" data-wf-review-list><div class="wf-section-title"><h3>比较版本，决定保留或返修</h3><select aria-label="筛选审核档案" data-wf-review-entity><option value="">全部档案</option>${options(plan.entities.map(e=>[e.id,e.name]),selectedEntity)}</select></div><p class="wf-muted">“任务完成”表示图片已返回；只有人工保留后才进入下一步。历史与失效版本保留供核对。</p>${rows.length?`<div class="wf-review-list">${rows.map(r=>`<article class="wf-revision"><div class="wf-cover"><button class="wf-image-button" data-wf-review="${esc(r.id)}" aria-label="查看 ${esc(r.asset.name)} 原图与审核"><img src="${image(r.assetId,r.id)}" alt="${esc(r.asset.name)} ${esc(revisionLabel(r))}" loading="lazy"></button></div><h4>${esc(r.asset.name)} · ${esc(revisionLabel(r))}</h4>${tag(r.status==='stale'?'stale':r.review)}<p class="wf-muted">${r.width} × ${r.height} · ${esc(r.id.slice(-6))}</p><div class="wf-actions"><button data-wf-review="${esc(r.id)}">对比 / 审核</button>${r.review==='changes_requested'&&!r.asset.referenceOnly?`<button data-wf-repair="${esc(r.id)}">按意见返修</button>`:''}</div></article>`).join('')}</div>`:empty('等待你的第一份候选图','返回图片会在这里展示，所有阶段都需要你确认。')}</section>`;
+    return `<section class="wf-panel" data-wf-review-list><div class="wf-section-title"><h3>比较版本，决定保留或返修</h3><select aria-label="筛选审核档案" data-wf-review-entity><option value="">全部档案</option>${options(plan.entities.map(e=>[e.id,e.name]),selectedEntity)}</select></div><p class="wf-muted">“任务完成”表示图片已返回；只有人工保留后才进入下一步。历史与失效版本保留供核对。</p>${rows.length?`<div class="wf-review-list">${rows.map(r=>`<article class="wf-revision"><h4>${esc(r.asset.name)}</h4>${generationGallery([r],apiBase,{category:r.asset.category,busy:reviewing||busy&&!submittingBatch&&!recoveringTask})}${r.review==='changes_requested'&&!r.asset.referenceOnly?`<button data-wf-repair="${esc(r.id)}">按意见返修</button>`:''}</article>`).join('')}</div>`:empty('等待你的第一份候选图','返回图片会在这里展示，所有阶段都需要你确认。')}</section>`;
   }
   function reviewDetail() {
     const asset = assets.find(a=>a.revisions.some(r=>r.id===reviewId)), r=asset?.revisions.find(r=>r.id===reviewId); if(!r)return '';
@@ -453,11 +454,11 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function openReview(id, button) {
     reviewId=id;focusedBeforeReview=button;render();root.querySelector('[data-review-detail]')?.focus({preventScroll:true});root.querySelector('[data-review-detail]')?.scrollIntoView({behavior:'instant',block:'start'});
   }
-  async function decide(decision) {
+  async function decide(decision,{revisionId=reviewId,note:selectionNote}={}) {
     if(reviewing)return;
     if(busy&&!submittingBatch&&!recoveringTask){announce('当前操作完成后即可保存审核；审核意见已保留。');return;}
-    const asset=assets.find(a=>a.revisions.some(r=>r.id===reviewId)),r=asset?.revisions.find(r=>r.id===reviewId);if(!r)return;
-    const note=drafts.get(`review:${r.id}`)?.note||'';
+    const asset=assets.find(a=>a.revisions.some(r=>r.id===revisionId)),r=asset?.revisions.find(r=>r.id===revisionId);if(!r||r.status!=='ready')return;
+    const note=selectionNote??drafts.get(`review:${r.id}`)?.note??'';
     if(decision==='changes_requested'&&note.trim().length<4){error='请填写至少 4 个字的具体返修意见。';render();return;}
     const projectId=selected;reviewing=true;error='';render();
     try{
@@ -543,8 +544,17 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     const input=[...root.querySelectorAll('[data-reference-text]')].find(n=>n.dataset.wfProductionField===path);
     const host=[...root.querySelectorAll('[data-reference-picker]')].find(n=>n.dataset.referencePicker===path);if(!input||!host)return;
     referenceCursor={path,start:range?.start??input.selectionStart??input.value.length,end:range?.end??input.selectionEnd??input.value.length};
-    host.hidden=false;host.innerHTML=referencePicker(result,shot,path);host.querySelector('input')?.focus();
+    host.hidden=false;host.innerHTML=referencePicker(result,shot,path,'',pickerCards(result));host.querySelector('input')?.focus();
     host.scrollIntoView({block:'nearest'});
+  }
+  function pickerCards(result){
+    return referenceCards({...production,result},{references:result.assets.flatMap(a=>a.states.map(s=>({assetId:a.id,stateId:s.id})))},assets,session.selection,apiBase);
+  }
+  function renderImageChoice(target){
+    const {name,value}=target,reference=target.dataset.referenceToggle,purpose=target.dataset.referencePurposeChange;
+    render();
+    const next=[...root.querySelectorAll('input,select')].find(el=>reference?el.dataset.referenceToggle===reference:purpose?el.dataset.referencePurposeChange===purpose:name&&el.name===name&&el.value===value);
+    next?.focus({preventScroll:true});
   }
   function insertDirectorAsset(assetId,stateId,revisionId,shotIndex){
     const result=structuredClone(currentProduction()),shot=result?.shots[shotIndex],asset=result?.assets.find(a=>a.id===assetId);
@@ -558,6 +568,23 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function onInput(event) {
     const target=event.target;
+    if(target.hasAttribute('data-image-choice-search')){
+      const q=target.value.trim().toLocaleLowerCase();
+      target.closest('[data-image-picker]')?.querySelectorAll('.image-choice').forEach(card=>{
+        const item=card.closest('.image-choice-item')||card;
+        item.hidden=!card.textContent.toLocaleLowerCase().includes(q)&&!card.querySelector('input:checked');
+      });return;
+    }
+    if(target.hasAttribute('data-reference-toggle')||target.hasAttribute('data-reference-purpose-change')||target.hasAttribute('data-reference-purpose')){
+      const form=target.closest('form'),inputs=Object.fromEntries(new FormData(form));
+      if(target.hasAttribute('data-reference-purpose')){persist(boardGenerationKey(),{...inputs,referencePurpose:target.value});return;}
+      const id=target.dataset.referenceToggle||target.dataset.referencePurposeChange;
+      const purpose=target.hasAttribute('data-reference-purpose-change')?target.value:form.querySelector('[data-reference-purpose]').value;
+      try{
+        const refs=chooseExtraReference(extraReferences(inputs.extraReferences),referencePool(assets,production?.ownership||session.selection),id,purpose,target.hasAttribute('data-reference-purpose-change')||target.checked);
+        persist(boardGenerationKey(),{...inputs,referencePurpose:form.querySelector('[data-reference-purpose]').value,extraReferences:JSON.stringify(refs),prepareKey:key()});renderImageChoice(target);
+      }catch(e){renderImageChoice(target);announce(e.message);}return;
+    }
     if(target.hasAttribute('data-wf-analysis-field')&&analysis){changeAnalysisField(target.dataset.wfAnalysisField,target.multiple?Array.from(target.selectedOptions,o=>o.value):target.type==='number'?Number(target.value):target.type==='checkbox'?target.checked:(target.tagName==='SELECT'&&!target.value)||target.hasAttribute('data-analysis-null')&&!target.value?null:target.value,target);return;}
     if(target.hasAttribute('data-wf-analysis-json')&&analysis){persist(`analysis:review:${analysis.id}`,{...(drafts.get(`analysis:review:${analysis.id}`)||analysisDraft(analysis)),raw:target.value});return;}
     if(target.hasAttribute('data-director-filter')){const q=target.value.toLocaleLowerCase();root.querySelectorAll('[data-director-asset-row]').forEach(row=>row.hidden=!row.textContent.toLocaleLowerCase().includes(q));return;}
@@ -566,13 +593,13 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(target.hasAttribute('data-board-generation-state')){updateBoard({state:Number(target.value)});return;}
     if(target.hasAttribute('data-reference-search')){
       const host=target.closest('[data-reference-picker]'),path=host.dataset.referencePicker,result=currentProduction(),shot=result.shots[Number(path.split('.')[1])];
-      const holder=doc.createElement('div');holder.innerHTML=referencePicker(result,shot,path,target.value);host.querySelector('.board-reference-options').replaceWith(holder.querySelector('.board-reference-options'));return;
+      const holder=doc.createElement('div');holder.innerHTML=referencePicker(result,shot,path,target.value,pickerCards(result));host.querySelector('.board-reference-options').replaceWith(holder.querySelector('.board-reference-options'));return;
     }
     if(target.hasAttribute('data-reference-state-change')||target.hasAttribute('data-reference-version')){
       const si=Number(target.dataset.referenceShot),result=currentProduction(),shot=structuredClone(result.shots[si]);
       const ri=Number(target.dataset.referenceStateChange??target.dataset.referenceVersion),ref=shot.references[ri];if(!ref)return;
       if(target.hasAttribute('data-reference-state-change')){ref.stateId=target.value;delete ref.revisionId;}else if(target.value)ref.revisionId=target.value;else delete ref.revisionId;
-      changeProductionField(`shots.${si}.references`,shot.references);render();return;
+      changeProductionField(`shots.${si}.references`,shot.references);renderImageChoice(target);return;
     }
     if(target.dataset.wfProductionField&&returnedResult(production)){
       const path=target.dataset.wfProductionField;
@@ -689,16 +716,20 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
   }
   async function onClick(event) {
     const button=event.target.closest('button,a');if(!button||button.disabled)return;
+    if(button.hasAttribute('data-extra-reference-remove')){
+      const form=button.closest('form'),inputs=Object.fromEntries(new FormData(form));
+      const refs=extraReferences(inputs.extraReferences).filter(r=>r.id!==button.dataset.extraReferenceRemove);
+      persist(boardGenerationKey(),{...inputs,extraReferences:JSON.stringify(refs),prepareKey:key()});render();return;
+    }
+    if(button.hasAttribute('data-reference-unpin')){
+      const si=Number(button.dataset.referenceShot),shot=structuredClone(currentProduction().shots[si]);
+      delete shot.references[Number(button.dataset.referenceUnpin)].revisionId;
+      changeProductionField(`shots.${si}.references`,shot.references);render();return;
+    }
     if(button.hasAttribute('data-library-open')){await loadLibrary();return;}
     if(button.hasAttribute('data-library-close')){librarySerial++;remoteLibrary.open=false;render();return;}
     if(button.hasAttribute('data-library-asset')){const serial=++librarySerial;remoteLibrary.loading=true;remoteLibrary.error='';render();try{const detail=await api.request('/libtv-assets?projectId='+encodeURIComponent(selected)+'&assetId='+encodeURIComponent(button.dataset.libraryAsset),{quietProgress:true});if(serial===librarySerial)remoteLibrary.detail=detail;}catch(e){if(serial===librarySerial)remoteLibrary.error=e.message;}finally{if(serial===librarySerial){remoteLibrary.loading=false;render();}}return;}
     if(button.hasAttribute('data-library-import')){const item=remoteLibrary.detail;if(!item)return;return perform(async()=>{const reply=await api.request(`/projects/${encodeURIComponent(selected)}/library-references`,{method:'POST',body:{assetId:item.id,expectedAssetVersion:item.version,imageIndex:Number(button.dataset.libraryImport),expectedSelectionRevision:session.selection.revision}});remoteLibrary.open=false;await load();openReview(reply.revision.id);announce('素材库图片已保存为项目参考，请看图确认。');});}
-    if(button.hasAttribute('data-reference-add')||button.hasAttribute('data-reference-remove')){
-      const form=button.closest('form'),inputs=Object.fromEntries(new FormData(form));let refs=extraReferences(inputs.extraReferences);
-      if(button.hasAttribute('data-reference-remove'))refs=refs.filter(r=>r.id!==button.dataset.referenceRemove);
-      else{const id=form.querySelector('[data-reference-choice]').value,purpose=form.querySelector('[data-reference-purpose]').value;if(!id)return;if(refs.some(r=>r.id===id)){announce('这张图片已经在参考列表中。');return;}if(refs.length>=19){announce('最多添加 19 张补充参考。');return;}refs.push({id,purpose});}
-      persist(boardGenerationKey(),{...inputs,extraReferences:JSON.stringify(refs),prepareKey:key()});render();return;
-    }
     if(button.hasAttribute('data-overview-filter')){overviewFilter=button.dataset.overviewFilter==='attention'?'attention':'all';render();return;}
     if(button.hasAttribute('data-overview-shot')){
       const index=Number(button.dataset.overviewShot);if(!returnedResult(production)?.shots[index])return;
@@ -725,7 +756,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(button.hasAttribute('data-creator-direction-cancel')){removeDraft(`art-direction:${selected}`);render();return;}
     if(button.hasAttribute('data-creator-keep')){
       const asset=assets.find(a=>a.revisions.some(r=>r.id===button.dataset.creatorKeep)),r=asset?.revisions.find(r=>r.id===button.dataset.creatorKeep);if(!r||r.status!=='ready'||r.review==='approved')return;
-      return perform(async()=>{await api.request(`/assets/${encodeURIComponent(asset.id)}/reviews`,{method:'POST',body:{revisionId:r.id,sha256:r.sha256,decision:'approved',note:'人工点击候选图选用此版本',expectedVersion:asset.version}});await load();announce('已选用这张图，可以继续制作下一步。');});
+      return decide('approved',{revisionId:r.id,note:'人工点击候选图选用此版本'});
     }
     if(button.hasAttribute('data-production-bind')){
       if(drafts.get(planKey())||drafts.get(`production:review:${production?.id}`)||drafts.get(`production:edits:${production?.id}`)){announce('请先保存清单和方案修改，再关联已有档案。');return;}
@@ -750,6 +781,11 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
       const oldShot=structuredClone(shot),cursor=referenceCursor?.path===path?referenceCursor:{start:input.value.length,end:input.value.length};
       const prefix=storedText(input.value.slice(0,cursor.start),result,oldShot),suffix=storedText(input.value.slice(cursor.end),result,oldShot);
       if(!bindReference(shot,asset,button.dataset.referenceState)){announce('该状态不适用本场次，或镜头引用已满。');return;}
+      if(button.dataset.referenceImage){
+        const card=pickerCards(result).find(c=>c.assetId===asset.id&&c.stateId===button.dataset.referenceState);
+        if(!card?.versions.some(r=>r.id===button.dataset.referenceImage)){announce('这张参考图已不可用，请重新选择。');return;}
+        shot.references.find(r=>r.assetId===asset.id).revisionId=button.dataset.referenceImage;
+      }
       const value=prefix+assetToken(asset.id)+suffix;
       if(value.length>Number(input.maxLength)){announce('描述已达到容量上限，请先缩短内容。');return;}
       changeProductionField(`shots.${si}.references`,shot.references);changeProductionField(path,value);referenceCursor=null;render();
@@ -940,9 +976,15 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
       const label=choice.querySelector('.creator-candidate-choice span');if(label)label.textContent='缩略图未加载';
       choice.setAttribute('aria-label','缩略图未加载，请先放大查看原图');
     }
+    const imageChoice=img.closest('.image-choice-pick');
+    if(imageChoice){
+      const input=imageChoice.querySelector('input');
+      if(input){if(!input.checked)input.disabled=true;}else imageChoice.disabled=true;
+      const label=imageChoice.querySelector('.image-choice-off');if(label)label.textContent='预览未加载';
+    }
     if(!img.nextElementSibling?.classList.contains('wf-image-error-note')) {
       const note=doc.createElement('span');note.className='wf-image-error-note';
-      note.textContent=choice?'缩略图暂未加载，请使用右上角查看原图':'缩略图暂未加载，点击查看原图或刷新状态';img.after(note);
+      note.textContent=choice||imageChoice?'缩略图暂未加载，请使用右上角查看原图':'缩略图暂未加载，点击查看原图或刷新状态';img.after(note);
     }
   }
   root.addEventListener('error',imageFailure,true);
@@ -987,7 +1029,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(target.matches('[data-wf-quick-upload]'))return startFromFile(target.files?.[0]);
     if(target.matches('[data-wf-entity-select]')){selectedEntity=target.value;persist('selectedEntity',selectedEntity);render();}
     if(target.matches('[data-wf-review-entity]')){selectedEntity=target.value;reviewId=null;render();}
-    if(target.name==='sourceRevisionId'){const form=target.closest('form');if(form?.dataset.wfForm==='board-generation'){persist(boardGenerationKey(),{...Object.fromEntries(new FormData(form)),prepareKey:key()});}else if(form?.dataset.wfForm==='compose'){persist(composeKey(),captureCompose(form));}render();}
+    if(target.name==='sourceRevisionId'){const form=target.closest('form');if(form?.dataset.wfForm==='board-generation'){persist(boardGenerationKey(),{...Object.fromEntries(new FormData(form)),prepareKey:key()});}else if(form?.dataset.wfForm==='compose'){persist(composeKey(),captureCompose(form));}renderImageChoice(target);}
   });
   listen(doc.getElementById('warehouseList'),'click',onClick);
   listen(doc.getElementById('scriptSelect'),'change',e=>switchProject(e.target.value));
