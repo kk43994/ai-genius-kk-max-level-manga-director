@@ -126,7 +126,7 @@ events.addEventListener('shell:action',event=>{
     const body=document.getElementById('shell-info-body');body.replaceChildren();
     for(const text of ['粘贴剧本或导入 TXT、Markdown、DOCX，点击开始制作。原文保存后由 AI 分析人物、场景、时间、地点、事件和台词，核对后整理制作清单。',
       '工作区主所有者用于找回本站资料；创作账号与个人、团队空间用于明确新任务归属。切换选择不会改动历史任务。',
-      '制作顺序是剧本分析 → MJ / Image2.5 风格探索与确认 → Image2.5 规范资产 → 导演编排 → 审核交付。Nano 是资产内的可选精修；返修始终追溯原始 Image2。',
+      '在剧情总览分析剧本、查看分镜和审查连续性；随后探索风格、制作资产和导演编排，生成画面会补回同一画布。Nano 是资产内的可选精修；返修始终追溯原始 Image2。',
       '下载只包含已审核的成果。更新页面会先保存草稿，处理中的任务或下载会阻止刷新。',
       config.mode==='local-client'
         ? session?.features?.imageGeneration

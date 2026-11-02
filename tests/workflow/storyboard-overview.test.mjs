@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {storyCards} from '../../frontend/workflow/story-cards.js';
 import {overviewShots,storyboardOverview} from '../../frontend/workflow/storyboard-overview.js';
 const owner={providerAccountId:'owner',spaceId:'personal'};
 function fixture(){
@@ -38,4 +39,30 @@ test('filters preserve original numbering and scene order; drafts do not change 
 test('an unknown original generation is labeled for lookup rather than shown as never generated',()=>{
  const data=fixture();data.assets[4].revisions=[];data.tasks=[{entityId:'shot-2',status:'needs_attention',ownership:owner}];
  const html=storyboardOverview(data);assert.match(html,/原任务待查询/);assert.match(html,/查看生成任务/);
+});
+
+test('unified canvas lays every saved shot out before images, then fills the same node',()=>{
+ const data=fixture();const result={characters:[],events:[],dialogues:[],...data.analysis.result};
+ data.assets[3].revisions=[];data.assets[4].revisions=[];
+ const before=JSON.stringify(data),empty=storyCards(result,{overview:data,shots:overviewShots(data)});
+ assert.match(empty,/data-story-node="shot:shot-1"/);assert.match(empty,/data-story-node="shot:shot-2"/);
+ assert.equal((empty.match(/画面待补 · 分镜与台词已保留/g)||[]).length,2);
+ assert.match(empty,/&lt;这封信&gt;<br>终于到了。/);assert.match(empty,/data-story-node="asset:person:__character_master__"/);
+ assert.equal(JSON.stringify(data),before,'laying cards out does not mutate jobs or create requests');
+ data.assets[3].revisions=fixture().assets[3].revisions;
+ const filled=storyCards(result,{overview:data,shots:overviewShots(data)});
+ assert.match(filled,/data-story-node="shot:shot-1"/);assert.match(filled,/alt="分镜 001"/);assert.match(filled,/2 镜 · 1 张已选 · 1 镜待处理/);
+});
+test('saved shots with a removed scene remain correctable and stale versions remain reachable',()=>{
+ const data=fixture();data.coverage.entities[0].designCurrent=false;data.assets[3].revisions[0].status='stale';
+ const html=storyCards({characters:[],scenes:[],events:[],dialogues:[]},{overview:data,shots:overviewShots(data)});
+ assert.match(html,/场次待核对/);assert.match(html,/data-story-node="shot:shot-1"/);
+ assert.match(html,/data-wf-review="s1-image">历史版本/);assert.doesNotMatch(html,/alt="分镜 001"/);
+ assert.doesNotMatch(html,/data-wf-analysis-record="scenes.-1"/);
+});
+test('unified canvas keeps unsaved edits separate and withholds export links',()=>{
+ const data=fixture();data.unsaved=true;
+ const html=storyCards({characters:[],...data.analysis.result},{overview:data,shots:overviewShots(data)});
+ assert.match(html,/有修改尚未保存/);assert.doesNotMatch(html,/storyboard-export/);
+ assert.match(html,/data-story-node="shot:shot-2"/);assert.match(html,/待审核/);
 });

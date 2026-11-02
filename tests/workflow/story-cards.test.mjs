@@ -11,7 +11,7 @@ test('story cards join actual cast and verbatim dialogue by scene, preserve sour
   result.scenes.reverse();
   const before=JSON.stringify(result),html=storyCards(result);
   assert.ok(html.indexOf('书店门口交信')<html.indexOf('后续场次'));
-  const second=html.split('id="story-scene-1"')[1].split('story-characters')[0];
+  const second=html.split('id="story-scene-1"')[1].split('</article>')[0];
   assert.match(second,/仅被提及：林舟/);
   assert.doesNotMatch(second,/story-person-chip|这封信，是留给你的/);
   for(const line of result.dialogues)assert.ok(html.includes(line.text));
@@ -46,4 +46,16 @@ test('results lead with cards while source editing remains collapsed and source-
   assert.match(html,/<details class="story-analysis-details" data-analysis-details >/);
   assert.match(html,/data-analysis-record="characters.0"/);
   assert.match(html,/data-wf-analysis-field="characters.0.name"/);
+});
+
+test('first analysis fills a fixed story framework without a shot plan or image task',()=>{
+ const result=structuredClone(fixture.result);result.dialogues.push({...result.dialogues[0],id:'unassigned',eventId:null,text:'尚未关联事件的原文。'});
+ const before=JSON.stringify(result),html=storyCards(result);
+ const beats=html.match(/<article class="story-beat"[\s\S]*?<\/article>/g)||[];
+ assert.equal(beats.length,result.events.length+1);
+ for(const line of result.dialogues)assert.equal(beats.filter(card=>card.includes(line.text)).length,1,'every source line has one framework slot');
+ assert.match(html,/剧情框架已铺开/);assert.match(html,/画面稍后补充/);
+ assert.doesNotMatch(html,/data-story-node="shot:|生成分镜图|<img /);
+ assert.match(html,/data-wf-analysis-record="events.0"/);
+ assert.equal(JSON.stringify(result),before);
 });

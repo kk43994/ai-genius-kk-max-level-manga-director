@@ -143,3 +143,32 @@
 .story-canvas-expanded .story-viewport{height:auto;flex:1;min-height:0}
 @media(max-width:900px){.story-canvas-toolbar{flex-wrap:wrap}.story-canvas-toolbar .story-sequence{flex-basis:100%!important}.story-canvas-footer{flex-wrap:wrap;gap:8px}.story-viewport{height:580px}.story-canvas-expanded .story-viewport{height:auto}}
 @media(prefers-reduced-motion:reduce){.story-canvas *{transition:none!important}}
+
+/* Script and review share stable cards. Images fill these slots as they return. */
+.story-progress{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 16px;background:#202622;color:#afc5b7;font-size:12px;border-bottom:1px solid #354139}
+.story-progress .wf-actions{margin:0;gap:12px;font-size:12px}
+.story-progress .wf-link{padding:3px 0;font-size:12px}
+.customer-shell .story-canvas .overview-shot{width:300px;background:#212623;border-color:#425046;overflow:visible}
+.customer-shell .story-canvas .overview-shot>header{padding:14px 35px 14px 14px;flex-wrap:wrap;min-height:64px;border-bottom:1px solid #39473e}
+.customer-shell .story-canvas .overview-shot>.overview-image{height:auto;background:transparent;border-radius:0}
+.customer-shell .story-canvas .overview-image img{height:auto;width:100%;display:block}
+.customer-shell .story-canvas .overview-shot-empty{height:420px;min-height:0;background:linear-gradient(145deg,#26352c,#1c241f);color:#a8bfae;border:0;border-radius:0;letter-spacing:.04em}
+.customer-shell .story-canvas .overview-shot-copy{padding:16px;max-height:380px;overflow:auto;overscroll-behavior:contain;touch-action:pan-y}
+.customer-shell .story-canvas .overview-shot-copy h4{font-size:17px}
+.customer-shell .story-canvas .overview-shot-copy .wf-actions{position:sticky;bottom:-16px;padding:12px 0 16px;background:#212623;margin-bottom:-16px;gap:8px}
+.customer-shell .story-canvas .overview-shot-copy .wf-actions button{padding:7px 10px;border-radius:8px;font-size:12px}
+.customer-shell .story-canvas .overview-asset-card{width:300px;background:#212623;border:1px solid #425046;padding:16px;border-radius:14px}
+.customer-shell .story-canvas .overview-asset-card h5{padding-right:20px}
+.customer-shell .story-canvas .overview-asset-card .overview-image{height:auto;background:transparent}
+.customer-shell .story-canvas .overview-asset-card .overview-empty{height:180px}
+.customer-shell[data-workflow-page=plan] [data-review-detail],.customer-shell[data-workflow-page=plan] [data-confirmation]{position:fixed;inset:70px max(20px,8vw) 24px;z-index:100;overflow:auto;background:#202623;box-shadow:0 0 0 100vmax #000a;margin:0;border:1px solid #617568;padding:24px;border-radius:16px}
+@media(max-width:760px){.story-progress{flex-wrap:wrap}.story-canvas-tools{flex-wrap:wrap}.customer-shell[data-workflow-page=plan] [data-review-detail],.customer-shell[data-workflow-page=plan] [data-confirmation]{inset:70px 12px 16px;padding:16px}}
+
+.story-canvas .story-beat{width:300px;padding:20px;border:1px solid #44594b;border-radius:14px;background:#222c25;box-shadow:0 8px 24px #0002}
+.story-beat header{padding-right:20px;display:flex;gap:6px}
+.story-beat .story-layer{color:#bfd8c7;background:#34493b}
+.story-beat h4{font-size:18px;line-height:1.7;margin:15px 0;color:#edf4ee}
+.story-beat-copy{max-height:320px;overflow:auto;overscroll-behavior:contain;touch-action:pan-y}
+.story-beat footer{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #405146;padding-top:12px;margin-top:12px;font-size:11px;color:#a5b9ac}
+.wf .story-beat footer button{padding:6px 10px;font-size:12px}
+.story-beat .story-field-label{display:block;margin:14px 0 6px;color:#99b5a2;font-size:11px;letter-spacing:.08em}.story-beat .story-field-label+h4{margin-top:0}
