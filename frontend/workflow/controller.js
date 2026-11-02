@@ -444,14 +444,14 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function navigate(next) {
     if(next==='production'&&stages.includes(page)&&production){const v=boardView();boardViews.set(production.id,{...v,kind:'shots',inspector:'shots',index:v.returnShot||0});}
     page=normalizePage(next);if(!['plan','production',...stages,'review','delivery'].includes(page))page='plan';
-    reviewId=null;persist('page',page);render();if(stages.includes(page)||page==='production')void loadImageModels();root.scrollIntoView({behavior:'smooth',block:'start'});
+    reviewId=null;persist('page',page);render();if(stages.includes(page)||page==='production')void loadImageModels();root.scrollIntoView({behavior:'instant',block:'start'});
   }
   async function switchProject(id) {
     if(busy||id===selected)return;overviewFilter='all';overviewScene='';librarySerial++;remoteLibrary={open:false};clearTimeout(flowTimer);flowTimer=null;creating=false;selected=id;selectedEntity='';reviewId=null;prepared=null;editing=false;
     persist('selectedProject',id);persist('selectedEntity','');await load({initial:true});
   }
   function openReview(id, button) {
-    reviewId=id;focusedBeforeReview=button;render();root.querySelector('[data-review-detail]')?.focus();root.querySelector('[data-review-detail]')?.scrollIntoView({behavior:'smooth',block:'start'});
+    reviewId=id;focusedBeforeReview=button;render();root.querySelector('[data-review-detail]')?.focus({preventScroll:true});root.querySelector('[data-review-detail]')?.scrollIntoView({behavior:'instant',block:'start'});
   }
   async function decide(decision) {
     if(reviewing)return;

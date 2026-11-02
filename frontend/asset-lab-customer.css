@@ -1,5 +1,6 @@
 /* Load after preserved workflow CSS. Only the customer shell opts into these rules. */
-html { scroll-padding-top: 110px; }
+/* Keep navigation and long-page target clicks stationary while controls rerender. */
+html { scroll-padding-top: 110px; scroll-behavior: auto; }
 .customer-shell { font: 14px/1.5 var(--lab-font); color: var(--lab-ink); background: var(--lab-bg); }
 .customer-shell [hidden], .lab-symbols { display: none !important; }
 .customer-shell :where(button, a, input, select, textarea, summary):focus-visible { outline: 3px solid var(--lab-focus); outline-offset: 3px; }
