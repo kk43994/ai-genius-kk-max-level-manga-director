@@ -8,6 +8,7 @@ import {extraReferences,referencePrompt,libraryPanel} from './image-references.j
 import {batchSize,parallelGroups,missingStoryboardShots,repairStoryboardShots} from './generation-batch.js';
 import {selectedImageModel,collectImageSettings} from './image-models.js';
 import {creatorDesk} from './creator-desk.js';
+import {storyboardOverview} from './storyboard-overview.js';
 import {mountCanvas} from './production-canvas.js';
 import {splitShot,addShot,removeBlankShot,numberShots} from './shot-structure.js';
 import {analysisDraft} from './analysis-edit.js';
@@ -49,6 +50,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   let analysis = null, analysisError = '', promptJobs = [], promptError = '';
   const entityPrompt = () => {const entityId=currentEntity()?.id,viewId=drafts.get(`prompt-view:${selected}:${entityId}`);return promptJobs.find(job=>job.entityId===entityId&&job.id===viewId)||promptJobs.find(job=>job.entityId===entityId);};
   let production = null, productionError = '';
+  let overviewFilter = 'all', overviewScene = '';
   let remoteLibrary={open:false},librarySerial=0;
   let imageCatalog=null,imageContracts={},imageModelsLoading=false,imageModelsError='',imageCatalogOwner='',imageModelSerial=0;
   const boardViews=new Map(),canvas=mountCanvas(root);
@@ -245,7 +247,9 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function deliveryView() {
     const allowed=coverage.scope==='production'?new Set(coverage.exportRevisionIds||[]):null;
     const approved = assets.flatMap(a=>a.revisions).filter(r=>r.review==='approved'&&r.status==='ready'&&(!allowed||allowed.has(r.id)));
-    return `<section class="wf-panel"><h3>审核与交付</h3><button data-wf-nav="review">查看待审核图片</button><p>${coverage.ready} / ${coverage.total} ${coverage.scope==='production'?'项当前制作内容已审核（物料与分镜）':'个档案已具备审核通过的规范资产（精修可选）'}</p><div class="wf-progress"><span style="width:${coverage.total?Math.round(100*coverage.ready/coverage.total):0}%"></span></div>${coverage.message?`<p class="wf-note">${esc(coverage.message)}</p>`:''}<p class="wf-muted">下载包含${coverage.scope==='production'?'当前方案内':''}有效的已审核图片、版本来源和逐文件 SHA-256。未审核、已退回或依据已变更的图片不会进入交付包。</p><div class="wf-actions">${approved.length?`<a data-wf-download class="wf-link" href="${esc(path(`/projects/${encodeURIComponent(selected)}/export`))}">下载已审核资产 (${approved.length})</a>`:'<button disabled>尚无可下载的已审核图片</button>'}<button class="primary" data-wf-action="archive" ${!coverage.complete?'disabled':''}>确认完成并归档</button></div>${!coverage.complete?`<div class="wf-note">尚有 ${(coverage.missing||[]).map(e=>esc(e.name)).join('、')||'未建档资产'} 未完成。当前下载属于部分交付。</div>`:''}</section><section class="wf-panel"><h3>交付归档</h3>${bundles.length?bundles.map(b=>`<div class="wf-note"><b>${esc(new Date(b.createdAt).toLocaleString())}</b><p>${b.assetCount} 张已审核资产 · ${Math.ceil(b.bytes/1024)} KiB</p><a data-wf-download class="wf-link" href="${esc(path(`/projects/${encodeURIComponent(selected)}/bundles/${encodeURIComponent(b.id)}/content`))}">下载这次归档</a></div>`).join(''):'<p class="wf-muted">归档保存当时确认的交付包。以后返修与换版不会覆盖旧交付。</p>'}</section>`;
+    const archive = `<section class="wf-panel"><h3>审核与交付</h3><button data-wf-nav="review">查看待审核图片</button><p>${coverage.ready} / ${coverage.total} ${coverage.scope==='production'?'项当前制作内容已审核（物料与分镜）':'个档案已具备审核通过的规范资产（精修可选）'}</p><div class="wf-progress"><span style="width:${coverage.total?Math.round(100*coverage.ready/coverage.total):0}%"></span></div>${coverage.message?`<p class="wf-note">${esc(coverage.message)}</p>`:''}<p class="wf-muted">下载包含${coverage.scope==='production'?'当前方案内':''}有效的已审核图片、版本来源和逐文件 SHA-256。未审核、已退回或依据已变更的图片不会进入交付包。</p><div class="wf-actions">${approved.length?`<a data-wf-download class="wf-link" href="${esc(path(`/projects/${encodeURIComponent(selected)}/export`))}">下载已审核资产 (${approved.length})</a>`:'<button disabled>尚无可下载的已审核图片</button>'}<button class="primary" data-wf-action="archive" ${!coverage.complete?'disabled':''}>确认完成并归档</button></div>${!coverage.complete?`<div class="wf-note">尚有 ${(coverage.missing||[]).map(e=>esc(e.name)).join('、')||'未建档资产'} 未完成。当前下载属于部分交付。</div>`:''}</section><section class="wf-panel"><h3>交付归档</h3>${bundles.length?bundles.map(b=>`<div class="wf-note"><b>${esc(new Date(b.createdAt).toLocaleString())}</b><p>${b.assetCount} 张已审核资产 · ${Math.ceil(b.bytes/1024)} KiB</p><a data-wf-download class="wf-link" href="${esc(path(`/projects/${encodeURIComponent(selected)}/bundles/${encodeURIComponent(b.id)}/content`))}">下载这次归档</a></div>`).join(''):'<p class="wf-muted">归档保存当时确认的交付包。以后返修与换版不会覆盖旧交付。</p>'}</section>`;
+    const overview=storyboardOverview({job:production,assets,coverage,selection:session.selection,analysis,apiBase,tasks,filter:overviewFilter,scene:overviewScene,unsaved:Boolean(drafts.get(`production:review:${production?.id}`)||drafts.get(`production:edits:${production?.id}`))});
+    return overview?`${overview}<details class="wf-panel"><summary>素材交付与归档</summary>${archive}</details>`:archive;
   }
   function renderLibrary() {
     const select=doc.getElementById('scriptSelect'); if(select){select.innerHTML=projects.length?(!selected?'<option value="">选择已有项目</option>':'')+options(projects.map(p=>[p.id,p.name]),selected):'<option value="">新建你的第一个项目</option>';select.value=selected;}
@@ -357,6 +361,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
         const reviewPanel=root.querySelector('[data-wf-review-list]');if(reviewPanel)reviewPanel.outerHTML=reviewView();
         const archives=root.querySelector('[data-wf-archives]');if(archives)archives.innerHTML=archivesView();
         renderLibrary();
+        if(page==='delivery'&&!busy&&!reviewId)render();
         const countNode=doc.getElementById('reviewCount');if(countNode)countNode.textContent=assets.flatMap(a=>a.revisions).filter(r=>r.review==='pending'&&r.status==='ready').length;
         }
         const guidePanel=root.querySelector('.wf-guide');if(guidePanel)guidePanel.outerHTML=guideView();
@@ -441,7 +446,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     reviewId=null;persist('page',page);render();if(stages.includes(page)||page==='production')void loadImageModels();root.scrollIntoView({behavior:'smooth',block:'start'});
   }
   async function switchProject(id) {
-    if(busy||id===selected)return;librarySerial++;remoteLibrary={open:false};clearTimeout(flowTimer);flowTimer=null;creating=false;selected=id;selectedEntity='';reviewId=null;prepared=null;editing=false;
+    if(busy||id===selected)return;overviewFilter='all';overviewScene='';librarySerial++;remoteLibrary={open:false};clearTimeout(flowTimer);flowTimer=null;creating=false;selected=id;selectedEntity='';reviewId=null;prepared=null;editing=false;
     persist('selectedProject',id);persist('selectedEntity','');await load({initial:true});
   }
   function openReview(id, button) {
@@ -692,6 +697,15 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
       if(button.hasAttribute('data-reference-remove'))refs=refs.filter(r=>r.id!==button.dataset.referenceRemove);
       else{const id=form.querySelector('[data-reference-choice]').value,purpose=form.querySelector('[data-reference-purpose]').value;if(!id)return;if(refs.some(r=>r.id===id)){announce('这张图片已经在参考列表中。');return;}if(refs.length>=19){announce('最多添加 19 张补充参考。');return;}refs.push({id,purpose});}
       persist(boardGenerationKey(),{...inputs,extraReferences:JSON.stringify(refs),prepareKey:key()});render();return;
+    }
+    if(button.hasAttribute('data-overview-filter')){overviewFilter=button.dataset.overviewFilter==='attention'?'attention':'all';render();return;}
+    if(button.hasAttribute('data-overview-shot')){
+      const index=Number(button.dataset.overviewShot);if(!returnedResult(production)?.shots[index])return;
+      boardViews.set(production.id,{kind:'shots',index,inspector:button.hasAttribute('data-overview-generate')?'generate':'shots',stage:'storyboard'});navigate('production');return;
+    }
+    if(button.hasAttribute('data-overview-asset')){
+      const index=Number(button.dataset.overviewAsset),state=Number(button.dataset.overviewState);if(!returnedResult(production)?.assets[index]?.states[state])return;
+      boardViews.set(production.id,{kind:'assets',index,state,inspector:'generate',stage:'asset',characterLayer:button.dataset.overviewMaster==='true'?'master':'state'});navigate('asset');return;
     }
     if(button.hasAttribute('data-image-models-refresh')){await loadImageModels(true);return;}
     if(button.hasAttribute('data-wf-download')){event.preventDefault();const url=new URL(button.href);const relative=url.pathname.slice(apiBase.length);if(relative.endsWith('/storyboard-export')&&drafts.get(`production:review:${production?.id}`)){announce('请先保存镜头编排，再下载图文分镜脚本。');return;}return perform(async()=>{const blob=await api.request(relative,{responseType:'blob'});const link=doc.createElement('a');const objectUrl=URL.createObjectURL(blob);link.href=objectUrl;link.download=relative.endsWith('/storyboard-export')?'分镜脚本与图片.zip':'asset-lab-approved-assets.zip';link.hidden=true;doc.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);announce('交付包已交给浏览器下载。');});}
@@ -945,6 +959,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
   listen(root,'input',onInput);listen(root,'submit',onSubmit);listen(root,'click',onClick);
   listen(root,'change',async event=>{
     const target=event.target;
+    if(target.matches('[data-overview-scene]')){overviewScene=target.value;render();return;}
     if(target.matches('[data-wf-analysis-model]')){
       persist('text-model',target.value);
       const modelName=capabilities.analysis?.models?.find(model=>model.id===target.value)?.name||'文本模型';

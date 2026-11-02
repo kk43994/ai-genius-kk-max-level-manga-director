@@ -88,6 +88,7 @@ class CoverageTests(unittest.TestCase):
         unused = self.image('unused')
         coverage = self.coverage()
         self.assertEqual((coverage['ready'], coverage['total']), (8, 8))
+        self.assertTrue(all(r['designCurrent'] for r in coverage['entities']))
         self.assertFalse(any(r.get('stages', {}).get('refine') for r in coverage['entities']))
         _, manifest = self.workflow.export(self.ctx, self.project['id'])
         self.assertNotIn(unused['id'], [r['revisionId'] for r in manifest['assets']])
@@ -97,6 +98,8 @@ class CoverageTests(unittest.TestCase):
         result = copy.deepcopy(job['result']); result['shots'][0]['camera'] = '修改机位'
         self.production.save_review(self.ctx, job['id'], {'expectedVersion': job['reviewVersion'], 'expectedEditVersion': 0, 'result': result})
         self.assertEqual(self.coverage()['ready'], 7)
+        shot_row = next(r for r in self.coverage()['entities'] if r.get('shotId') == result['shots'][0]['id'])
+        self.assertFalse(shot_row['designCurrent'])
         self.assertEqual(self.workflow.bundle_content(self.ctx, self.project['id'], bundle['id']), old_raw)
         self.assertTrue(self.workflow.content(self.ctx, unused['assetId'], unused['id'])[0])
 

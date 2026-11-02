@@ -82,7 +82,8 @@ def coverage(workflow, tx, project):
             exports.update(r['id'] for r in shared_styles)
         required = ('storyboard',) if candidate['category'] == 'shot' else ('style', 'asset')
         rows.append(dict(entityId=target, name=candidate['name'], category=candidate['category'],
-                         stages=stages, ready=style_ready and all(stages[s] for s in required), **identity))
+                         stages=stages, designCurrent=applicable,
+                         ready=style_ready and all(stages[s] for s in required), **identity))
         exports.update(r['id'] for r in revisions)
 
     templates = {e['id']: e for e in candidates(result, script)}
