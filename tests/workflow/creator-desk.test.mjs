@@ -10,7 +10,7 @@ test('candidate galleries are stage-specific and do not imply pending approval',
  const mixed=generationGallery([{...revision('old','asset'),status:'stale'},revision('current','asset')],'/api/v1',{stage:'asset',category:'character'});
  const split=mixed.indexOf('<details');
  assert.ok(split>0);assert.match(mixed.slice(0,split),/current/);assert.doesNotMatch(mixed.slice(0,split),/data-creator-keep="old"/);
- assert.match(mixed.slice(split),/查看历史版本（1）/);assert.match(mixed.slice(split),/data-creator-keep="old" disabled/);
+ assert.match(mixed.slice(split),/查看历史版本（1）/);assert.match(mixed.slice(split),/data-image-tools="old"/);assert.doesNotMatch(mixed.slice(split),/data-creator-keep="old"/);
 });
 test('the candidate picture selects and its separate zoom control only previews',()=>{
  const html=generationGallery([revision('candidate','style')],'/api/v1',{stage:'style',category:'character',direction:true});
@@ -29,11 +29,13 @@ test('the candidate picture selects and its separate zoom control only previews'
 test('only current approved candidates have selection feedback and cannot be approved twice',()=>{
  const chosen={...revision('selected','asset'),review:'approved'};
  const html=generationGallery([chosen],'/api/v1',{stage:'asset',category:'character',master:true});
- assert.match(html,/data-selected="true"/);assert.match(html,/aria-pressed="true" data-creator-keep="selected" disabled/);
+ assert.match(html,/data-selected="true"/);assert.match(html,/aria-pressed="true" data-image-tools="selected"/);
+ assert.doesNotMatch(html,/data-creator-keep="selected"/);
  assert.match(html,/已选用/);
  const stale=generationGallery([{...chosen,status:'stale'}],'/api/v1',{stage:'asset'});
  assert.doesNotMatch(stale,/data-selected="true"|aria-pressed="true"/);
- assert.match(stale,/data-creator-keep="selected" disabled/);assert.match(stale,/历史版本/);
+ assert.match(stale,/data-image-tools="selected"/);assert.doesNotMatch(stale,/data-creator-keep="selected"/);assert.match(stale,/历史版本/);
+ assert.match(stale,/<details class="creator-generation-history" open>/);assert.doesNotMatch(stale,/等待第一组候选图/);
  const zoom=stale.match(/<button[^>]*data-wf-review="selected"[^>]*>/)[0];assert.doesNotMatch(zoom,/disabled/);
 });
 test('image selection preserves stage-specific decisions and a blocked selection still permits preview',()=>{

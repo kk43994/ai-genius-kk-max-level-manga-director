@@ -47,3 +47,15 @@ export async function parallelGroups(items,action,limit=3){
  }));
  return results;
 }
+
+// Explicit user-selected redraws may include an existing picture, but never an
+// unresolved receipt. The confirmation screen names every charged new task.
+export function selectedStoryboardShots({job,result,assets=[],tasks=[],selection,limit=8},referenceCards){
+ if(!job||job.stale||job.status!=='ready')return [];
+ return result.shots.flatMap((shot,index)=>{
+  const binding=(job.shotBindings||[]).find(b=>b.shotId===shot.id);
+  if(tasks.some(t=>t.entityId===binding?.entityId&&!['completed','cancelled'].includes(t.status)))return [];
+  const refs=referenceCards({...job,result},shot,assets,selection,'/api/v1');
+  return refs.length&&refs.every(r=>r.pinned&&r.src&&!r.changed)?[{shot,index}]:[];
+ }).slice(0,limit);
+}

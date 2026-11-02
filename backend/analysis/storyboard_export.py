@@ -68,16 +68,21 @@ def export(service, ctx, identity, *, preview=False):
                     illustration = f'<img src="{source}" alt="镜头 {position:03d} 已审核分镜图">'
                 speech = []
                 for did in shot['dialogueIds']:
-                    d = dialogues[did]
+                    d = copy.deepcopy(dialogues[did])
+                    edit = next((v for v in shot.get('dialogueOverrides', []) if v['id'] == did), None)
+                    if edit:
+                        d.update(sourceText=d['text'], text=edit['text'], edited=True, origin='manual')
                     speaker = character_names.get(d.get('speakerId'), d.get('speakerLabel') or '未署名')
                     record['dialogues'].append({**copy.deepcopy(d), 'speakerName': speaker})
                     speech.append(field(speaker + ' · ' + {'dialogue': '对白', 'inner_monologue': '内心独白', 'narration': '旁白', 'voiceover': '画外音', 'offscreen': '画外对白', 'system_voice': '系统音', 'unknown': '待确认类型'}.get(d['kind'], d['kind']), d['text']))
+                    if edit:
+                        speech.append(field('人工改写 · 原文对照', d['sourceText']))
                 refs = '、'.join(asset_names[r['assetId']] + ' · ' + state_names[(r['assetId'], r['stateId'])] for r in shot['references'])
                 pages.append(f'<article><h2>镜头 {position:03d} · {prose(shot["purpose"])}</h2>'
                     f'<p class="meta">{prose(record["sceneTitle"])} · {shot["durationSeconds"]} 秒 · {prose(shot["framing"])}</p>'
                     f'<div class="layout"><figure>{illustration}<figcaption>{prose(refs)}</figcaption></figure><section>'
                     + field('动作', shot['beat']) + field('摄影机', shot['camera']) + field('人物表演', shot['performance'])
-                    + '<h3>原文台词</h3>' + (''.join(speech) or '<p>无台词</p>')
+                    + '<h3>角色台词</h3>' + (''.join(speech) or '<p>无台词</p>')
                     + field('声音', shot['sound']) + field('首帧状态', shot['startState'])
                     + field('结束状态', shot['endState']) + field('连续性', '\n'.join(shot['continuity']))
                     + '</section></div></article>')

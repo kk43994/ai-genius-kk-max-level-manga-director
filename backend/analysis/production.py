@@ -50,6 +50,8 @@ SHOT = obj({'id': ID, 'sceneId': ID, 'order': {'type': 'integer', 'minimum': 1},
             'dialogueIds': IDS, 'eventIds': IDS,
             'imagePrompt': string(3000, 20), 'videoPrompt': string(3000, 20),
             'sound': string(), 'continuity': TEXTS, 'evidence': arr(EVIDENCE, 1, 12)})
+# Human-authored dialogue remains separate from immutable source dialogue.
+SHOT['properties']['dialogueOverrides'] = arr(obj({'id': ID, 'text': string(4000), 'origin': {'const': 'manual'}}))
 SCHEMA = obj({'schemaVersion': {'const': 'production-v1'}, 'sourceRevision': string(128),
               'analysisId': ID, 'aspectRatio': {'enum': ['9:16', '16:9', '1:1']},
               'styleBible': string(4000), 'assets': arr(ASSET, 1, 100),
@@ -75,10 +77,12 @@ shots.imagePrompt描述具体分镜静帧构图和首帧；videoPrompt描述主�
 输出需精炼但完整：优先明确动作、空间和状态，避免各镜重复长篇美术词。'''
     if repair:
         rules += '\n上次方案未通过核验。这次只修正该方案中不符合契约的字段，保留其有效创作内容并返回完整JSON。quote必须是原文连续片段，严禁用省略号代替原句；可以引用较短的真实片段。重新核对所有状态的sceneIds应包含引用它的镜头场次、每条台词恰好分配一次、全部事件覆盖。不得删减镜头以规避核验。'
+    provider_schema = copy.deepcopy(SCHEMA)
+    provider_schema['properties']['shots']['items']['properties'].pop('dialogueOverrides', None)
     return rules + '\n' + json.dumps({'sourceRevision': script['sourceRevision'],
         'analysisId': context['analysisId'], 'aspectRatio': context['aspectRatio'],
         'source': [{'line': i, 'text': t} for i, t in enumerate(script['text'].splitlines(), 1)],
-        'analysis': context['analysis'], 'visualStyle': context['stylePrompt'], 'schema': SCHEMA,
+        'analysis': context['analysis'], 'visualStyle': context['stylePrompt'], 'schema': provider_schema,
         **({'previousResult': repair} if repair else {})},
         ensure_ascii=False, separators=(',', ':'))
 
@@ -162,6 +166,9 @@ def validate(result, script, context):
         for d in shot['dialogueIds']:
             if d not in dialogues or dialogues[d]['sceneId'] != shot['sceneId']: fail('镜头台词引用错误。')
             used_dialogues.append(d)
+        overrides = shot.get('dialogueOverrides', [])
+        if len({d['id'] for d in overrides}) != len(overrides) or any(d['id'] not in shot['dialogueIds'] for d in overrides):
+            fail('人工改写台词必须对应本镜的原文台词，且不能重复。')
         for e in shot['eventIds']:
             if e not in events or events[e]['sceneId'] != shot['sceneId']: fail('镜头事件引用错误。')
             used_events.add(e)
@@ -178,6 +185,8 @@ def parse(text, script, context):
     if text.startswith('```json\n') and text.endswith('```'): text = text[8:-3].strip()
     try: result = json.loads(text)
     except (ValueError, RecursionError): fail('AI 制作方案未完整返回，原任务记录已保留。')
+    if isinstance(result, dict) and isinstance(result.get('shots'), list) and any(isinstance(s, dict) and s.get('dialogueOverrides') for s in result['shots']):
+        fail('AI 返回不能冒充人工台词改写，请保留原文台词引用。')
     return validate(result, script, context)
 
 

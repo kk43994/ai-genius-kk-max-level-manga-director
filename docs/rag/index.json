@@ -280,6 +280,21 @@
         "状态检测"
       ],
       "status": "local-live-read-verified-quota-unavailable"
+    },
+    {
+      "id": "in-place-creation",
+      "file": "docs/rag/in-place-creation.md",
+      "keywords": [
+        "点图修改",
+        "连续审片",
+        "台词改写",
+        "共同要求",
+        "补素材返回",
+        "影响范围",
+        "参数记忆",
+        "历史原图"
+      ],
+      "status": "under-live-validation"
     }
   ]
 }

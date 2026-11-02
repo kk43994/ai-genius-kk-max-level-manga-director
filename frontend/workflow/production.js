@@ -10,8 +10,8 @@ const dialogueKinds = {dialogue:'对白',inner_monologue:'内心独白',narratio
 export function dialogueText(job, shot) {
   const names=new Map((job.characters||[]).map(c=>[c.id,c.name]));
   return shot.dialogueIds.map(id=>{
-    const d=job.dialogues.find(d=>d.id===id);
-    return d?{...d,label:`${names.get(d.speakerId)||d.speakerLabel||'未署名'} · ${dialogueKinds[d.kind]||d.kind}`} : null;
+    const d=(job.dialogues||[]).find(d=>d.id===id),edit=shot.dialogueOverrides?.find(v=>v.id===id&&v.origin==='manual');
+    return d?{...d,...(edit?{text:edit.text,sourceText:d.text,edited:true}:{}),label:`${names.get(d.speakerId)||d.speakerLabel||'未署名'} · ${dialogueKinds[d.kind]||d.kind}`} : null;
   }).filter(Boolean);
 }
 export function referenceCards(job,shot,assets,selection,apiBase) {
@@ -23,7 +23,8 @@ export function referenceCards(job,shot,assets,selection,apiBase) {
     const candidates=job.status==='ready'&&!job.stale&&!binding?.changed?(asset?.revisions||[]).filter(r=>['asset','refine'].includes(r.stage)&&r.status==='ready'&&r.review==='approved'&&belongsToSelection(r,job.ownership||selection)):[];
     const versions=[...candidates].sort((a,b)=>({refine:3,asset:2}[b.stage]-{refine:3,asset:2}[a.stage])||b.createdAt.localeCompare(a.createdAt));
     const revision=ref.revisionId?versions.find(r=>r.id===ref.revisionId):versions[0];
-    return {assetId:ref.assetId,stateId:ref.stateId,name:`${item?.name||ref.assetId} · ${state?.name||ref.stateId}`,category:item?.category,entityId:binding?.entityId,
+    const history=ref.revisionId?(asset?.revisions||[]).find(r=>r.id===ref.revisionId&&['asset','refine'].includes(r.stage)&&belongsToSelection(r,job.ownership||selection)):null;
+    return {historyRevisionId:!revision?history?.id:null,historySrc:!revision&&history?assetURL(apiBase,asset.id,history.id,true):null,assetId:ref.assetId,stateId:ref.stateId,name:`${item?.name||ref.assetId} · ${state?.name||ref.stateId}`,category:item?.category,entityId:binding?.entityId,
       saved:binding?.saved,changed:binding?.changed,revisionId:revision?.id,pinned:Boolean(ref.revisionId),versions,src:revision?assetURL(apiBase,asset.id,revision.id,true):null};
   });
 }

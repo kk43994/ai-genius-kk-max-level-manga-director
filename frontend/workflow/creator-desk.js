@@ -1,4 +1,5 @@
 import {escapeHTML as esc,assetURL,belongsToSelection,categories} from './model.js';
+import {affectedRevisions,impactCards} from './in-place.js';
 import {generationInspector} from './production-generation.js';
 
 export function styleSummary(project,apiBase){
@@ -8,7 +9,7 @@ export function styleSummary(project,apiBase){
 export function directionForm({project,result,assets,apiBase,directionDraft,busy}){
  const id=directionDraft?.revisionId;if(!id)return '';
  const r=assets.flatMap(a=>a.revisions).find(r=>r.id===id);if(!r)return '';
- return `<section class="wf-panel creator-direction"><h3>确认本剧统一风格</h3><form data-wf-form="art-direction"><img src="${esc(assetURL(apiBase,r.assetId,r.id,true))}" alt="待确认的本剧风格"><input type="hidden" name="revisionId" value="${esc(r.id)}"><label>本剧美术规范<textarea name="notes" rows="4" maxlength="4000" required>${esc(directionDraft.notes??project.artDirection?.notes??result.styleBible)}</textarea></label><p class="wf-muted">后续制作自动沿用这份规范。换风格后，按旧规范制作的图片需要重新核对。</p><button class="primary" ${busy?'disabled':''}>选用此张并确认本剧风格</button><button type="button" data-creator-direction-cancel>取消</button></form></section>`;
+ return `<section class="wf-panel creator-direction"><h3>确认本剧统一风格</h3><form data-wf-form="art-direction"><img src="${esc(assetURL(apiBase,r.assetId,r.id,true))}" alt="待确认的本剧风格"><input type="hidden" name="revisionId" value="${esc(r.id)}"><label>本剧美术规范<textarea name="notes" rows="4" maxlength="4000" required>${esc(directionDraft.notes??project.artDirection?.notes??result.styleBible)}</textarea></label><p class="wf-muted">后续制作自动沿用这份规范。换风格后，按旧规范制作的图片需要重新核对。</p>${project.artDirection?`<details><summary>查看更新美术标准的影响范围</summary>${impactCards(affectedRevisions(assets,[],{styleVersion:project.artDirection.version}),apiBase)}</details>`:''}<button class="primary" ${busy?'disabled':''}>选用此张并确认本剧风格</button><button type="button" data-creator-direction-cancel>取消</button></form></section>`;
 }
 export function creatorDesk(options){
  const {result,job,assets,selection,view,page,project,apiBase,busy}=options;
