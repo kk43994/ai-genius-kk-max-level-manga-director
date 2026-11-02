@@ -250,6 +250,21 @@ class TaskSafetyTests(unittest.TestCase):
         self.assertCode('SUBMISSION_ALREADY_ATTEMPTED', self.f.service.submit, self.f.ctx,
             recovered['id'], recovered['version'], 'unused', 'never-replay')
 
+    def test_setup_stop_preserves_attempt_and_requires_a_new_explicit_prepare(self):
+        self.f.providers.prepared_receipt = {'projectId':'original-project'}
+        prepared = self.f.prepare()
+        self.f.providers.submit_error = TimeoutError()
+        unknown = self.f.submit(prepared)['task']
+        self.f.providers.lookup_result = {'status':'failed', 'failureStage':'reference_setup', 'generationSubmitted':False}
+        recovered = self.f.service.recover(self.f.ctx, unknown['id'], unknown['version'])['task']
+        self.assertEqual(recovered['status'], 'failed')
+        self.assertEqual(recovered['error']['code'], 'REFERENCE_SETUP_STOPPED')
+        self.assertFalse(recovered['error']['details']['generationSubmitted'])
+        self.assertTrue(recovered['submissionAttempted'])
+        self.assertEqual(self.f.providers.submit_count, 1)
+        self.assertCode('SUBMISSION_ALREADY_ATTEMPTED', self.f.service.submit, self.f.ctx,
+            recovered['id'], recovered['version'], 'unused', 'never-replay')
+
     def test_verified_preflight_rejection_is_terminal_but_original_cannot_resubmit(self):
         prepared=self.f.prepare()
         self.f.providers.submit_error=TestProviderError('REFERENCE_PREFLIGHT_REJECTED', provider_receipt=self.f.providers.prepared_receipt)

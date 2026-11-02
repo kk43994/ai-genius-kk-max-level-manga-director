@@ -469,8 +469,12 @@ class TaskService:
                 elif state == "failed":
                     upload_only = (result.get('failureStage') == 'reference_upload' and result.get('generationSubmitted') is False
                                    and not ref.get('taskId') and not ref.get('nodeId'))
+                    setup_only = (result.get('failureStage') == 'reference_setup' and result.get('generationSubmitted') is False
+                                  and not ref.get('taskId') and not ref.get('nodeId'))
                     current.update(status="failed", lease=None,
-                        error=({"code":"REFERENCE_UPLOAD_FAILED", "message":"参考图上传未完成；已核实尚未调用收费生成。可以重新准备，原记录保留。",
+                        error=({"code":"REFERENCE_SETUP_STOPPED", "message":"图片准备过程曾中断；已核实尚未调用收费生成。可以重新准备，原记录保留。",
+                                "retryable":True, "details":{"generationSubmitted":False}} if setup_only else
+                               {"code":"REFERENCE_UPLOAD_FAILED", "message":"参考图上传未完成；已核实尚未调用收费生成。可以重新准备，原记录保留。",
                                 "retryable":True, "details":{"generationSubmitted":False}}
                                if upload_only else {"code":"PROVIDER_TASK_FAILED", "message":"官方原任务失败，未自动重新生成。",
                                                     "retryable":False, "details":{}}))

@@ -194,6 +194,20 @@ class LiveImageClient(BoundImageClient):
                     and all(row.get('attempted') is True for row in steps.values())
                     and any(not row.get('done') for row in steps.values()))
 
+    def _reference_setup_stopped(self, local_task, record, receipt):
+        # An intact prepared record distinguishes a known pre-generation stop
+        # from a missing journal. Every charged path persists a generation claim.
+        with self.a.journal.edit(self._owner, local_task) as state:
+            if (state.get('record') != record or not record.get('sources')
+                    or record.get('prepared', {}).get('providerReceipt') != receipt
+                    or state.get('originalReferenceRun')):
+                return False
+            steps = state.get('steps')
+            return isinstance(steps, dict) and all(
+                (name == 'reference_node' or re.fullmatch(r'upload_[a-f0-9]{64}', name))
+                and isinstance(row, dict) and row.get('attempted') is True
+                for name, row in steps.items())
+
     def lookup(self, receipt, *, local_task_id=None):
         receipt = safe_receipt(receipt)
         local_task = self.a.bridge.task_for_receipt(self._owner, receipt, **({'local_task_id':local_task_id} if local_task_id is not None else {}))
@@ -204,6 +218,9 @@ class LiveImageClient(BoundImageClient):
             if not receipt.get('nodeId') and self._upload_stopped_before_generation(local_task):
                 return {'status':'failed', 'providerReceipt':receipt,
                         'failureStage':'reference_upload', 'generationSubmitted':False}
+            if not receipt.get('nodeId') and self._reference_setup_stopped(local_task, record, receipt):
+                return {'status':'failed', 'providerReceipt':receipt,
+                        'failureStage':'reference_setup', 'generationSubmitted':False}
             if not receipt.get('nodeId') or self.a.reference_route is None:
                 raise GenerationError('ORIGINAL_RECEIPT_REQUIRED', receipt=receipt)
             receipt = self.a.reference_route.recover_task(self, local_task, record, receipt)

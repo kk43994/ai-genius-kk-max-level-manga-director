@@ -189,6 +189,24 @@ class UploadRecoveryTests(unittest.TestCase):
             with self.subTest(steps=steps), self.assertRaises(GenerationError):
                 self.client({'steps':steps}).lookup({'projectId':'project'})
 
+    def test_intact_reference_record_proves_early_setup_stop_without_any_write(self):
+        receipt = {'projectId':'project'}
+        record = {'spec':{'projectId':'local-project'}, 'sources':[{'sha256':'a'*64}],
+                  'prepared':{'providerReceipt':receipt}}
+        for steps in ({}, {'reference_node':{'attempted':True, 'done':False}},
+                      {'upload_'+'a'*64:{'attempted':True, 'done':True}}):
+            state = {'record':record, 'steps':steps}
+            client = self.client(state); client._record = lambda _: copy.deepcopy(record)
+            result = client.lookup(receipt)
+            self.assertEqual(result['failureStage'], 'reference_setup')
+            self.assertIs(result['generationSubmitted'], False)
+        for extra in ({'steps':{'generation':{'attempted':True}}},
+                      {'steps':{'unexpected':{'attempted':True}}},
+                      {'originalReferenceRun':{'run':True}}, {'record':{}}):
+            state = {'record':record, 'steps':{}, **extra}
+            client = self.client(state); client._record = lambda _: copy.deepcopy(record)
+            with self.assertRaises(GenerationError): client.lookup(receipt)
+
 class PartialDeliveryTests(unittest.TestCase):
     def test_unknown_fourth_export_keeps_three_verified_files_without_resending(self):
         from helpers import png
