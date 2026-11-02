@@ -139,6 +139,12 @@ LIBTV_ACCOUNT_IDENTITY = IdentityReadContract(
     'Official https://mcp.liblib.tv/mcp tools/list and account_user; '
     'browser OAuth libtv:account:read verified 2026-10-27; repeat user.uuid read matched.')
 
+LIBTV_DOCTOR_IDENTITY = IdentityReadContract(
+    'doctor', ('identity', 'userUuid'), ('identity', 'nickname'), evidence=
+    'Official Remote MCP doctor.identity.userUuid matched account_user.user.uuid '
+    'during browser-approved account-read verification on 2026-10-27; '
+    'see backend/auth/OFFICIAL_READ_EVIDENCE.md.')
+
 
 class ReadOnlyMCPIdentityVerifier:
     available = True
@@ -160,8 +166,19 @@ class ReadOnlyMCPIdentityVerifier:
 
     def read_snapshot(self, tokens):
         session = MCPReadSession(self._http, tokens['access_token'])
-        matches = [t for t in session.tools() if t.get('name') == self._contract.tool_name]
+        return self.read_session(session, session.tools())
+
+    def read_session(self, session, catalog):
+        contract = self._contract
+        matches = [t for t in catalog if t.get('name') == contract.tool_name]
+        # A removed legacy endpoint is not an expired grant. Only the audited
+        # official doctor read can replace it; malformed/duplicate legacy tools
+        # and failures from a present account_user must still fail closed.
+        if not matches and contract == LIBTV_ACCOUNT_IDENTITY:
+            contract = LIBTV_DOCTOR_IDENTITY
+            matches = [t for t in catalog if t.get('name') == contract.tool_name]
         if len(matches) != 1:
+            logging.getLogger(__name__).error('Identity contract rejected: reason=tool_count count=%d available=%s', len(matches), ','.join(t['name'] for t in catalog if isinstance(t.get('name'), str) and re.fullmatch(r'[A-Za-z0-9_]{1,80}', t['name']))[:2000])
             raise AuthError('PROVIDER_IDENTITY_UNAVAILABLE')
         tool = matches[0]
         annotations = tool.get('annotations') or {}
@@ -169,13 +186,23 @@ class ReadOnlyMCPIdentityVerifier:
         if (annotations.get('readOnlyHint') is not True
                 or annotations.get('destructiveHint') is not False
                 or schema.get('type') != 'object' or schema.get('required')):
+            logging.getLogger(__name__).error('Identity contract rejected: reason=tool_schema readonly=%s nondestructive=%s object=%s has_required=%s', annotations.get('readOnlyHint') is True, annotations.get('destructiveHint') is False, schema.get('type') == 'object', bool(schema.get('required')))
             raise AuthError('PROVIDER_IDENTITY_UNAVAILABLE')
         identity = session.read_identity(tool, {})
-        subject = self._path(identity, self._contract.subject_path)
-        name = self._path(identity, self._contract.display_name_path) if self._contract.display_name_path else None
+        subject = self._path(identity, contract.subject_path)
+        name = self._path(identity, contract.display_name_path) if contract.display_name_path else None
         if (not isinstance(subject, str) or not subject or len(subject) > 512
                 or any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in subject)):
+            logging.getLogger(__name__).error('Identity contract rejected: reason=subject_shape present=%s string=%s', subject is not None, isinstance(subject, str))
             raise AuthError('PROVIDER_IDENTITY_UNAVAILABLE')
+        if contract == LIBTV_DOCTOR_IDENTITY:
+            # Same membership fields, now nested under doctor.identity. This
+            # shape was rechecked via browser OAuth + refresh on 2026-11-03.
+            data = identity['identity']
+            identity = {'user': {'uuid': subject, 'nickname': name, 'id': data.get('userId')},
+                        'accounts': data.get('accounts'),
+                        'activeAccountId': data.get('activeAccountId'),
+                        'activeTeamId': data.get('activeTeamId')}
         return VerifiedIdentity(subject=subject, display_name=name if isinstance(name, str) else None), identity
 
     def verify(self, tokens):

@@ -101,3 +101,24 @@ test('persist only recognized public authorization error codes', () => {
   assert.match(errorText(publicAttemptError({ code:'PROVIDER_ACCOUNT_READ_UNAVAILABLE',message:'secret'})),/暂时无法读取原账号资料/);
   assert.deepEqual(publicAttemptError({ code: 'token=DO_NOT_STORE' }), { code: 'AUTHORIZATION_FAILED' });
 });
+
+
+test('identity and contract errors survive callback storage without leaking upstream text', () => {
+  for (const code of ['PROVIDER_IDENTITY_UNAVAILABLE','PROVIDER_PROTOCOL_ERROR','PROVIDER_SCOPE_UNAVAILABLE','PROVIDER_IDENTITY_MISMATCH']) {
+    const value=publicAttemptError({code,message:'private-upstream'});
+    assert.deepEqual(value,{code});assert.doesNotMatch(errorText(value),/private-upstream/);
+  }
+  assert.match(errorText({code:'PROVIDER_IDENTITY_UNAVAILABLE'}),/不是积分不足/);
+});
+
+test('concurrent status reads coalesce but writes and fresh checks do not', async () => {
+  const {coalesceStatusReads}=await import('../../frontend/accounts/read-status.js');
+  let count=0, resolve, context='tenant-a';
+  const read=coalesceStatusReads(()=>{count++;return new Promise(r=>{resolve=r;});},()=>context);
+  const a=read('/spaces'), b=read('/spaces');assert.equal(a,b);
+  await Promise.resolve();assert.equal(count,1);resolve({ok:true});await a;
+  const c=read('/spaces');await Promise.resolve();assert.equal(count,2);resolve({ok:true});await c;
+  const d=read('/spaces');context='tenant-b';const f=read('/spaces');assert.notEqual(d,f);
+  const writes=[];const rw=coalesceStatusReads((p,o)=>{writes.push(o);return Promise.resolve();},()=>context);
+  await Promise.all([rw('/task',{method:'POST'}),rw('/task',{method:'POST'})]);assert.equal(writes.length,2);
+});

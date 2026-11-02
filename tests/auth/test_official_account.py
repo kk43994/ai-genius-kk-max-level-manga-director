@@ -36,6 +36,7 @@ class OfficialAccountHTTP(FakeHTTP):
         self.tool_calls = []
         self.before_read = None
         self.response = {'synthetic': True}
+        self.responses = {}
 
     def request(self, method, url, *, data=None, headers=None):
         if method != 'POST' or url != RESOURCE:
@@ -55,7 +56,7 @@ class OfficialAccountHTTP(FakeHTTP):
                     self.before_read()
                 result = {'structuredContent': copy.deepcopy(self.account)}
             else:
-                result = {'structuredContent': copy.deepcopy(self.response)}
+                result = {'structuredContent': copy.deepcopy(self.responses.get(request['params']['name'], self.response))}
         else:
             raise AssertionError('Unexpected RPC')
         return HTTPResult(200, {'jsonrpc': '2.0', 'id': request['id'], 'result': result})
@@ -87,6 +88,77 @@ class OfficialAccountTests(unittest.TestCase):
         with self.assertRaises(AuthError) as result:
             function()
         self.assertEqual(expected, result.exception.code)
+
+    def use_doctor(self):
+        self.http.tools = [t for t in self.http.tools if t['name'] != 'account_user']
+        old = self.http.account
+        self.http.response = {'status': 'ok', 'identity': {
+            'userUuid': old['user']['uuid'], 'nickname': old['user']['nickname'], 'userId': old['user']['id'],
+            'accounts': copy.deepcopy(old['accounts']), 'activeAccountId': 200001,
+            'activeTeamId': None}}
+
+    def test_removed_account_user_uses_verified_doctor_for_identity_and_membership(self):
+        self.use_doctor()
+        account = self.connect()
+        self.assertEqual('合成测试用户', account['identity']['displayName'])
+        client = self.service.account_client_for(self.ctx, self.owner(account))
+        self.assertEqual(['200001', '200002'], [s['id'] for s in client.list_spaces()['items']])
+        self.assertTrue(all(c['name'] == 'doctor' for c in self.http.tool_calls))
+        self.assertFalse(account['capabilities']['quota'])
+
+    def test_legacy_generation_reads_use_current_official_identity_and_project(self):
+        self.use_doctor()
+        original = self.http.request
+        def creator_grant(method, url, **kwargs):
+            result = original(method, url, **kwargs)
+            if url.endswith('/token'):
+                from backend.providers.libtv_oauth import SCOPES
+                return HTTPResult(result.status, {**result.data, 'scope': ' '.join(sorted(SCOPES))}, result.headers)
+            return result
+        self.http.request = creator_grant
+        attempt = self.service.begin_authorization(self.ctx, authorizationProfile='creator')
+        self.service.complete_authorization(self.ctx, callback_for(attempt))
+        account = self.service.get_account(self.ctx, self.service.get_attempt(self.ctx, attempt['attemptId'])['providerAccountId'])
+        self.http.tools = [t for t in self.http.tools if t['name'] != 'project_info']
+        project = {'uuid': 'project-synthetic', 'ownerId': 101, 'projectSpaceId': 202}
+        self.http.responses['read_project'] = {'projectId': 'project-synthetic', 'project': project}
+        transport = BoundMCPTools(self.service, self.ctx, self.owner(account))
+        identity = transport.call_tool('account_user', {}, space_id='200001')
+        self.assertEqual(identity['user']['id'], self.http.account['user']['id'])
+        result = transport.call_tool('project_info', {'project_id': 'project-synthetic'}, space_id='200001')
+        self.assertEqual(result, {'projectId': 'project-synthetic', 'data': {'projectMeta': project}})
+        self.assertEqual(self.http.tool_calls[-1], {'name': 'read_project', 'arguments': {'projectId': 'project-synthetic', 'view': 'summary'}})
+        self.assertFalse(any(c['name'] in ('account_user', 'project_info') for c in self.http.tool_calls))
+        for patch in ({'uuid': 'other'}, {'ownerId': None}, {'projectSpaceId': '202'}):
+            self.http.responses['read_project']['project'] = {**project, **patch}
+            self.code('PROVIDER_PROTOCOL_ERROR', lambda: transport.call_tool('project_info', {'project_id': 'project-synthetic'}, space_id='200001'))
+
+    def test_doctor_does_not_guess_missing_membership_or_accept_changed_subject(self):
+        self.use_doctor(); account = self.connect()
+        client = self.service.account_client_for(self.ctx, self.owner(account))
+        self.http.response['identity']['accounts'] = None
+        self.code('PROVIDER_PROTOCOL_ERROR', client.list_spaces)
+        self.http.response['identity']['userUuid'] = 'someone-else'
+        self.code('PROVIDER_IDENTITY_MISMATCH', client.list_spaces)
+
+    def test_doctor_rejects_duplicate_or_unsafe_contract_without_calling_it(self):
+        for mutation in ('duplicate', 'write', 'required'):
+            self.http = OfficialAccountHTTP(); self.use_doctor()
+            from backend.providers.libtv_identity import ReadOnlyMCPIdentityVerifier, LIBTV_ACCOUNT_IDENTITY
+            doctor = next(t for t in self.http.tools if t['name'] == 'doctor')
+            if mutation == 'duplicate': self.http.tools.append(copy.deepcopy(doctor))
+            if mutation == 'write': doctor['annotations']['readOnlyHint'] = False
+            if mutation == 'required': doctor['inputSchema']['required'] = ['newField']
+            self.code('PROVIDER_IDENTITY_UNAVAILABLE', lambda: ReadOnlyMCPIdentityVerifier(
+                self.http, LIBTV_ACCOUNT_IDENTITY).verify({'access_token': 'synthetic'}))
+            self.assertEqual([], self.http.tool_calls)
+
+    def test_bound_tools_recheck_doctor_membership_and_do_not_reuse_previous_access(self):
+        self.use_doctor(); account = self.connect()
+        transport = BoundMCPTools(self.service, self.ctx, self.owner(account))
+        transport.call_tool('doctor', {}, space_id='200001')
+        self.http.response['identity']['accounts']['accounts'] = []
+        self.code('OWNERSHIP_MISMATCH', lambda: transport.call_tool('doctor', {}, space_id='200001'))
 
     def test_default_callback_uses_user_uuid_not_numeric_account_or_user_id(self):
         account = self.connect()

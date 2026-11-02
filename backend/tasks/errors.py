@@ -58,7 +58,10 @@ def provider_failure(exc, *, attempted=False):
         return ('failed', {'code':code, 'message':'项目同时有其他更新，官方拒绝了这次提交；已核实原节点未生成。请重新准备，原记录保留。',
             'retryable':True, 'details':{'generationSubmitted':False}})
     if code in PREPARATION_CODES:
-        return ("needs_attention", {"code":code,"message":PREPARATION_CODES[code],
+        message = PREPARATION_CODES[code]
+        if not attempted and code in {'PROVIDER_UNAVAILABLE', 'PROVIDER_ACCOUNT_READ_UNAVAILABLE', 'PROVIDER_PROTOCOL_ERROR'}:
+            message = '生成前的官方资料核验未完成，尚未提交收费生成。可取消这条准备记录，连接恢复后重新准备。'
+        return ("needs_attention", {"code":code,"message":message,
             "retryable":False,"details":{"submissionAttempted":bool(attempted)}})
     if code in AUTH_CODES:
         return ("blocked_authorization", {

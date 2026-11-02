@@ -262,6 +262,24 @@
         "提示词规范"
       ],
       "status": "local-implemented-provider-verification-pending"
+    },
+    {
+      "id": "libtv-connectivity",
+      "file": "docs/rag/libtv-connectivity.md",
+      "keywords": [
+        "LibTV",
+        "连接",
+        "余额",
+        "积分",
+        "权限",
+        "OAuth",
+        "doctor",
+        "account_user",
+        "project_info",
+        "read_project",
+        "状态检测"
+      ],
+      "status": "local-live-read-verified-quota-unavailable"
     }
   ]
 }

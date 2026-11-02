@@ -385,7 +385,7 @@ class ProviderService:
                                     or (account['id'] not in saved['accountVersions'] and account['removedAt'])):
                         raise AuthError('VERSION_CONFLICT')
                 account_id = account['id'] if account else 'pa_' + secrets.token_urlsafe(18)
-                name = (identity.display_name or 'LibTV 账号')[:120]
+                name = (identity.display_name or (account or {}).get('label') or 'LibTV 账号')[:120]
                 if not isinstance(name, str) or any(ord(c) < 32 for c in name):
                     raise AuthError('PROVIDER_IDENTITY_UNAVAILABLE')
                 bundle = {'tokens': tokens, 'client': private['client'], 'metadata': private['metadata']}

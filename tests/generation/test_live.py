@@ -24,6 +24,10 @@ class LiveTests(unittest.TestCase):
             with self.assertRaises(GenerationError):personal_account(BODY,{**OWNER,**patch})
         body=copy.deepcopy(BODY);body['accounts']['accounts'][0]['ownerUuid']='other'
         with self.assertRaises(GenerationError):personal_account(body,OWNER)
+    def test_missing_numeric_subject_id_cannot_match_missing_project_owner(self):
+        for value in (None, '', '9', True, 0):
+            body=copy.deepcopy(BODY);body['user']['id']=value
+            with self.assertRaises(GenerationError):personal_account(body,OWNER)
     def test_nested_model_contract_preserves_exact_count(self):
         a=SimpleNamespace(recipes={'mj_style':RecipeBinding('mj-v8.1')},policy=GenerationPolicy(),catalog=ToolCatalog.bundled())
         c=LiveImageClient(a,OWNER,None)

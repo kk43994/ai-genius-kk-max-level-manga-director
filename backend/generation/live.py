@@ -20,6 +20,7 @@ def personal_account(body, ownership):
     accounts = body.get('accounts', {}).get('accounts', [])
     matches = [r for r in accounts if str(r.get('accountId')) == ownership['spaceId']]
     if (ownership['spaceKind'] != 'personal' or user.get('uuid') != ownership['providerSubject']
+            or type(user.get('id')) is not int or user['id'] <= 0
             or len(matches) != 1 or matches[0].get('accountType') != 1
             or matches[0].get('ownerUuid') != user.get('uuid')
             or body.get('activeAccountId') != matches[0].get('accountId')):

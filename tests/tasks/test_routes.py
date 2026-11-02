@@ -88,6 +88,15 @@ class RouteTests(unittest.TestCase):
             self.assertIn(expected, public['message'])
             self.assertNotIn('private', str(public))
 
+    def test_preparation_outage_does_not_claim_a_generation_is_running(self):
+        from backend.tasks.errors import provider_failure
+        error = RuntimeError('private'); error.code = 'PROVIDER_UNAVAILABLE'
+        _, before = provider_failure(error, attempted=False)
+        _, after = provider_failure(error, attempted=True)
+        self.assertIn('尚未提交收费生成', before['message'])
+        self.assertNotIn('尚未提交收费生成', after['message'])
+        self.assertIn('收取原任务', after['message'])
+
     def test_account_read_outage_preserves_recovery_state_and_safe_error(self):
         from backend.auth.errors import AuthError
         from backend.tasks.errors import provider_failure

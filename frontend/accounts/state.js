@@ -71,7 +71,7 @@ export function publicAttemptError(error) {
   if (!error) return null;
   const codes = ['ACCESS_DENIED', 'access_denied', 'AUTHORIZATION_CANCELLED', 'OAUTH_ACCESS_DENIED',
     'AUTHORIZATION_DENIED', 'IDENTITY_MISMATCH', 'AUTHORIZATION_SUBJECT_MISMATCH',
-    'PROVIDER_UNAVAILABLE', 'PROVIDER_ACCOUNT_READ_UNAVAILABLE', 'PROVIDER_CAPABILITY_UNAVAILABLE', 'AUTHORIZATION_EXPIRED'];
+    'PROVIDER_UNAVAILABLE', 'PROVIDER_IDENTITY_UNAVAILABLE', 'PROVIDER_PROTOCOL_ERROR', 'PROVIDER_SCOPE_UNAVAILABLE', 'PROVIDER_IDENTITY_MISMATCH', 'PROVIDER_ACCOUNT_READ_UNAVAILABLE', 'PROVIDER_CAPABILITY_UNAVAILABLE', 'AUTHORIZATION_EXPIRED'];
   return { code: codes.includes(error.code) ? error.code : 'AUTHORIZATION_FAILED' };
 }
 
@@ -115,13 +115,19 @@ export function retainQuotaOnFailure(previous, next) {
 const errors = {
   NOT_IMPLEMENTED: '此功能尚未接入，请稍后再试。',
   PROVIDER_UNAVAILABLE: 'LibTV 暂时无法连接，请稍后重试。',
+  PROVIDER_IDENTITY_UNAVAILABLE: '官方授权已返回，但 LibTV 账号身份读取未通过校验。当前无法建立连接；这不是积分不足，请稍后检测或联系支持。',
+  PROVIDER_PROTOCOL_ERROR: 'LibTV 接口返回格式与当前适配器不一致，需核对接口兼容性。原任务和素材仍保留，无需重复生成。',
+  PROVIDER_SCOPE_UNAVAILABLE: '当前授权或官方接口未提供所需权限，请核对创作授权。',
+  PROVIDER_IDENTITY_MISMATCH: '官方返回的身份与原账号不一致。请使用原账号连接；任务归属未改变。',
+  AUTHORIZATION_IN_PROGRESS: '同一账号正在更新授权，请等待完成后检测；无需重复发起授权。',
+  NETWORK_ERROR: '连接暂时中断，当前状态未知，已保存的内容不受影响。',
+  TIMEOUT: '本次状态查询超时，尚不能判断账号是否失效。请稍后重新检测。',
   PROVIDER_ACCOUNT_READ_UNAVAILABLE: 'LibTV 暂时无法读取原账号资料。已保存的选择和任务仍在，请稍后刷新状态。',
   PROVIDER_CAPABILITY_UNAVAILABLE: 'LibTV 当前尚未提供这项能力。',
   PROVIDER_AUTHORIZATION_REQUIRED: '此账号授权需要更新，请重新授权后查询余额。',
   SPACE_UNAVAILABLE: '所选空间的访问权限需要重新核对，请刷新账号状态。',
   PROVIDER_AUTHORIZATION_UNAVAILABLE: 'LibTV 网页授权尚未开放，请稍后再试。',
   AUTHORIZATION_UNCONFIGURED: 'LibTV 网页授权尚未开放，请稍后再试。',
-  AUTHORIZATION_IN_PROGRESS: '已有授权正在进行。请完成或查询这次授权后再添加账号。',
   SESSION_REQUIRED: '本站会话已过期，请刷新页面后重试。',
   CSRF_FAILED: '页面会话需要更新，请刷新状态后重试。',
   VERSION_CONFLICT: '账号状态已发生变化，已重新查询，请核对后再操作。',
