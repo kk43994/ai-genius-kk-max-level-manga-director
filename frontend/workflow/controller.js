@@ -5,6 +5,7 @@ import {returnedResult, reviewDraft, setReviewValue, valueAt, textLines} from '.
 import {assetToken,referenceLabel,readableText,storedText,linkedText,referencePicker,bindReference,removeReference,appendManualProp} from './production-references.js';
 import {generationContext,generationGallery} from './production-generation.js';
 import {sourceImagePicker} from './image-choices.js';
+import {versionPicker,versionTarget} from './version-picker.js';
 import {extraReferences,referencePrompt,libraryPanel,referencePool,chooseExtraReference} from './image-references.js';
 import {batchSize,parallelGroups,missingStoryboardShots,repairStoryboardShots} from './generation-batch.js';
 import {selectedImageModel,collectImageSettings} from './image-models.js';
@@ -52,7 +53,8 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   const entityPrompt = () => {const entityId=currentEntity()?.id,viewId=drafts.get(`prompt-view:${selected}:${entityId}`);return promptJobs.find(job=>job.entityId===entityId&&job.id===viewId)||promptJobs.find(job=>job.entityId===entityId);};
   let production = null, productionError = '';
   let overviewFilter = 'all', overviewScene = '';
-  let remoteLibrary={open:false},librarySerial=0;
+  let remoteLibrary={open:false},librarySerial=0,rerollId=null;
+  const rerollKey=()=>`boardgen:reroll:${rerollId}`;
   let imageCatalog=null,imageContracts={},imageModelsLoading=false,imageModelsError='',imageCatalogOwner='',imageModelSerial=0;
   const boardViews=new Map(),canvas=mountCanvas(root);
   let referenceCursor=null, directorDrag=null, suppressDirectorClickUntil=0;
@@ -119,6 +121,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function render() {
     if (!alive) return;
+    if(rerollId!==reviewId)rerollId=null;
     const view=boardView(),viewKey=JSON.stringify([selected,page,selectedEntity,production?.id,view.kind,view.index,view.state,view.stage,view.characterLayer,view.inspector]);
     const openStates=new Map(renderedViewKey===viewKey?disclosureStates().map(({node,key})=>[key,node.open]):[]);
     preview.reset();
@@ -230,11 +233,11 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   }
   function reviewDetail() {
     const asset = assets.find(a=>a.revisions.some(r=>r.id===reviewId)), r=asset?.revisions.find(r=>r.id===reviewId); if(!r)return '';
-    const original = r.stage==='refine'?resolveRefineSource(r,asset.revisions):asset.revisions.find(s=>s.id===r.sourceRevisionIds[0]);
-    const previous = asset.revisions.filter(s=>s.stage===r.stage&&s.id!==r.id).at(-1), comparison=original||previous;
-    const note = drafts.get(`review:${r.id}`)?.note || '';
-    return `<section class="wf-panel" data-review-detail tabindex="-1" aria-label="${esc(asset.name)} 对比审核"><div class="wf-section-title"><h3>${esc(asset.name)} · ${esc(revisionLabel(r))}</h3><button data-wf-action="close-review">收起审核</button></div><div class="wf-comparison">${comparison?`<figure><img src="${image(comparison.assetId,comparison.id,false)}" alt="${r.stage==='refine'?'原始 Image2 设计基准':'参考或上一个版本'}"><figcaption>${r.stage==='refine'?'原始 Image2 · 设计基准':original?'上一阶段已选参考':'上一个版本'}</figcaption></figure>`:''}<figure><img src="${image(r.assetId,r.id,false)}" alt="本次待审候选"><figcaption>本次候选 · ${esc(r.id.slice(-6))} · ${esc(label(r.review))}</figcaption></figure></div><p class="wf-muted">归属：${esc(r.ownership.accountLabelAtCreation||r.ownership.providerAccountId)} / ${esc(r.ownership.spaceNameAtCreation||r.ownership.spaceId)}</p><ul class="wf-review-checks"><li>身份、轮廓与设定是否一致</li><li>服装纹样、结构与道具细节是否保留</li><li>构图、光向、画幅与视图数量是否正确</li><li>没有额外文字、拼接错误或细节洗糊</li></ul><label>具体审核 / 返修意见<textarea data-wf-review-note maxlength="2000" placeholder="写清问题的位置、期望修改和必须保留的内容。">${esc(note)}</textarea></label><div class="wf-actions"><button data-wf-action="reject" ${r.status==='stale'?'disabled':''}>退回修改</button><button class="primary" data-wf-action="approve" ${r.status==='stale'?'disabled':''}>保留此版</button><a class="wf-link" href="${image(r.assetId,r.id,false)}" target="_blank" rel="noopener">打开原图</a></div>${r.status==='stale'?'<p class="wf-note">此图的依据已经变化，不能继续审核或作为新参考。请使用当前已审核的上游版本重新制作。</p>':''}<details><summary>审核历史 (${r.reviewHistory.length})</summary>${r.reviewHistory.map(h=>`<p class="wf-muted">${esc(label(h.decision))} · ${esc(new Date(h.at).toLocaleString())}<br>${esc(h.note)}</p>`).join('')}</details></section>`;
+    return versionPicker({asset,revision:r,job:production,selection:session.selection,apiBase,reroll:rerollId===r.id,
+      draft:drafts.get(rerollKey())||{},catalog:imageCatalog,contracts:imageContracts,loading:imageModelsLoading,error:imageModelsError,actionError:error,
+      busy:reviewing||busy&&!submittingBatch&&!recoveringTask});
   }
+
   function confirmationView() {
     const task=prepared.task, enabled=session.features?.imageGeneration===true;
     const batch=prepared.batch||[prepared],total=batch.reduce((n,r)=>n+(r.confirmation?.summary?.count||1),0);
@@ -275,7 +278,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     imageModelsLoading=true;imageModelsError='';render();
     try{
       if(refresh||!imageCatalog){const response=await api.request('/image-models',{quietProgress:true});if(serial!==imageModelSerial)return;imageCatalog=response;}
-      const chosen=selectedImageModel(drafts.get(boardGenerationKey())||{},imageCatalog);
+      const chosen=selectedImageModel(drafts.get(rerollId?rerollKey():boardGenerationKey())||{},imageCatalog);
       if(refresh||!imageContracts[chosen.id]){const contract=await api.request('/image-models?model='+encodeURIComponent(chosen.id),{quietProgress:true});if(serial!==imageModelSerial)return;imageContracts[chosen.id]=contract;}
     }catch(e){if(serial===imageModelSerial)imageModelsError=e.message||'模型目录暂时无法读取。';}
     finally{if(serial===imageModelSerial){imageModelsLoading=false;render();}}
@@ -452,19 +455,19 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     persist('selectedProject',id);persist('selectedEntity','');await load({initial:true});
   }
   function openReview(id, button) {
-    reviewId=id;focusedBeforeReview=button;render();root.querySelector('[data-review-detail]')?.focus({preventScroll:true});root.querySelector('[data-review-detail]')?.scrollIntoView({behavior:'instant',block:'start'});
+    if(reviewId!==id)rerollId=null;reviewId=id;focusedBeforeReview=button;render();root.querySelector('[data-review-detail]')?.focus({preventScroll:true});root.querySelector('[data-review-detail]')?.scrollIntoView({behavior:'instant',block:'start'});
   }
-  async function decide(decision,{revisionId=reviewId,note:selectionNote}={}) {
+  async function decide(decision,{revisionId=reviewId,note:selectionNote,keepOpen=false,confirmCurrentBasis=false}={}) {
     if(reviewing)return;
     if(busy&&!submittingBatch&&!recoveringTask){announce('当前操作完成后即可保存审核；审核意见已保留。');return;}
-    const asset=assets.find(a=>a.revisions.some(r=>r.id===revisionId)),r=asset?.revisions.find(r=>r.id===revisionId);if(!r||r.status!=='ready')return;
+    const asset=assets.find(a=>a.revisions.some(r=>r.id===revisionId)),r=asset?.revisions.find(r=>r.id===revisionId);if(!r||(r.status!=='ready'&&!(confirmCurrentBasis&&r.reconfirmation)))return;
     const note=selectionNote??drafts.get(`review:${r.id}`)?.note??'';
     if(decision==='changes_requested'&&note.trim().length<4){error='请填写至少 4 个字的具体返修意见。';render();return;}
     const projectId=selected;reviewing=true;error='';render();
     try{
-      await api.request(`/assets/${encodeURIComponent(asset.id)}/reviews`,{method:'POST',body:{revisionId:r.id,sha256:r.sha256,decision,note,expectedVersion:asset.version},background:submittingBatch||recoveringTask});
+      await api.request(`/assets/${encodeURIComponent(asset.id)}/reviews`,{method:'POST',body:{revisionId:r.id,sha256:r.sha256,decision,note,expectedVersion:asset.version,...(confirmCurrentBasis?{confirmCurrentBasis:true,expectedEntityVersion:r.reconfirmation.entityVersion}:{})},background:submittingBatch||recoveringTask});
       removeDraft(`review:${r.id}`);
-      if(reviewId===r.id)reviewId=null;
+      if(keepOpen){reviewId=r.id;rerollId=null;}else if(reviewId===r.id)reviewId=null;
       // Reviews only change media selection and validity. Refresh that snapshot,
       // leaving the active plan/view and paid submission promises intact.
       const received=await api.request(`/projects/${encodeURIComponent(projectId)}/assets`,{background:submittingBatch||recoveringTask});
@@ -473,19 +476,13 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
         events.dispatchEvent(new CustomEvent('workflow:reviewed',{detail:{projectId,assetId:asset.id,revisionId:r.id,decision}}));}
     }catch(e){if(alive&&selected===projectId)error=e.message||'审核状态暂未更新，请刷新核对原记录。';}
     finally{reviewing=false;render();}
-    if(!error)continueAfterReview();
+    if(!error&&!keepOpen)continueAfterReview();
   }
-  function repair(id) {
-    const asset=assets.find(a=>a.revisions.some(r=>r.id===id)),r=asset?.revisions.find(r=>r.id===id);if(!r)return;
-    if(!belongsToSelection(r,session.selection)){error='请切回这份素材所属的账号与空间，再准备返修。';render();return;}
-    if(r.review!=='changes_requested'||!r.reviewNote){error='请先记录具体的返修意见。';render();return;}
-    const original=r.stage==='refine'?resolveRefineSource(r,asset.revisions):null;
-    const sourceId=original?.id||r.sourceRevisionIds[0]||'';
-    const base=r.stage==='style'?'':asset.revisions.find(s=>s.id===sourceId);
-    if(r.stage!=='style'&&(!base||base.review!=='approved'||base.status!=='ready')){error='返修所需的原始参考已失效，请使用当前已审核的上游版本重新准备。';render();return;}
-    selectedEntity=asset.entityId;page=r.stage;reviewId=null;persist('selectedEntity',selectedEntity);persist('page',page);
-    persist(composeKey(),{prompt:r.prompt,sourceRevisionId:sourceId,count:'1',ratio:r.settings?.ratio||'',prepareKey:key(),repairOfRevisionId:r.id});
-    announce(r.stage==='refine'?'已回到原始 Image2 文件准备 Nano 返修，尚未提交。':'已按审核意见准备返修草稿，尚未提交。');render();
+  function repair(id) {openReview(id);startReroll(id);}
+  function startReroll(id){
+    const r=assets.flatMap(a=>a.revisions).find(r=>r.id===id);
+    if(!r||(r.status!=='ready'&&!r.reconfirmation)||!versionTarget(production,r)||!belongsToSelection(r,session.selection))return;
+    rerollId=id;reviewId=id;persist(rerollKey(),{...drafts.get(rerollKey()),prepareKey:key()});render();void loadImageModels();
   }
   async function upload(file) {
     if(!file)return;if(!selected){error='请先创建一个项目，再导入剧本。';render();return;}
@@ -589,7 +586,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     if(target.hasAttribute('data-wf-analysis-json')&&analysis){persist(`analysis:review:${analysis.id}`,{...(drafts.get(`analysis:review:${analysis.id}`)||analysisDraft(analysis)),raw:target.value});return;}
     if(target.hasAttribute('data-director-filter')){const q=target.value.toLocaleLowerCase();root.querySelectorAll('[data-director-asset-row]').forEach(row=>row.hidden=!row.textContent.toLocaleLowerCase().includes(q));return;}
     if(target.hasAttribute('data-creator-filter')){const q=target.value.toLocaleLowerCase();root.querySelectorAll('[data-creator-catalog] > button').forEach(b=>b.hidden=!b.textContent.toLocaleLowerCase().includes(q));return;}
-    if(target.hasAttribute('data-image-model')){const values=Object.fromEntries(new FormData(target.closest('form')));for(const name of Object.keys(values))if(name.startsWith('param:'))delete values[name];persist(boardGenerationKey(),{...values,prepareKey:key()});void loadImageModels();return;}
+    if(target.hasAttribute('data-image-model')){const values=Object.fromEntries(new FormData(target.closest('form')));for(const name of Object.keys(values))if(name.startsWith('param:'))delete values[name];persist(rerollId&&target.closest('form')?.dataset.wfForm==='version-reroll'?rerollKey():boardGenerationKey(),{...values,prepareKey:key()});void loadImageModels();return;}
     if(target.hasAttribute('data-board-generation-state')){updateBoard({state:Number(target.value)});return;}
     if(target.hasAttribute('data-reference-search')){
       const host=target.closest('[data-reference-picker]'),path=host.dataset.referencePicker,result=currentProduction(),shot=result.shots[Number(path.split('.')[1])];
@@ -623,6 +620,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(form.dataset.wfForm==='library-search')return loadLibrary(form.elements.name.value);
     if(form.dataset.wfForm==='art-direction'){persist(`art-direction:${selected}`,Object.fromEntries(new FormData(form)));return;}
     if(form.dataset.wfForm==='plan')persist(planKey(),capturePlan(form));
+    if(form.dataset.wfForm==='version-reroll'){persist(rerollKey(),{...Object.fromEntries(new FormData(form)),prepareKey:key()});return;}
     if(form.dataset.wfForm==='board-generation'){persist(boardGenerationKey(),{...Object.fromEntries(new FormData(form)),prepareKey:key()});return;}
     if(form.dataset.wfForm==='compose'){if(target.name!=='promptReviewed'&&form.elements.promptReviewed)form.elements.promptReviewed.checked=false;persist(composeKey(),captureCompose(form));}
     if(form.dataset.wfForm==='create')persist('new-project',Object.fromEntries(new FormData(form)));
@@ -630,6 +628,24 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
   }
   async function onSubmit(event) {
     const form=event.target.closest('[data-wf-form]');if(!form)return;event.preventDefault();
+    if(form.dataset.wfForm==='version-reroll'){
+      const r=assets.flatMap(a=>a.revisions).find(r=>r.id===form.dataset.revisionId),target=r&&versionTarget(production,r);
+      if(!target)return;const inputs=Object.fromEntries(new FormData(form));
+      const draft={...inputs,prepareKey:drafts.get(rerollKey())?.prepareKey||key()};persist(rerollKey(),draft);
+      return perform(async()=>{
+        if(drafts.get(`production:review:${production.id}`)||drafts.get(`production:edits:${production.id}`))throw new Error('请先保存镜头编排，再准备重抽。');
+        const chosen=selectedImageModel(draft,imageCatalog),settings=collectImageSettings(inputs,imageContracts[chosen.id]);
+        const body={...target,prompt:r.prompt||'沿用原图设计与当前制作要求。',sourceRevisionIds:r.stage==='asset'||r.stage==='refine'?r.sourceRevisionIds.slice(0,1):[],
+          editRevisionId:r.id,editSha256:r.sha256,expectedEditEntityVersion:r.reconfirmation?.entityVersion,editNote:inputs.editNote||'',confirmEditReference:true,modelId:chosen.id,settings,
+          expectedReviewVersion:production.reviewVersion,expectedEditVersion:production.editVersion,expectedPlanVersion:plan.version,
+          expectedSelectionRevision:session.selection.revision,expectedArtDirectionVersion:project.artDirection?.version||0};
+        const prepareGroup=async i=>{const response=await api.request(`/production-jobs/${encodeURIComponent(production.id)}/images/prepare`,{method:'POST',body:{...body,idempotencyKey:draft.prepareKey+':group:'+i}});if(!response.confirmation)throw new Error(response.task?.error?.message||'重抽准备未完成，请查看原记录。');return response;};
+        const first=await prepareGroup(0),rest=await parallelGroups(Array.from({length:batchSize(inputs.groups)-1},(_,i)=>i+1),prepareGroup);
+        const ready=[first,...rest.filter(r=>r.status==='fulfilled').map(r=>r.value)],failed=rest.filter(r=>r.status==='rejected');
+        prepared={...first,batch:ready,rerollRevisionId:r.id};selectedEntity=first.task.entityId;await load();
+        announce(`已带上原图与修改意见，准备 ${ready.length} 组重抽。${failed.length?failed.length+' 组未准备成功，原记录保留。':''}核对费用后提交；当前选用版本未改变。`);
+      });
+    }
     if(form.dataset.wfForm==='art-direction'){
       const body=Object.fromEntries(new FormData(form));persist(`art-direction:${selected}`,body);
       const asset=assets.find(a=>a.revisions.some(r=>r.id===body.revisionId)),r=asset?.revisions.find(r=>r.id===body.revisionId);if(!r)return;
@@ -716,6 +732,10 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
   }
   async function onClick(event) {
     const button=event.target.closest('button,a');if(!button||button.disabled)return;
+    if(button.hasAttribute('data-version-select')){const r=assets.flatMap(a=>a.revisions).find(r=>r.id===button.dataset.versionSelect);if(r&&(r.status!=='ready'||r.review==='approved')){openReview(r.id,button);return;}return decide('approved',{revisionId:button.dataset.versionSelect,note:'人工点击版本图片选用',keepOpen:true});}
+    if(button.hasAttribute('data-version-confirm'))return decide('approved',{revisionId:button.dataset.versionConfirm,note:'人工核对当前镜头方案，确认旧版画面仍适用并选用',keepOpen:true,confirmCurrentBasis:true});
+    if(button.hasAttribute('data-version-reroll')){startReroll(button.dataset.versionReroll);return;}
+    if(button.hasAttribute('data-version-cancel')){rerollId=null;render();return;}
     if(button.hasAttribute('data-extra-reference-remove')){
       const form=button.closest('form'),inputs=Object.fromEntries(new FormData(form));
       const refs=extraReferences(inputs.extraReferences).filter(r=>r.id!==button.dataset.extraReferenceRemove);
@@ -954,13 +974,13 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(action==='new-project'){production=null;productionError='';analysis=null;analysisError='';promptJobs=[];promptError='';creating=true;project=null;selected='';selectedEntity='';plan={version:0,entities:[],stylePrompt:''};assets=[];scripts=[];tasks=[];bundles=[];coverage={total:0,ready:0,complete:false};reviewId=null;prepared=null;render();root.querySelector('input[name=name]')?.focus();return;}
     if(action==='edit-plan'){editing=true;if(!drafts.get(planKey()))persist(planKey(),{expectedVersion:plan.version,entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});render();return;}
     if(action==='add-entity'){const draft=drafts.get(planKey())||{expectedVersion:plan.version,entities:[],stylePrompt:plan.stylePrompt};if(draft.entities.length>=300){announce('一个项目最多 300 项资产。');return;}draft.entities.push({id:'ent_'+key().replaceAll('-',''),category:'character',name:'',description:'',variant:'',origin:'manual',quote:'',scriptId:''});persist(planKey(),draft);render();root.querySelector('[data-wf-row]:last-of-type input[data-field=name]')?.focus();return;}
-    if(action==='close-review'){reviewId=null;render();focusedBeforeReview?.isConnected&&focusedBeforeReview.focus();return;}
+    if(action==='close-review'){reviewId=null;rerollId=null;render();focusedBeforeReview?.isConnected&&focusedBeforeReview.focus();return;}
     if(action==='approve')return decide('approved');
     if(action==='reject')return decide('changes_requested');
     if(action==='close-confirmation'){prepared=null;render();return;}
-    if(action==='submit-task'&&prepared&&!busy&&session.features?.imageGeneration===true){const targets=prepared.batch||[prepared];submittingBatch=true;return perform(async()=>{try{
+    if(action==='submit-task'&&prepared&&!busy&&session.features?.imageGeneration===true){const targets=prepared.batch||[prepared],editSource=prepared.rerollRevisionId;submittingBatch=true;return perform(async()=>{try{
       const results=await parallelGroups(targets,target=>api.request(`/tasks/${encodeURIComponent(target.task.id)}/submit`,{method:'POST',body:{expectedVersion:target.task.version,confirmationToken:target.confirmation.token},idempotencyKey:target.submitKey||(target.submitKey='ui-submit:'+target.task.id),quietProgress:true}));
-      prepared=null;persist(`flow:${selected}`,true);await load();
+      prepared=null;if(editSource){rerollId=null;}persist(`flow:${selected}`,true);await load();
       const unresolved=results.filter(r=>r.status==='rejected'||r.value?.task?.error).length;
       announce(`已处理 ${targets.length} 组提交，最终状态见任务记录。${unresolved?'其中 '+unresolved+' 组需要查询原任务；不会自动重抽。':'生成过程中可以继续准备其他组。'}`);
       }finally{submittingBatch=false;}

@@ -149,7 +149,8 @@ class WorkflowService:
         if revision.get('referenceOnly'):
             return revision['stage']=='reference' and not revision['sourceRevisionIds']
         entity = next((e for e in project['plan']['entities'] if e['id'] == revision['entityId']), None)
-        if (not entity or entity['version'] != revision['entityVersion']
+        applicable_version = (revision.get('applicability') or {}).get('entityVersion', revision['entityVersion']) if revision['stage'] == 'storyboard' else revision['entityVersion']
+        if (not entity or entity['version'] != applicable_version
                 or project['plan']['styleVersion'] != revision['styleVersion']):
             return False
         if revision.get('artDirectionVersion'):
@@ -168,6 +169,23 @@ class WorkflowService:
                     return False
         return True
 
+    def _reconfirmation(self, tx, revision):
+        """An old shot can be re-adopted only when its references remain valid.
+
+        This offers a human decision; it never rewrites the generation snapshot.
+        """
+        if revision['stage'] != 'storyboard' or self._valid(tx, revision):
+            return None
+        project = self._project(tx, revision['projectId'])
+        entity = next((e for e in project['plan']['entities'] if e['id'] == revision['entityId']), None)
+        if not entity or entity['category'] != 'shot':
+            return None
+        trial = {**revision, 'applicability': {'entityVersion': entity['version']}}
+        if not self._valid(tx, trial):
+            return None
+        return {'entityVersion': entity['version'],
+                'message': f"这张图按第 {revision['entityVersion']} 版镜头方案生成，当前方案为第 {entity['version']} 版。人物、场景和风格参考仍有效，确认画面仍适用后可以沿用。"}
+
     def _public_revision(self, tx, revision):
         result = {k: copy.deepcopy(v) for k, v in revision.items()
                   if k not in ('blobId', 'tenantId', 'extension', 'outputKey')}
@@ -175,6 +193,8 @@ class WorkflowService:
         result['status'] = 'ready' if self._valid(tx, revision) else 'stale'
         if result['status'] == 'ready':
             result.pop('staleReason', None)
+        elif reconfirmation := self._reconfirmation(tx, revision):
+            result['reconfirmation'] = reconfirmation
         result['contentUrl'] = f"{self.api_base}/assets/{revision['assetId']}/content?revisionId={revision['id']}"
         result['thumbnailUrl'] = f"{self.api_base}/assets/{revision['assetId']}/thumbnail?revisionId={revision['id']}"
         return result
@@ -499,7 +519,8 @@ class WorkflowService:
             return self._public_revision(tx, revision)
 
     def review(self, ctx, asset_id, payload):
-        public_input(payload, {'revisionId', 'sha256', 'decision', 'note', 'expectedVersion'})
+        public_input(payload, {'revisionId', 'sha256', 'decision', 'note', 'expectedVersion',
+                               'confirmCurrentBasis', 'expectedEntityVersion'})
         decision = payload.get('decision')
         if decision not in ('approved', 'changes_requested'):
             invalid('请选择保留此版或退回修改。')
@@ -515,7 +536,12 @@ class WorkflowService:
             if payload.get('sha256') != revision['sha256'] or hashlib.sha256(tx.get_blob(revision['blobId'])).hexdigest() != revision['sha256']:
                 conflict('画面文件与审核版本不一致，未记录审核。')
             if not self._valid(tx, revision):
-                conflict('当前版本的依据已失效，请重新制作。')
+                reconfirmation = self._reconfirmation(tx, revision)
+                if (decision != 'approved' or payload.get('confirmCurrentBasis') is not True
+                        or not reconfirmation or payload.get('expectedEntityVersion') != reconfirmation['entityVersion']):
+                    conflict('当前镜头方案已变化，请先查看旧图并确认是否仍适用；人物或风格参考失效时需重新制作。')
+                revision['applicability'] = {'entityVersion': reconfirmation['entityVersion'], 'confirmedAt': now(),
+                                           'note': note, 'sha256': revision['sha256']}
             if decision == 'approved':
                 for rid in asset['revisionIds']:
                     other = tx.state['revisions'][rid]
@@ -524,7 +550,8 @@ class WorkflowService:
                         other['review'] = 'superseded'
             revision.update(review=decision, reviewNote=note)
             revision['reviewHistory'].append({'id': new_id('review'), 'decision': decision, 'note': note,
-                                             'sha256': revision['sha256'], 'at': now()})
+                                             'sha256': revision['sha256'], 'at': now(),
+                                             **({'applicability': copy.deepcopy(revision['applicability'])} if payload.get('confirmCurrentBasis') is True else {})})
             asset['version'] += 1
             self._invalidate(tx, asset['projectId'])
             return {'assetVersion': asset['version'], 'revision': self._public_revision(tx, revision)}
@@ -609,7 +636,9 @@ class WorkflowService:
                         sourceRevisionIds=revision['sourceRevisionIds'], refineSourceRevisionId=revision['refineSourceRevisionId'],
                         # Owner IDs retain provenance; no subject, receipt, token, URL, local path or raw task dict.
                         ownership={k: revision['ownership'].get(k) for k in ('provider', 'providerAccountId', 'spaceId', 'spaceKind')},
-                        review={'decision': 'approved', 'at': revision['reviewHistory'][-1]['at']}))
+                        review={'decision': 'approved', 'at': revision['reviewHistory'][-1]['at']},
+                        **({'applicability': copy.deepcopy(revision['applicability']),
+                            'generatedEntityVersion': revision['entityVersion']} if revision.get('applicability') else {})))
                 archive.writestr('资产清单.json', json.dumps(manifest, ensure_ascii=False, indent=2))
             return buffer.getvalue(), manifest
 

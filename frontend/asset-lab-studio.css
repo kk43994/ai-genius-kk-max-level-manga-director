@@ -295,3 +295,55 @@
   .customer-shell .image-choice-pick img { height: 150px; }
   .customer-shell .creator-library-dialog .image-choice-grid { grid-template-columns: 1fr; }
 }
+
+/* Fit the card to the complete picture, including wide multi-view sheets.
+   Never crop production references to fill a fixed-height thumbnail. */
+.customer-shell :is(.board-generation-gallery,.image-choice-grid,.overview-asset-grid) { align-items: start; }
+.customer-shell .creator-main .board-generation-gallery .creator-candidate img,
+.customer-shell .board-generation-gallery .creator-candidate img,
+.customer-shell .image-choice-pick img,
+.customer-shell .creator-library-dialog .image-choice-pick img,
+.customer-shell .overview-image img {
+  display: block; width: 100%; height: auto; max-height: none; aspect-ratio: auto;
+}
+.customer-shell .overview-asset-card .overview-image,
+.customer-shell .overview-shot > .overview-image { height: auto; }
+.customer-shell .wf-comparison figure { display: flex; flex-direction: column; align-items: center; }
+.customer-shell .wf-comparison img { width: auto; height: auto; max-width: 100%; max-height: 64vh; }
+
+.customer-shell .wf .version-picker,
+.customer-shell .wf:has(.version-picker) [data-confirmation] {
+  position: fixed; inset: 85px max(24px,10vw) 24px; z-index: 72; overflow: auto;
+  margin: 0; padding: 24px; border: 1px solid #555; border-radius: 18px;
+  background: #202020; box-shadow: 0 0 0 100vmax #000a;
+}
+.customer-shell .wf:has(.version-picker) [data-confirmation] { z-index: 73; }
+.customer-shell .version-picker .wf-section-title { justify-content: space-between; margin-bottom: 18px; }
+.customer-shell .version-picker h3 { margin-bottom: 5px; }
+.customer-shell .version-content { display: grid; grid-template-columns: minmax(0,1fr) 240px; gap: 24px; align-items: start; }
+.customer-shell .version-sidebar { min-width: 0; }
+.customer-shell .version-preview { display: flex; justify-content: center; gap: 20px; }
+.customer-shell .version-preview figure { margin: 0; min-width: 0; max-width: 100%; display: flex; flex-direction: column; align-items: center; }
+.customer-shell .version-preview.is-comparison figure { max-width: calc(50% - 10px); }
+.customer-shell .version-preview img { display: block; width: auto; height: auto; max-width: 100%; max-height: 60vh; border-radius: 10px; }
+.customer-shell .version-preview figcaption { font-size: 12px; margin: 8px 0; color: var(--ui-muted); }
+.customer-shell .version-strip { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; max-height: 47vh; overflow: auto; align-items: start; padding: 4px 3px 12px; margin: 0; }
+.customer-shell .version-strip .image-choice { flex: 0 0 125px; }
+.customer-shell .version-strip .image-choice-badge { padding: 4px 6px; font-size: 10px; }
+.customer-shell .version-strip .image-choice figcaption { padding: 7px 10px; }
+.customer-shell .version-actions { margin: 14px 0; }
+.customer-shell .version-reroll { border-top: 1px solid #444; padding-top: 18px; margin-top: 18px; }
+.customer-shell .version-edit-source { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
+.customer-shell .version-edit-source img { display: block; width: 75px; height: auto; border-radius: 7px; }
+.customer-shell .version-edit-source p { margin: 0; line-height: 1.8; }
+.customer-shell .version-edit-source small { color: var(--ui-muted); }
+.customer-shell .version-reroll textarea { width: 100%; box-sizing: border-box; margin: 8px 0; }
+.customer-shell .version-options,.customer-shell .version-history { margin: 18px 0; }
+.customer-shell .version-reroll .wf-actions { margin-bottom: 8px; }
+@media(max-width:760px) {
+  .customer-shell .wf .version-picker,.customer-shell .wf:has(.version-picker) [data-confirmation] { inset: 82px 10px 12px; padding: 16px; }
+  .customer-shell .version-content { grid-template-columns: 1fr; gap: 12px; }
+  .customer-shell .version-preview img { max-height: 42vh; }
+  .customer-shell .version-strip { display: flex; max-height: none; }
+  .customer-shell .version-strip .image-choice { flex: 0 0 90px; }
+}

@@ -373,6 +373,7 @@ class ProductionService(AnalysisService):
         """Human-operated canvas generation. Preparation still requires submit confirmation."""
         from backend.workflow.service import owner_key
         public_input(body, {'assetId','stateId','shotId','recipe','prompt','sourceRevisionIds','settings','modelId','extraReferenceIds',
+                            'editRevisionId','editSha256','editNote','confirmEditReference','expectedEditEntityVersion',
                             'expectedReviewVersion','expectedEditVersion','expectedPlanVersion',
                             'expectedSelectionRevision','idempotencyKey','expectedArtDirectionVersion'})
         job = self.get(ctx, identity)
@@ -442,6 +443,16 @@ class ProductionService(AnalysisService):
             if body.get('expectedArtDirectionVersion', 0) != (project.get('artDirection') or {}).get('version', 0):
                 raise WorkflowError('VERSION_CONFLICT', '本剧风格已变化，请刷新并核对新的制作要求。', 409)
             prompt, _ = apply(workflow, tx, project, prompt, owner, recipe)
+        if body.get('editRevisionId'):
+            from backend.workflow.image_edit import editing_reference
+            seed_id, original_refs, retired_refs = editing_reference(workflow, ctx, job['projectId'], candidate['id'], owner, recipe, body)
+            refs = list(dict.fromkeys([rid for rid in [*refs, *original_refs, seed_id] if rid not in retired_refs]))
+            for retired in retired_refs:
+                prompt = prompt.replace('{{reference:' + retired + '}}', '{{reference:' + seed_id + '}}')
+            if len(refs) > 20:
+                raise WorkflowError('INPUT_INVALID', '原图和已有参考合计不能超过 20 张，请减少补充参考。', 422)
+            note = body.get('editNote', '').strip() or '保持人物、场景、构图与动作要求，再生成一版供选择。'
+            prompt += '\n本次编辑基准原图={{reference:' + seed_id + '}}。以该原图为基础修改，保留未要求改变的部分。\n本次修改意见：' + note
         return self.services.tasks.prepare(ctx,{'projectId':job['projectId'],'entityId':candidate['id'],
             'recipe':recipe,'prompt':prompt,'sourceRevisionIds':refs,'settings':body.get('settings',{}),
             **({'modelId':body['modelId']} if 'modelId' in body else {})},

@@ -4,7 +4,7 @@ export const referencePurposes={'style':'美术风格','identity':'人物外形'
 export function extraReferences(value){
  try{const rows=typeof value==='string'?JSON.parse(value):value;return Array.isArray(rows)?rows.filter(r=>r&&typeof r.id==='string'&&Object.hasOwn(referencePurposes,r.purpose)).slice(0,19):[];}catch{return [];}
 }
-export function referencePool(assets,owner){return assets.filter(a=>a.active).flatMap(a=>a.revisions.filter(r=>r.status==='ready'&&r.review==='approved'&&belongsToSelection(r,owner)).map(r=>({...r,name:a.name})));}
+export function referencePool(assets,owner){return assets.filter(a=>a.active).flatMap(a=>a.revisions.filter(r=>r.provenance?.kind!=='image_edit'&&r.status==='ready'&&r.review==='approved'&&belongsToSelection(r,owner)).map(r=>({...r,name:a.name})));}
 export function chooseExtraReference(refs,pool,id,purpose,selected){
  if(!selected)return refs.filter(r=>r.id!==id);
  if(!pool.some(r=>r.id===id))throw new Error('这张图片已不可用于参考，请重新选择。');
