@@ -914,7 +914,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     }
     if(form.dataset.wfForm==='plan'){
       const body=capturePlan(form);persist(planKey(),body);
-      await perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/plan`,{method:'PUT',body});removeDraft(planKey());editing=false;announce('清单已保存，所有档案已建立。');await load();});
+      await perform(async()=>{await api.request(`/projects/${encodeURIComponent(selected)}/plan`,{method:'PUT',body});removeDraft(planKey());editing=false;announce('清单已保存，所有档案已建立。');await load();},'plan');
       if(!error)continueAfterReview();return;
     }
     if(form.dataset.wfForm==='compose'){
