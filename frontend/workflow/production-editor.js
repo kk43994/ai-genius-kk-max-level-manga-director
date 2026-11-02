@@ -6,6 +6,11 @@ export function reviewDraft(job, legacy=null) {
   if(legacy)for(const shot of result.shots)Object.assign(shot,legacy.shots?.[shot.id]||{});
   return {expectedVersion:job.reviewVersion||0,expectedEditVersion:legacy?.expectedVersion??job.editVersion??0,result};
 }
+// Only acknowledge the snapshot actually sent. Input remains editable while saving.
+export function draftAfterSave(submitted, current, saved) {
+  if(!current||JSON.stringify(current.result)===JSON.stringify(submitted.result))return null;
+  return {expectedVersion:saved.reviewVersion||0,expectedEditVersion:saved.editVersion||0,result:structuredClone(current.result)};
+}
 export function valueAt(result,path) {
   return path.split('.').reduce((item,key)=>item&&Object.hasOwn(item,key)?item[key]:undefined,result);
 }

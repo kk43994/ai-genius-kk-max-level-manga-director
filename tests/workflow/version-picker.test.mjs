@@ -25,3 +25,10 @@ test('edit fields are collapsed until requested, original target is pinned and n
  assert.match(html,/&lt;script&gt;bad/);assert.match(html,/带原图重抽/);
  assert.match(html,/新图生成后由你选择/);
 });
+test('compact toolbar only submits new selections; the selected and stale versions open comparison',()=>{
+ const html=versionPicker({...args,compact:true});
+ assert.match(html,/data-quick-image-pick="v2"/);
+ assert.doesNotMatch(html,/data-quick-image-pick="(?:v1|v3)"/);
+ assert.match(html,/data-image-tools-versions="v1"/);
+ assert.match(html,/data-image-tools-versions="v3"/);
+});

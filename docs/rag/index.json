@@ -5,6 +5,21 @@
   "scope": "project-knowledge-source",
   "entries": [
     {
+      "id": "usability-audit",
+      "file": "docs/rag/usability-audit.md",
+      "keywords": [
+        "使用问题",
+        "bug",
+        "保存",
+        "丢字",
+        "草稿",
+        "重复审核",
+        "导航",
+        "卡顿"
+      ],
+      "status": "local-source-validation"
+    },
+    {
       "id": "code-cleanup",
       "file": "docs/rag/code-cleanup.md",
       "keywords": [
