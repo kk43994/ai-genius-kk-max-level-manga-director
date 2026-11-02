@@ -21,6 +21,9 @@ CATEGORIES = {'character': '角色', 'scene': '场景', 'prop': '道具', 'effec
 OWNER_FIELDS = ('provider', 'providerAccountId', 'providerIssuer', 'providerSubject', 'spaceId', 'spaceKind',
                 'boundAt', 'accountLabelAtCreation', 'spaceNameAtCreation')
 REQUIRED_OWNER = ('tenantId', 'providerAccountId', 'spaceId')
+# Older releases persisted dependency invalidity in status. It is a cache of
+# the dependency check, not a revocation of the stored human review.
+DEPENDENCY_STALE_REASON = '原文、清单、风格或参考版本已改变，需要重新制作和审核。'
 MIMES = {'PNG': ('image/png', '.png'), 'JPEG': ('image/jpeg', '.jpg'), 'WEBP': ('image/webp', '.webp')}
 REFINE_PROMPT = ('对原始 Image2 资产进行保真清噪与纹理清理。保持人物身份、服装纹样、发冠、毛领、'
                  '道具结构、构图、光向和视图数量一致。精修宁可变化很小，也不要重绘或丢失结构。')
@@ -133,7 +136,10 @@ class WorkflowService:
         return entity
 
     def _valid(self, tx, revision, require_approved=False, seen=None):
-        if revision['status'] != 'ready' or (require_approved and revision['review'] != 'approved'):
+        dependency_stale = (revision['status'] == 'stale'
+                            and revision.get('staleReason') == DEPENDENCY_STALE_REASON)
+        if (revision['status'] != 'ready' and not dependency_stale
+                or require_approved and revision['review'] != 'approved'):
             return False
         seen = set() if seen is None else set(seen)
         if revision['id'] in seen:
@@ -167,6 +173,8 @@ class WorkflowService:
                   if k not in ('blobId', 'tenantId', 'extension', 'outputKey')}
         result['ownership'] = {k: revision['ownership'].get(k) for k in OWNER_FIELDS}
         result['status'] = 'ready' if self._valid(tx, revision) else 'stale'
+        if result['status'] == 'ready':
+            result.pop('staleReason', None)
         result['contentUrl'] = f"{self.api_base}/assets/{revision['assetId']}/content?revisionId={revision['id']}"
         result['thumbnailUrl'] = f"{self.api_base}/assets/{revision['assetId']}/thumbnail?revisionId={revision['id']}"
         return result
@@ -305,7 +313,7 @@ class WorkflowService:
         for revision in tx.state['revisions'].values():
             if revision['projectId'] == project_id and revision['status'] == 'ready' and not self._valid(tx, revision):
                 revision['status'] = 'stale'
-                revision['staleReason'] = '原文、清单、风格或参考版本已改变，需要重新制作和审核。'
+                revision['staleReason'] = DEPENDENCY_STALE_REASON
 
     def _source(self, tx, project_id, entity_id, revision_id, owner, cross_entity=False):
         source = self._revision(tx, revision_id)
