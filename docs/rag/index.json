@@ -5,6 +5,23 @@
   "scope": "project-knowledge-source",
   "entries": [
     {
+      "id": "update-history",
+      "file": "docs/updates/README.md",
+      "keywords": [
+        "升级",
+        "更新",
+        "每次",
+        "最近",
+        "这次",
+        "改了什么",
+        "迭代",
+        "时间线",
+        "发布记录",
+        "版本变化"
+      ],
+      "status": "per-iteration-source-history"
+    },
+    {
       "id": "human-editing",
       "file": "docs/rag/human-editing.md",
       "keywords": [
