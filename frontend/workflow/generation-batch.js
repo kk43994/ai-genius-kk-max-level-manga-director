@@ -1,6 +1,7 @@
 // Each group retains its own receipt. A rejection never cancels sibling reads
 // and never invents a new key for an uncertain submission.
 import {belongsToSelection} from './model.js';
+import {currentTaskFeedback} from './task-feedback.js';
 
 export function missingStoryboardShots({job,result,assets=[],tasks=[],selection,limit=8},referenceCards){
  if(!job||job.stale||job.status!=='ready')return [];
@@ -24,7 +25,7 @@ export function repairStoryboardShots({job,result,assets=[],tasks=[],selection},
   const binding=(job.shotBindings||[]).find(b=>b.shotId===shot.id);
   if(!binding||binding.changed)return [];
   const rows=tasks.filter(t=>t.entityId===binding.entityId);
-  if(rows.some(t=>!['completed','cancelled'].includes(t.status)))return [];
+  if(currentTaskFeedback(rows).length)return [];
   const library=assets.find(a=>a.active&&a.entityId===binding.entityId);
   const versions=(library?.revisions||[]).filter(r=>r.stage==='storyboard'&&belongsToSelection(r,job.ownership||selection));
   const latest=versions.at(-1);
@@ -52,9 +53,10 @@ export async function parallelGroups(items,action,limit=3){
 // unresolved receipt. The confirmation screen names every charged new task.
 export function selectedStoryboardShots({job,result,assets=[],tasks=[],selection,limit=8},referenceCards){
  if(!job||job.stale||job.status!=='ready')return [];
+ const current=currentTaskFeedback(tasks);
  return result.shots.flatMap((shot,index)=>{
   const binding=(job.shotBindings||[]).find(b=>b.shotId===shot.id);
-  if(tasks.some(t=>t.entityId===binding?.entityId&&!['completed','cancelled'].includes(t.status)))return [];
+  if(current.some(t=>t.entityId===binding?.entityId))return [];
   const refs=referenceCards({...job,result},shot,assets,selection,'/api/v1');
   return refs.length&&refs.every(r=>r.pinned&&r.src&&!r.changed)?[{shot,index}]:[];
  }).slice(0,limit);

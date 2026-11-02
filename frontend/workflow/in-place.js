@@ -1,3 +1,4 @@
+import {currentTaskFeedback,isTaskFailure,taskFailureReason} from './task-feedback.js';
 import {escapeHTML as esc,assetURL,belongsToSelection,states} from './model.js';
 import {field} from './production-editor.js';
 import {referenceCards,dialogueText} from './production.js';
@@ -44,7 +45,7 @@ export function impactCards(rows,apiBase){
   return `<p>${new Set(rows.map(r=>r.entityId)).size} 个制作对象 · ${rows.length} 张关联图片需要核对，原图保留。</p><div class="quick-impact-grid">${rows.map(r=>`<button type="button" data-wf-review="${esc(r.id)}"><img src="${esc(assetURL(apiBase,r.assetId,r.id,true))}" alt="${esc(r.name)}" loading="lazy"><span>${esc(r.name)}</span></button>`).join('')}</div>`;
 }
 export function compactTasks(tasks){
-  return tasks.filter(t=>!['completed','cancelled'].includes(t.status)).map(t=>`<article class="quick-task" data-quick-task="${esc(t.id)}"><strong>${esc(states[t.status]||t.status)}</strong>${t.error?`<p>${esc(t.error.message)}</p>`:''}<div>${t.canRecover?`<button data-wf-recover="${esc(t.id)}">查询原任务</button>`:''}${t.canConfirm?`<button data-wf-confirm-task="${esc(t.id)}">核对并提交</button>`:''}${!t.submissionAttempted&&!['preparing','submitting'].includes(t.status)?`<button data-wf-cancel="${esc(t.id)}">取消未提交记录</button>`:''}</div></article>`).join('');
+  return currentTaskFeedback(tasks).map(t=>isTaskFailure(t)?`<article class="quick-task" data-quick-task="${esc(t.id)}" data-current-failure><strong>本次生成失败</strong><p>原因：${esc(taskFailureReason(t))}</p>${t.canRecover?`<button data-wf-recover="${esc(t.id)}">查询原任务</button>`:''}</article>`:`<article class="quick-task" data-quick-task="${esc(t.id)}"><strong>${esc(states[t.status]||t.status)}</strong>${t.error?`<p>${esc(t.error.message)}</p>`:''}<div>${t.canRecover?`<button data-wf-recover="${esc(t.id)}">查询原任务</button>`:''}${t.canConfirm?`<button data-wf-confirm-task="${esc(t.id)}">核对并提交</button>`:''}${!t.submissionAttempted&&!['preparing','submitting'].includes(t.status)?`<button data-wf-cancel="${esc(t.id)}">取消未提交记录</button>`:''}</div></article>`).join('');
 }
 export function quickShotPanel(o){
  const {result,job,index,assets,selection,apiBase,rows,refIndex=null,busy}=o,shot=result.shots[index];if(!shot)return removedShotControls(result);
