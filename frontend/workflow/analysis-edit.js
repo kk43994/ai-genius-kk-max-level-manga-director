@@ -18,6 +18,7 @@ export function analysisField(value,path,label=labels[path.split('.').at(-1)]||'
  if(enums[key])return `<label>${esc(label)}<select ${attr}>${Object.entries(enums[key]).map(([v,n])=>`<option value="${v}" ${v===value?'selected':''}>${n}</option>`).join('')}</select></label>`;
  if(typeof value==='boolean')return `<label><input type="checkbox" ${attr} ${value?'checked':''}>${esc(label)}</label>`;
  if(typeof value==='number')return `<label>${esc(label)}<input type="number" ${attr} value="${value}"></label>`;
+ if(['name','title','speakerLabel','expression','explicitDate','timeOfDay'].includes(key)&&!String(value??'').includes('\n'))return `<label>${esc(label)}<input type="text" ${attr} ${value===null?'data-analysis-null':''} value="${esc(value??'')}"></label>`;
  return `<label>${esc(label)}<textarea ${attr} ${value===null?'data-analysis-null':''}>${esc(value??'')}</textarea></label>`;
 }
 export function analysisIssues(issues,{editable=true}={}){

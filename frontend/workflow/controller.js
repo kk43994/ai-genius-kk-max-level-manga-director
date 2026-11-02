@@ -1,3 +1,5 @@
+import {mountStudioUI} from '../ui/studio-ui.js';
+import {icon} from '../ui/icons.js';
 import {currentTaskFeedback,isTaskFailure} from './task-feedback.js';
 import {editDialogue,restoreDialogue,addDialogue,moveDialogue} from './dialogue-editor.js';
 import {canAutoCollect, nextCollection, collectionDelay, collectionOwnerKey, needsAssetRefresh} from './collection.js';
@@ -105,6 +107,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   // Measuring unstyled cards creates huge false heights and saves a broken canvas layout.
   const stylesheetReady=new Promise(resolve=>{stylesheet.addEventListener('load',resolve,{once:true});stylesheet.addEventListener('error',resolve,{once:true});});
   stylesheet.dataset.workflowStyle = 'true'; doc.head.append(stylesheet);
+  const studioUI=mountStudioUI(root);
 
   function persist(name, value) {
     try { drafts.set(name, value); saveError = ''; }
@@ -157,6 +160,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
       if(focusKey){const input=[...root.querySelectorAll('input,textarea,select')].find(n=>focusKey.path?n.dataset.wfProductionField===focusKey.path:focusKey.dialogue?n.dataset.quickDialogue===focusKey.dialogue&&n.dataset.dialogueField===focusKey.dialogueField:focusKey.name&&n.name===focusKey.name);if(input){input.focus({preventScroll:true});if(input.setSelectionRange&&focusKey.start!==null)try{input.setSelectionRange(focusKey.start,focusKey.end);}catch{}}}}
     root.querySelectorAll('[data-quick-shot-select]').forEach(n=>n.checked=selectionIds().includes(n.dataset.quickShotSelect));
     renderProgress(); renderLibrary(); canvas.refresh(); storyCanvas.refresh();
+    studioUI.refresh({view:JSON.stringify([selected,page]),panel:canvasDrawer?JSON.stringify([canvasDrawer.type,canvasDrawer.role,canvasDrawer.id,canvasDrawer.group]):''});
     if(page==='plan'&&returnStoryShot){storyCanvas.locateShot(returnStoryShot);returnStoryShot=null;}
     const saveStatus = doc.getElementById('saveStatus'); if (saveStatus) saveStatus.textContent = saveError ? '草稿保存失败' : busy ? '处理中' : dirty() ? '编辑草稿已在本机保存' : '项目已同步';
     const titleNode = doc.getElementById('workspace-title'); if (titleNode) titleNode.textContent = project?.name || '开始创作';
@@ -184,7 +188,15 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function createView() {
     const draft = drafts.get('new-project') || {name:'',description:''};
     const quick = drafts.get('quick-start') || {text:''};
-    return `<section class="wf-panel wf-start"><p class="wf-eyebrow">ASSET LAB / 从剧本开始</p><h3>把故事放进来，<br>接下来的步骤交给工作台。</h3><p class="wf-muted">保存剧本后由 AI 分析故事，再由你选定风格、确认资产和编排镜头。</p><form data-wf-form="quick-start" class="wf-compose"><label>剧本正文<textarea name="text" rows="10" maxlength="250000" required placeholder="粘贴你的剧本，例如：&#10;《山间来信》&#10;角色：林舟、阿宁&#10;场景：旧书店&#10;道具：信封&#10;林舟：这封信，是留给你的。">${esc(quick.text)}</textarea></label><div class="wf-actions"><button class="primary" type="submit">开始制作 →</button><label class="wf-link">或导入剧本文件<input data-wf-quick-upload type="file" accept=".txt,.md,.docx" hidden></label><span class="wf-muted">TXT / MD / DOCX · 最大 8 MiB</span></div></form><ol class="wf-roadmap"><li>分析剧本</li><li>确定风格</li><li>制作资产</li><li>导演编排</li><li>审核交付</li></ol><p class="wf-muted">原文保存后点击 AI 分析，由 LibTV 文本模型提取六类信息并复核。分析和图片制作需要 LibTV 创作授权及可用积分。</p><details><summary>手工创建项目</summary><form data-wf-form="create" class="wf-compose"><label>项目名称<input name="name" maxlength="120" required value="${esc(draft.name)}"></label><label>项目说明（可选）<textarea name="description" maxlength="4000">${esc(draft.description)}</textarea></label><div><button type="submit">创建空项目</button></div></form></details></section>`;
+    return `<section class="wf-panel wf-start">
+      <span class="ui-start-mark" aria-hidden="true">${icon('clapperboard')}</span>
+      <h3>从一个故事开始</h3><p class="wf-muted">导入剧本，开始整理人物、场景和分镜。</p>
+      <form data-wf-form="quick-start" class="wf-compose">
+        <label>剧本正文<textarea name="text" rows="8" maxlength="250000" required placeholder="在这里粘贴剧本…">${esc(quick.text)}</textarea></label>
+        <div class="wf-actions"><button class="primary" type="submit">创建并继续 ${icon('arrow-right')}</button><button type="button" data-ui-file="quick">导入文件</button><input data-wf-quick-upload type="file" accept=".txt,.md,.docx" hidden><span class="wf-muted">TXT / MD / DOCX · 最大 8 MiB</span></div>
+      </form>
+      <details><summary>或创建空白项目</summary><form data-wf-form="create" class="wf-compose"><label>项目名称<input name="name" maxlength="120" required value="${esc(draft.name)}" placeholder="为这部作品起个名字"></label><label>项目说明（可选）<textarea name="description" rows="3" maxlength="4000" placeholder="简单描述创作方向">${esc(draft.description)}</textarea></label><div><button type="submit">创建空项目</button></div></form></details>
+    </section>`;
   }
   function guideView() {
     const next = guide(), labels = {prompt:'编写 / 核对提示词',analysis:'查看 AI 分析与下一步',plan:plan.entities.length?'确认清单并继续':'补充资产清单',connect:'连接 / 选择账号',review:'查看图片并审核',prepare:'一键继续制作',confirm:'核对并继续',recover:'查询原任务',archive:'整理交付包',download:'下载全部资产',import:'导入剧本'};
@@ -195,7 +207,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
   function planView() {
     const draft = drafts.get(planKey());
     const warnings = [...new Set(scripts.flatMap(s=>s.analysis?.warnings||[]))];
-    const header = `<section class="wf-panel story-source-bar"><div class="wf-actions"><label class="wf-link">导入剧本<input data-wf-upload type="file" accept=".txt,.md,.docx" hidden></label><button type="button" data-wf-action="edit-plan">${plan.entities.length ? '编辑资产清单' : '手工填写清单'}</button></div>${warnings.length?`<div class="wf-note">${warnings.map(w=>esc(w)).join('<br>')}</div>`:''}${scripts.map(sourceView).join('')}</section>${analysisView()}`;
+    const header = `<section class="wf-panel story-source-bar"><div class="wf-actions"><button type="button" data-ui-file="script">导入剧本</button><input data-wf-upload type="file" accept=".txt,.md,.docx" hidden><button type="button" data-wf-action="edit-plan">${plan.entities.length ? '编辑资产清单' : '手工填写清单'}</button></div>${warnings.length?`<div class="wf-note">${warnings.map(w=>esc(w)).join('<br>')}</div>`:''}${scripts.map(sourceView).join('')}</section>${analysisView()}`;
     if (editing || draft) return header + planEditor(draft || {expectedVersion:plan.version, entities:plan.entities.map(cleanEntity),stylePrompt:plan.stylePrompt});
     return header + (analysis?.status==='ready'?`<section class="wf-panel"><div class="wf-actions"><button data-wf-action="open-production-plan">${production&&returnedResult(production)?'修改制作清单与镜头':'细化物料与分镜'}</button>${production&&returnedResult(production)?'<button data-canvas-preview>图板预演</button>':''}</div></section>`:'') + (production||assets.length||bundles.length?deliveryView():'') + (plan.entities.length?`<details><summary>已有清单与历史档案</summary><div data-wf-archives>${archivesView()}</div></details>`:'');
   }
@@ -273,7 +285,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
     root.querySelector('[data-canvas-drawer]')?.focus({preventScroll:true});
     if(value.type==='production'||value.type==='batch'||value.type==='art'&&value.role!=='standard')void loadImageModels();
   }
-  function closeCanvasPanel(){canvasDrawer=null;render();if(drawerTrigger?.isConnected)drawerTrigger.focus({preventScroll:true});else root.querySelector('[data-story-viewport]')?.focus({preventScroll:true});}
+  function closeCanvasPanel(){canvasDrawer=null;render();if(!studioUI.restoreFocus(drawerTrigger))root.querySelector('[data-story-viewport]')?.focus({preventScroll:true});}
   function canvasPanelView(){
     if(page!=='plan'||!canvasDrawer)return '';
     const v=boardView(),result=currentProduction();let title='制作',body='';
@@ -1331,7 +1343,7 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
   listen(events,'tasks:changed',()=>{clearTimeout(timer);timer=setTimeout(()=>{if(alive&&!busy)load();},150);});
   listen(events,'workflow:flush-drafts',e=>{const pending=flushDrafts();if(typeof e.detail?.waitUntil==='function')e.detail.waitUntil(pending);else pending.catch(err=>{error=err.message;render();});});
   listen(doc.defaultView,'beforeunload',e=>{try{drafts.flush();}catch{e.preventDefault();e.returnValue='';}if(busy||reviewing){e.preventDefault();e.returnValue='';}});
-  function unmount(){storyCanvas.dispose();canvas.dispose();delete doc.body.dataset.workflowPage;preview.reset();alive=false;requestSerial++;clearTimeout(timer);clearTimeout(flowTimer);clearInterval(progressTimer);clearInterval(pollingTimer);delete doc.body.dataset.workflowMounted;listeners.forEach(remove=>remove());stylesheet.remove();root.replaceChildren();for(const id of ['warehouseList','review-summary-root'])doc.getElementById(id)?.replaceChildren();const chooser=doc.getElementById('scriptSelect');if(chooser)chooser.replaceChildren();}
-  const ready=stylesheetReady.then(()=>alive?load({initial:true}):undefined).then(()=>{if(alive&&(stages.includes(page)||page==='production'))void loadImageModels();});
+  function unmount(){studioUI.dispose();storyCanvas.dispose();canvas.dispose();delete doc.body.dataset.workflowPage;preview.reset();alive=false;requestSerial++;clearTimeout(timer);clearTimeout(flowTimer);clearInterval(progressTimer);clearInterval(pollingTimer);delete doc.body.dataset.workflowMounted;listeners.forEach(remove=>remove());stylesheet.remove();root.replaceChildren();for(const id of ['warehouseList','review-summary-root'])doc.getElementById(id)?.replaceChildren();const chooser=doc.getElementById('scriptSelect');if(chooser)chooser.replaceChildren();}
+  const ready=Promise.all([stylesheetReady,studioUI.ready]).then(()=>alive?load({initial:true}):undefined).then(()=>{if(alive&&(stages.includes(page)||page==='production'))void loadImageModels();});
   return {unmount,ready,refresh:load,flushDrafts,hasUnsavedChanges:dirty,getState:()=>({projectId:selected,page,dirty:dirty(),busy,saveError})};
 }

@@ -342,6 +342,23 @@
         "历史原图"
       ],
       "status": "under-live-validation"
+    },
+    {
+      "id": "ui-experience",
+      "file": "docs/rag/ui-experience.md",
+      "keywords": [
+        "UI",
+        "前端",
+        "按钮",
+        "输入框",
+        "现代",
+        "简约",
+        "GSAP",
+        "Lucide",
+        "键盘",
+        "窄屏"
+      ],
+      "status": "local-browser-verified"
     }
   ]
 }

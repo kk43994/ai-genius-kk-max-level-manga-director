@@ -14,15 +14,15 @@ const events = new EventTarget();
 const transport = createApiClient(config);
 // Account management is a panel; keep the production canvas in the first viewport.
 const accountRoot = document.getElementById('account-root');
-const accountButton = document.createElement('button'); accountButton.type='button';accountButton.className='lab-button integration-account-trigger';accountButton.textContent='管理工作区与账号';
+const accountButton = document.createElement('button'); accountButton.type='button';accountButton.className='lab-button integration-account-trigger';accountButton.textContent='工作区';accountButton.dataset.uiAccount='true';
 accountButton.setAttribute('aria-haspopup','dialog');accountButton.setAttribute('aria-controls','integration-account-dialog');
 accountRoot.before(accountButton);
 const accountDialog=document.createElement('dialog');accountDialog.id='integration-account-dialog';accountDialog.className='integration-account-dialog';accountDialog.setAttribute('aria-label','工作区与 LibTV 账号');
-const closeAccounts=document.createElement('button');closeAccounts.type='button';closeAccounts.className='lab-button integration-account-close';closeAccounts.textContent='关闭账号面板';
+const closeAccounts=document.createElement('button');closeAccounts.type='button';closeAccounts.className='lab-button integration-account-close';closeAccounts.textContent='关闭账号面板';closeAccounts.setAttribute('aria-label','关闭账号面板');
 accountDialog.append(closeAccounts,accountRoot);document.body.append(accountDialog);
 const openAccounts=()=>{if(!accountDialog.open)accountDialog.showModal();};
 accountButton.addEventListener('click',openAccounts);closeAccounts.addEventListener('click',()=>accountDialog.close());
-const balanceButton=document.createElement('button');balanceButton.type='button';balanceButton.className='lab-button integration-account-trigger';balanceButton.textContent='查询余额';balanceButton.disabled=true;
+const balanceButton=document.createElement('button');balanceButton.type='button';balanceButton.className='lab-button integration-account-trigger';balanceButton.textContent='余额';balanceButton.dataset.uiBalance='true';balanceButton.disabled=true;
 accountButton.before(balanceButton);
 balanceButton.addEventListener('click',()=>{openAccounts();const quota=accountRoot.querySelector('[data-view="quota"]');quota?.scrollIntoView({block:'center'});accountRoot.querySelector('[data-action="quota"]')?.focus();void accounts?.queryQuota();});
 accountDialog.addEventListener('close',()=>accountButton.focus());

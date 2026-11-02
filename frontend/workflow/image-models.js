@@ -46,7 +46,10 @@ export function imageModelPicker({draft={},catalog,contracts={},loading,error,ra
   else if(['integer','number'].includes(schema.type))control=`<input ${common} type="number" step="${schema.type==='integer'?'1':'any'}" value="${esc(value)}" ${schema.minimum!==undefined?`min="${esc(schema.minimum)}"`:''} ${schema.maximum!==undefined?`max="${esc(name==='count'?Math.min(4,schema.maximum):schema.maximum)}"`:name==='count'?'max="4"':''}>`;
   else if(schema.type==='object'||schema.type==='array'||schema.anyOf||schema.oneOf)control=`<textarea ${common} rows="2" placeholder="JSON">${esc(typeof value==='object'?JSON.stringify(value):value)}</textarea>`;
   else control=`<input ${common} value="${esc(value)}" maxlength="${Math.min(schema.maxLength||4000,20000)}">`;
-  return `<label>${esc(title)}${control}</label>`;
- }).join('');
- return `<section class="creator-model-picker" aria-label="图片模型与参数"><label>图片模型<select name="modelId" data-image-model ${loading?'disabled':''}>${options}</select></label><button type="button" data-image-models-refresh ${loading?'disabled':''}>${loading?'正在读取模型…':'刷新 LibTV 模型'}</button>${error?`<p class="wf-note" role="status">${esc(error)}</p>`:''}${contract?.verified?`<details><summary>模型参数 · ${esc(selected.name)}</summary><div class="wf-form-grid">${controls}</div></details>`:'<p class="wf-muted">读取官方模型参数后即可生成。</p>'}</section>`;
+  return {name,html:`<label>${esc(title)}${control}</label>`};
+ });
+ const basic=new Set(['ratio','aspectRatio','resolution','count']);
+ const common=controls.filter(c=>basic.has(c.name)).map(c=>c.html).join('');
+ const advanced=controls.filter(c=>!basic.has(c.name)).map(c=>c.html).join('');
+ return `<section class="creator-model-picker" aria-label="图片模型与参数"><label>图片模型<select name="modelId" data-image-model ${loading?'disabled':''}>${options}</select></label><button type="button" data-image-models-refresh ${loading?'disabled':''}>${loading?'正在读取模型…':'刷新模型'}</button>${error?`<p class="wf-note" role="status">${esc(error)}</p>`:''}${contract?.verified?`${common?`<div class="wf-form-grid ui-model-options">${common}</div>`:''}${advanced?`<details><summary>高级参数</summary><div class="wf-form-grid">${advanced}</div></details>`:''}`:'<p class="wf-muted">正在读取模型参数…</p>'}</section>`;
 }
