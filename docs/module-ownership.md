@@ -15,7 +15,7 @@
 | 9 发布与更新 | kelao 发布、版本查询、保留数据、更新提示 | `deploy/`, `backend/releases/`, `frontend/updates/`, `tests/releases/`, `release-manifest.example.json` | 启动/适度轮询/手动检查，刷新前保存，不变成 CLI 安装产品 |
 | 10 集成验收 | 服务组合、依赖、通用冒烟/隔离/E2E | `backend/app.py`, `backend/__init__.py`, `scripts/`, `tests/integration/`, 根依赖/构建文件、README | 汇总各模块，清除基线 501 后才能声明对应功能可用 |
 
-`backend/legacy/` 保留只读迁移参考。需要迁移时复制逻辑到本模块，不让多个会话改同一份 legacy 文件。各测试只改自己目录。各模块自有配置说明放本模块目录，不并发修改公共 README。
+早期 `backend/legacy/` 迁移参考已从工作目录移除；原始哈希仍见 `docs/source-inventory.json`，源码恢复方法见 [代码清理与运行负担](rag/code-cleanup.md)。当前服务使用各模块自己的实现，构建继续拒绝打包 legacy。各测试只改自己目录。各模块自有配置说明放本模块目录，不并发修改公共 README。
 
 后端统一模块边界：模块导出 `register_routes(router, services)`，调用 `router.add(method, pattern, handler)`；handler 接收 `RequestContext` 与参数，返回 `Response`。由第 10 会话提供最终 HTTP adapter，第 3 会话提供持久化/站点 session，第 2 会话提供 provider service。框架可选，但不得改变线上的 v1 JSON 契约；没有接入的路由保持明确 NOT_IMPLEMENTED，严禁静默假成功。
 

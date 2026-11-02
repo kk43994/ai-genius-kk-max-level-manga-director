@@ -5,6 +5,21 @@
   "scope": "project-knowledge-source",
   "entries": [
     {
+      "id": "code-cleanup",
+      "file": "docs/rag/code-cleanup.md",
+      "keywords": [
+        "废弃代码",
+        "清理",
+        "卡顿",
+        "流畅",
+        "性能",
+        "创作记录",
+        "画布",
+        "历史保留"
+      ],
+      "status": "local-source-validation"
+    },
+    {
       "id": "desktop-updates",
       "file": "docs/rag/desktop-updates.md",
       "keywords": [
