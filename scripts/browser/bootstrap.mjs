@@ -202,7 +202,7 @@ try {
   await drafts.load();
   accounts=mountAccounts({root:document.getElementById('account-root'),api,events,session,publicBasePath:config.publicBasePath,workspaceRecovery:workspaceRecoveryHooks(),localClient:config.mode==='local-client'});
   drafts.readAccountDraft=()=>accounts.getDraftSelection();
-  workflow=mountWorkflow({root:document.getElementById('workflow-root'),api,events,session,...config,storage:drafts.adapter});
+  workflow=mountWorkflow({root:document.getElementById('workflow-root'),api,events,session,...config,storage:drafts.adapter,layoutStorage:localStorage});
   if(config.mode==='local-client') {
     const authorize=document.createElement('button');authorize.type='button';authorize.id='local-libtv-status';authorize.className='lab-button integration-account-trigger';authorize.textContent='正在读取 LibTV 状态';
     accountButton.before(authorize);

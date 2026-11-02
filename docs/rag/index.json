@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "version": "0.3.0-preview.6",
-  "updatedAt": "2026-11-02",
+  "updatedAt": "2026-11-03",
   "scope": "project-knowledge-source",
   "entries": [
     {
@@ -185,7 +185,15 @@
     {
       "id": "release-0.3.0-preview.6",
       "file": "docs/versions/0.3.0-preview.6.md",
-      "keywords": ["点图", "选用", "简洁", "按钮", "UI", "放大", "视觉验收"],
+      "keywords": [
+        "点图",
+        "选用",
+        "简洁",
+        "按钮",
+        "UI",
+        "放大",
+        "视觉验收"
+      ],
       "status": "in-development"
     },
     {
@@ -199,6 +207,21 @@
         "安装"
       ],
       "status": "public-preview-verified"
+    },
+    {
+      "id": "story-cards",
+      "file": "docs/rag/story-cards.md",
+      "keywords": [
+        "剧本分析",
+        "卡片",
+        "无限画布",
+        "剧情",
+        "人物关系",
+        "阅读",
+        "拖动",
+        "缩放"
+      ],
+      "status": "implemented-preview"
     }
   ]
 }
