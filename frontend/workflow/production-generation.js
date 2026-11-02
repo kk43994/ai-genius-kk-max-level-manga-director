@@ -46,8 +46,19 @@ export function generationContext(options){
 export function generationGallery(versions,apiBase,{stage,category,direction=false,busy=false,master=false}={}){
  const rows=stage?versions.filter(r=>r.stage===stage):versions;
  const card=r=>{
-  const valid=r.status==='ready',chosen=r.review==='approved',keep=r.stage==='style'?({character:'选用此张作为人物形象',scene:'选用此张作为场景风格',prop:'选用此张作为道具造型'}[category]||'选用此张风格图'):r.stage==='asset'?(category==='character'?(master?'确认这版人物主多视图':'保留这版状态多视图'):(assetFormats[category]?.keep||'保留这版资产图')):r.stage==='storyboard'?'保留这张分镜图':'保留这版精修图';
-  return `<figure><button data-wf-review="${esc(r.id)}" aria-label="放大查看 ${esc(revisionLabel(r))} ${esc(r.id.slice(-6))}"><img src="${esc(assetURL(apiBase,r.assetId,r.id,true))}" alt="${esc(revisionLabel(r))} 候选图" loading="lazy"></button><figcaption>${esc(revisionLabel(r))} · ${esc(states[valid?r.review:'stale']||r.review)}</figcaption><div class="wf-actions"><button class="${chosen?'':'primary'}" data-creator-keep="${esc(r.id)}" ${!valid||chosen||busy?'disabled':''}>${chosen?'已选用':keep}</button>${direction&&r.stage==='style'?`<button data-creator-direction="${esc(r.id)}" ${!valid||busy?'disabled':''}>选为本剧风格</button>`:''}<button data-wf-review="${esc(r.id)}">放大 / 修改意见</button></div></figure>`;
+  const valid=r.status==='ready',chosen=valid&&r.review==='approved',keep=r.stage==='style'?({character:'选用此张作为人物形象',scene:'选用此张作为场景风格',prop:'选用此张作为道具造型'}[category]||'选用此张风格图'):r.stage==='asset'?(category==='character'?(master?'确认这版人物主多视图':'保留这版状态多视图'):(assetFormats[category]?.keep||'保留这版资产图')):r.stage==='storyboard'?'保留这张分镜图':'保留这版精修图';
+  const identity=`${revisionLabel(r)} ${r.id.slice(-6)}`;
+  return `<figure class="creator-candidate" data-selected="${chosen}">
+   <div class="creator-candidate-media">
+    <button type="button" class="creator-candidate-pick" aria-label="${esc(chosen?'已选用 '+identity:keep+' '+identity)}" aria-pressed="${chosen}" data-creator-keep="${esc(r.id)}" ${!valid||chosen||busy?'disabled':''}>
+     <img src="${esc(assetURL(apiBase,r.assetId,r.id,true))}" alt="${esc(revisionLabel(r))} 候选图" loading="lazy">
+     <span class="creator-candidate-choice"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/>${chosen?'<path d="m8 12 3 3 5-6"/>':''}</svg><span>${chosen?'已选用':valid?'点击选用':'历史版本'}</span></span>
+    </button>
+    <button type="button" class="creator-candidate-preview" data-wf-review="${esc(r.id)}" aria-label="放大查看 ${esc(identity)}，可填写修改意见" title="放大查看 / 修改意见"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></svg></button>
+   </div>
+   <figcaption><span>${esc(revisionLabel(r))}</span><span class="creator-candidate-status">${chosen?'已选用':esc(states[valid?r.review:'stale']||r.review)}</span></figcaption>
+   ${direction&&r.stage==='style'?`<button type="button" class="creator-candidate-direction" data-creator-direction="${esc(r.id)}" ${!valid||busy?'disabled':''}>选为本剧风格 <span aria-hidden="true">↗</span></button>`:''}
+  </figure>`;
  };
  const current=[...rows].reverse().filter(r=>r.status==='ready'),history=[...rows].reverse().filter(r=>r.status!=='ready');
  return `<div class="board-generation-gallery">${current.map(card).join('')||'<div class="wf-empty"><h4>等待第一组候选图</h4><p>生成后在这里看图、选用；每一版都会保留。</p></div>'}</div>${history.length?`<details class="creator-generation-history"><summary>查看历史版本（${history.length}）</summary><p class="wf-note">这些图片的依据或审核已变化，保留供对照；请使用当前已审核的上游版本继续制作。</p><div class="board-generation-gallery">${history.map(card).join('')}</div></details>`:''}`;

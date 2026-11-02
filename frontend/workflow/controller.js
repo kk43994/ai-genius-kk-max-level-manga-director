@@ -352,7 +352,7 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
         // Keep form nodes and their caret intact while refreshing background status.
         if(['production',...stages].includes(page)&&production&&returnedResult(production)){
           const c=(stages.includes(page)||boardView().inspector==='generate')?generationContext({result:currentProduction(),job:production,view:boardView(),assets,selection:session.selection}):null;
-          const gallery=root.querySelector('[data-board-generation-gallery]');if(gallery&&c&&mediaChanged)gallery.innerHTML=generationGallery(c.versions,apiBase,{stage:c.shot?'storyboard':boardView().stage,category:c.asset?.category,master:c.master,direction:page==='style'});
+          const gallery=root.querySelector('[data-board-generation-gallery]');if(gallery&&c&&mediaChanged)gallery.innerHTML=generationGallery(c.versions,apiBase,{stage:c.shot?'storyboard':boardView().stage,category:c.asset?.category,master:c.master,direction:page==='style',busy:busy||c.binding?.changed||Boolean(drafts.get(`production:review:${production.id}`))});
           const feedback=root.querySelector('[data-board-generation-feedback]');if(feedback&&c)feedback.innerHTML=tasksView(c.binding?.entityId);
           if(mediaChanged){const temp=doc.createElement('div');temp.innerHTML=productionView();const old=root.querySelector('[data-board-stage]'),fresh=temp.querySelector('[data-board-stage]');if(old&&fresh){old.replaceChildren(...fresh.childNodes);canvas.refresh();}}
         }
@@ -724,8 +724,8 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
     if(button.hasAttribute('data-creator-direction')){persist(`art-direction:${selected}`,{revisionId:button.dataset.creatorDirection});render();root.querySelector('.creator-direction')?.scrollIntoView({block:'center'});return;}
     if(button.hasAttribute('data-creator-direction-cancel')){removeDraft(`art-direction:${selected}`);render();return;}
     if(button.hasAttribute('data-creator-keep')){
-      const asset=assets.find(a=>a.revisions.some(r=>r.id===button.dataset.creatorKeep)),r=asset?.revisions.find(r=>r.id===button.dataset.creatorKeep);if(!r)return;
-      return perform(async()=>{await api.request(`/assets/${encodeURIComponent(asset.id)}/reviews`,{method:'POST',body:{revisionId:r.id,sha256:r.sha256,decision:'approved',note:'人工在候选图旁选用此版本',expectedVersion:asset.version}});await load();announce('已选用这张图，可以继续制作下一步。');});
+      const asset=assets.find(a=>a.revisions.some(r=>r.id===button.dataset.creatorKeep)),r=asset?.revisions.find(r=>r.id===button.dataset.creatorKeep);if(!r||r.status!=='ready'||r.review==='approved')return;
+      return perform(async()=>{await api.request(`/assets/${encodeURIComponent(asset.id)}/reviews`,{method:'POST',body:{revisionId:r.id,sha256:r.sha256,decision:'approved',note:'人工点击候选图选用此版本',expectedVersion:asset.version}});await load();announce('已选用这张图，可以继续制作下一步。');});
     }
     if(button.hasAttribute('data-production-bind')){
       if(drafts.get(planKey())||drafts.get(`production:review:${production?.id}`)||drafts.get(`production:edits:${production?.id}`)){announce('请先保存清单和方案修改，再关联已有档案。');return;}
@@ -934,9 +934,15 @@ if(target.matches('[data-wf-review-note]')&&reviewId){persist(`review:${reviewId
   function imageFailure(event) {
     const img=event.target;if(img.tagName!=='IMG')return;
     img.hidden=true;
+    const choice=img.closest('.creator-candidate-pick');
+    if(choice){
+      choice.disabled=true;
+      const label=choice.querySelector('.creator-candidate-choice span');if(label)label.textContent='缩略图未加载';
+      choice.setAttribute('aria-label','缩略图未加载，请先放大查看原图');
+    }
     if(!img.nextElementSibling?.classList.contains('wf-image-error-note')) {
       const note=doc.createElement('span');note.className='wf-image-error-note';
-      note.textContent='缩略图暂未加载，点击查看原图或刷新状态';img.after(note);
+      note.textContent=choice?'缩略图暂未加载，请使用右上角查看原图':'缩略图暂未加载，点击查看原图或刷新状态';img.after(note);
     }
   }
   root.addEventListener('error',imageFailure,true);

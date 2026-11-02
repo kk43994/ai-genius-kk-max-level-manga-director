@@ -12,6 +12,42 @@ test('candidate galleries are stage-specific and do not imply pending approval',
  assert.ok(split>0);assert.match(mixed.slice(0,split),/current/);assert.doesNotMatch(mixed.slice(0,split),/data-creator-keep="old"/);
  assert.match(mixed.slice(split),/查看历史版本（1）/);assert.match(mixed.slice(split),/data-creator-keep="old" disabled/);
 });
+test('the candidate picture selects and its separate zoom control only previews',()=>{
+ const html=generationGallery([revision('candidate','style')],'/api/v1',{stage:'style',category:'character',direction:true});
+ const buttons=[...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)];
+ const pick=buttons.find(b=>b[1].includes('data-creator-keep'));
+ assert.match(pick[1],/type="button"/);assert.match(pick[1],/aria-pressed="false"/);
+ assert.match(pick[1],/选用此张作为人物形象/);assert.doesNotMatch(pick[1],/disabled|data-wf-review/);
+ assert.match(pick[2],/<img /);assert.match(pick[2],/点击选用/);assert.doesNotMatch(pick[2],/<button/);
+ const zoom=buttons.find(b=>b[1].includes('data-wf-review'));
+ assert.match(zoom[1],/放大查看/);assert.doesNotMatch(zoom[1],/data-creator-keep|disabled/);
+ assert.equal(buttons.filter(b=>b[1].includes('data-creator-keep')).length,1);
+ // Setting the whole show's style is a separate explicit action.
+ assert.equal(buttons.filter(b=>b[1].includes('data-creator-direction')).length,1);
+ assert.doesNotMatch(pick[1],/data-creator-direction/);
+});
+test('only current approved candidates have selection feedback and cannot be approved twice',()=>{
+ const chosen={...revision('selected','asset'),review:'approved'};
+ const html=generationGallery([chosen],'/api/v1',{stage:'asset',category:'character',master:true});
+ assert.match(html,/data-selected="true"/);assert.match(html,/aria-pressed="true" data-creator-keep="selected" disabled/);
+ assert.match(html,/已选用/);
+ const stale=generationGallery([{...chosen,status:'stale'}],'/api/v1',{stage:'asset'});
+ assert.doesNotMatch(stale,/data-selected="true"|aria-pressed="true"/);
+ assert.match(stale,/data-creator-keep="selected" disabled/);assert.match(stale,/历史版本/);
+ const zoom=stale.match(/<button[^>]*data-wf-review="selected"[^>]*>/)[0];assert.doesNotMatch(zoom,/disabled/);
+});
+test('image selection preserves stage-specific decisions and a blocked selection still permits preview',()=>{
+ for(const [stage,category,master,label] of [
+  ['asset','character',true,'确认这版人物主多视图'],['asset','character',false,'保留这版状态多视图'],
+  ['asset','scene',false,'保留这版场景多视图'],['asset','prop',false,'保留这张道具图'],
+  ['storyboard',null,false,'保留这张分镜图'],['refine',null,false,'保留这版精修图']]){
+  const html=generationGallery([revision('candidate',stage)],'/api/v1',{stage,category,master,busy:true});
+  const pick=html.match(/<button[^>]*data-creator-keep="candidate"[^>]*>/)[0];
+  assert.ok(pick.includes(label));assert.match(pick,/disabled/);
+  assert.doesNotMatch(html.match(/<button[^>]*data-wf-review="candidate"[^>]*>/)[0],/disabled/);
+  assert.doesNotMatch(html,/data-creator-direction=/);
+ }
+});
 test('standard prompts distinguish people, scenes and props from the film aspect ratio',()=>{
  for(const [category,required] of [['character','头部特写'],['scene','反打视图'],['prop','白底正视图']]){
   const asset={id:'a',category,name:'物料',design:'设计',states:[{id:'base',imagePrompt:'依据原文'}]};

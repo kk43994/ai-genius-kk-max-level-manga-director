@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "0.3.0-preview.5",
+  "version": "0.3.0-preview.6",
   "updatedAt": "2026-11-02",
   "scope": "project-knowledge-source",
   "entries": [
@@ -91,6 +91,10 @@
         "草稿",
         "任务中心",
         "精修",
+        "点图",
+        "选用",
+        "简洁",
+        "按钮",
         "交付"
       ],
       "status": "implemented-preview"
@@ -176,6 +180,12 @@
         "版本",
         "自动更新"
       ],
+      "status": "in-development"
+    },
+    {
+      "id": "release-0.3.0-preview.6",
+      "file": "docs/versions/0.3.0-preview.6.md",
+      "keywords": ["点图", "选用", "简洁", "按钮", "UI", "放大", "视觉验收"],
       "status": "in-development"
     },
     {
