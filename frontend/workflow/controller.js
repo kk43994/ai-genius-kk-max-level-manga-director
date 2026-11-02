@@ -402,6 +402,8 @@ export function mount({root, api, events = new EventTarget(), session, apiBase =
         if(canvasDrawer?.type==='art'&&(mediaChanged||tasksChanged)){
           const temp=doc.createElement('div');temp.innerHTML=canvasPanelView();
           for(const selector of ['[data-art-gallery]','[data-art-feedback]']){const old=root.querySelector(selector),fresh=temp.querySelector(selector);if(old&&fresh)old.replaceChildren(...fresh.childNodes);}
+          const selector='[data-wf-form="art-generation"] button[type="submit"]',old=root.querySelector(selector),fresh=temp.querySelector(selector);
+          if(old&&fresh){old.textContent=fresh.textContent;old.disabled=fresh.disabled;old.toggleAttribute('data-art-reroll',fresh.hasAttribute('data-art-reroll'));}
         }
         const taskPanel=root.querySelector('[data-wf-task-feedback]');if(taskPanel&&!taskPanel.closest('[data-board-generation-feedback]'))taskPanel.outerHTML=tasksView(selectedEntity);
         if(mediaChanged){
