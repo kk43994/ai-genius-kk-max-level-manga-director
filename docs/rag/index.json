@@ -16,7 +16,7 @@
         "校验",
         "旧版本"
       ],
-      "status": "under-live-validation"
+      "status": "public-preview-verified"
     },
     {
       "id": "image-creation",
@@ -188,7 +188,7 @@
         "旧版本",
         "安装"
       ],
-      "status": "publishing"
+      "status": "public-preview-verified"
     }
   ]
 }
