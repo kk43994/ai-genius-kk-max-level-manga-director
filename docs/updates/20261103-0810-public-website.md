@@ -1,6 +1,6 @@
 # 黑金胶卷官网与镜头式动效
 
-<!-- update-record: {"id":"20261103-0810-public-website","version":"0.3.0-preview.6","date":"2026-11-03T08:58:00+08:00","title":"黑金胶卷官网：分层微动、推镜与光圈转场","releaseState":"published-evidence","verificationState":"recorded","commits":[]} -->
+<!-- update-record: {"id":"20261103-0810-public-website","version":"0.3.0-preview.6","date":"2026-11-03T08:58:00+08:00","title":"黑金胶卷官网：分层微动、推镜与光圈转场","releaseState":"published-evidence","verificationState":"recorded","commits":["622ea2b995f08ee919468df4b24314405f70c674"]} -->
 
 ## 为什么改
 
@@ -21,7 +21,7 @@
 - [x] 本地浏览器桌面与 390 px 手机首屏、手机无横向溢出、主体裁切、全景到人物推近及光圈过渡。
 - [x] 暂停动效、系统减少动态效果、下载导航、校验信息展开与复制；流程概念图完成加载。
 - [x] 公开 HTTPS 页面、素材、脚本、两份更新清单、Mac 与 Windows 安装包，共 13 项哈希全部一致；31 个原有非页面文件保持不变。
-- [ ] GitHub 主线与 CI 发布记录。
+- [x] [PR #2](https://github.com/kk43994/ai-genius-kk-max-level-manga-director/pull/2) 已合并到 main；源码 `622ea2b` 的推送与 PR 两次 CI 均通过（41556732110 / 41556790104）。
 
 未新增收费生成；未执行客户电脑安装；视觉方向由用户指定，最终动效完成后的主观验收仍由用户判断。
 

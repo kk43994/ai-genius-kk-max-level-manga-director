@@ -43,8 +43,8 @@ class DownloadSiteTest(unittest.TestCase):
             html = (out / 'index.html').read_text()
             self.assertNotIn('{{', html)
             self.assertIn('Lovart', html)
-            self.assertIn('当前尚未接入', html)
-            for name in ['style.css', 'release.js', 'stage.js', 'story-contact.png', 'logo.svg', 'kk-director-hero.png', 'production-flow.png']:
+            self.assertIn('尚未接入', html)
+            for name in ['style.css', 'release.js', 'stage.js', 'story-contact.png', 'brands/libtv.svg', 'brands/lovart.svg', 'brands/apple.svg', 'logo.svg', 'kk-director-hero.png', 'production-flow.png']:
                 self.assertTrue((out / 'assets' / name).is_file())
         self.assertEqual(original, json.dumps([public, legacy], sort_keys=True))
 
