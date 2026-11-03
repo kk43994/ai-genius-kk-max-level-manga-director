@@ -22,6 +22,19 @@
       "status": "per-iteration-source-history"
     },
     {
+      "id": "public-website",
+      "file": "docs/rag/public-website.md",
+      "keywords": [
+        "官网",
+        "下载页",
+        "网页更新",
+        "内容同步",
+        "网址",
+        "公共版本"
+      ],
+      "status": "website-content-sync"
+    },
+    {
       "id": "repository-presentation",
       "file": "docs/rag/repository-presentation.md",
       "keywords": [

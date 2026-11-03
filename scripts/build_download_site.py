@@ -8,21 +8,93 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import shutil
 import sys
+import re
+from html import escape
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from local_client import APP_VERSION
 
 
+
+GITHUB = 'https://github.com/kk43994/ai-genius-kk-max-level-manga-director'
+
+
+def render_site(fields, out):
+    """Use one source for full releases and content-only website updates."""
+    from check_update_history import load_updates
+    source = ROOT / 'local_client/website'
+    now = datetime.now(ZoneInfo('Asia/Shanghai'))
+    recent = load_updates()[:3]
+    cards = []
+    for row in recent:
+        section = re.search(r'^## 这次改了什么\n(.*?)(?=^## |\Z)', row['content'], re.M | re.S)[1].strip()
+        summary = section.splitlines()[0].removeprefix('- ')
+        cards.append('<article class="update-card"><small>' + escape(row['date'][:10]) + ' · ' + escape(row['version'])
+                     + ' · 源码记录</small><h3>' + escape(row['title']) + '</h3><p>' + escape(summary)
+                     + '</p><a href="' + GITHUB + '/blob/main/' + escape(row['file'], quote=True)
+                     + '" target="_blank" rel="noopener">查看这次改了什么 ↗</a></article>')
+    values = {**fields, 'SOURCE_VERSION': APP_VERSION, 'SITE_DATE': now.strftime('%Y.%m.%d'), 'GITHUB': GITHUB}
+    html = (source/'index.template.html').read_text(encoding='utf-8')
+    for key, value in values.items():
+        html = html.replace('{{'+key+'}}', escape(str(value), quote=True))
+    html = html.replace('{{RECENT_UPDATES}}', ''.join(cards))
+    if '{{' in html:
+        raise ValueError('Unresolved page template field')
+    out.mkdir(parents=True, exist_ok=True)
+    (out/'assets').mkdir(exist_ok=True)
+    (out/'index.html').write_text(html, encoding='utf-8')
+    for file in ('style.css', 'release.js', 'stage.js', 'logo.svg'):
+        shutil.copyfile(source/file, out/'assets'/file)
+    for file in ('kk-director-hero.png', 'production-flow.png', 'story-contact.png'):
+        shutil.copyfile(ROOT/'docs/brand'/file, out/'assets'/file)
+    metadata = {'schemaVersion':1, 'sourceVersion':APP_VERSION, 'desktopVersion':fields['VERSION'],
+                'updatedAt':now.isoformat(), 'repository':GITHUB, 'updateIds':[r['id'] for r in recent],
+                'templateSha256':hashlib.sha256((source/'index.template.html').read_bytes()).hexdigest()}
+    (out/'site-content.json').write_text(json.dumps(metadata,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+
+def published_fields(release, legacy):
+    """Read versions from actual published manifests, never from source APP_VERSION."""
+    if release.get('product') != 'AssetLab' or legacy.get('product') != 'ManjuWorkbench':
+        raise ValueError('Unexpected published product')
+    fields = {'VERSION':release['version'], 'DATE':release['publishedDate'].replace('-', '.'),
+              'MANJU_VERSION':legacy['version'], 'MAC_STATUS':'Mac 打包应用启动已验证，系统安装流程仍待验收。' if release.get('macPackagedLaunchVerified') else 'Mac 启动与安装流程待验收。'}
+    for data, product, maps in [(release,'AssetLab',{'windows-x64':('FILE','SIZE','SHA','x64.exe'), 'macos-arm64':('MAC_FILE','MAC_SIZE','MAC_SHA','macOS-arm64.pkg')}),
+                                (legacy,'ManjuWorkbench',{'windows-x64':('MANJU_WIN_FILE','MANJU_WIN_SIZE',None,'x64.exe'), 'macos-arm64':('MANJU_MAC_FILE','MANJU_MAC_SIZE',None,'macOS-arm64.pkg')})]:
+        rows = {r['platform']:r for r in data['installers']}
+        for platform, (file_key,size_key,sha_key,suffix) in maps.items():
+            row = rows[platform]
+            name = product+'-Setup-'+data['version']+'-'+suffix
+            if row.get('url', 'downloads/'+row.get('file','')) != 'downloads/'+name or '/' in name or '\\' in name:
+                raise ValueError('Unexpected published installer path')
+            if not re.fullmatch(r'[0-9a-f]{64}', row['sha256']) or not isinstance(row['bytes'], int) or row['bytes'] <= 0:
+                raise ValueError('Invalid published installer integrity metadata')
+            fields[file_key] = name
+            fields[size_key] = f"{row['bytes']/1_000_000:.1f}"
+            if sha_key: fields[sha_key] = row['sha256']
+    return fields
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--installer', type=Path, required=True)
-    parser.add_argument('--mac-installer', type=Path, required=True)
-    parser.add_argument('--mac-verification', type=Path, required=True)
-    parser.add_argument('--manju-release', type=Path, required=True)
-    parser.add_argument('--manju-verification', type=Path, required=True)
+    parser.add_argument('--installer', type=Path)
+    parser.add_argument('--mac-installer', type=Path)
+    parser.add_argument('--mac-verification', type=Path)
+    parser.add_argument('--manju-release', type=Path)
+    parser.add_argument('--manju-verification', type=Path)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--published-release', type=Path, help='Content-only update using the current public release.json')
     args = parser.parse_args()
+    if args.published_release:
+        if not args.manju_release:
+            parser.error('--published-release requires --manju-release')
+        fields = published_fields(json.loads(args.published_release.read_text()), json.loads(args.manju_release.read_text()))
+        render_site(fields, args.output.resolve())
+        print(json.dumps({'site':str(args.output.resolve()), 'mode':'content-only', 'desktopVersion':fields['VERSION'], 'sourceVersion':APP_VERSION}))
+        return
+    if not all((args.installer,args.mac_installer,args.mac_verification,args.manju_release,args.manju_verification)):
+        parser.error('Full release requires installer and verification inputs for both products')
     published = datetime.now(ZoneInfo('Asia/Shanghai')).date()
     name = f'AssetLab-Setup-{APP_VERSION}-x64.exe'
     if args.installer.name != name:
@@ -73,14 +145,7 @@ def main():
         fields[key+'_SIZE'] = f"{row['bytes']/1_000_000:.1f}"
         for suffix in ('', '.sha256'):
             shutil.copyfile(args.manju_release.parent/(row['file']+suffix), out/'downloads'/(row['file']+suffix))
-    html = (source/'index.template.html').read_text()
-    for key, value in fields.items():
-        html = html.replace('{{'+key+'}}', value)
-    if '{{' in html:
-        raise ValueError('Unresolved page template field')
-    (out/'index.html').write_text(html)
-    for file in ('style.css', 'release.js', 'logo.svg'):
-        shutil.copyfile(source/file, out/'assets'/file)
+    render_site(fields, out)
     shutil.copyfile(args.installer, out/'downloads'/name)
     shutil.copyfile(args.installer.with_suffix('.exe.sha256'), out/'downloads'/(name+'.sha256'))
     shutil.copyfile(args.mac_installer, out/'downloads'/mac_name)
