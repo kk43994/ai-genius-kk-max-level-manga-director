@@ -1,6 +1,6 @@
 # 下载官网与 GitHub 同步
 
-更新：2026-11-03。官网为 https://kk666.best/asset-lab/ 。当前源码 preview.6，实际下载版 preview.5。
+更新：2026-11-03。官网为 https://kk666.best/asset-lab/ 。当前源码与实际下载版均为 preview.6；2026-11-03 12:36 发布，详见 [桌面修复发布](../updates/20261103-1235-desktop-auth-update.md)。此前各段记录保留当时安装包版本。
 
 ## 内容与结构
 

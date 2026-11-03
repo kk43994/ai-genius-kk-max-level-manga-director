@@ -1,0 +1,215 @@
+{
+  "version": "0.3.0-preview.6",
+  "sourceCommit": "9dbf657f9f6f3e684417ac7df4ea3b6d4fd714fe",
+  "publishedAt": "2026-11-03T04:36:31.065860+00:00",
+  "checks": {
+    "success": true,
+    "testsRun": 862,
+    "suites": [
+      {
+        "suite": "storage",
+        "exitCode": 0,
+        "tests": 51
+      },
+      {
+        "suite": "auth",
+        "exitCode": 0,
+        "tests": 98
+      },
+      {
+        "suite": "spaces",
+        "exitCode": 0,
+        "tests": 71
+      },
+      {
+        "suite": "tasks",
+        "exitCode": 0,
+        "tests": 67
+      },
+      {
+        "suite": "workflow",
+        "exitCode": 0,
+        "tests": 49
+      },
+      {
+        "suite": "analysis",
+        "exitCode": 0,
+        "tests": 98
+      },
+      {
+        "suite": "releases",
+        "exitCode": 0,
+        "tests": 35
+      },
+      {
+        "suite": "generation",
+        "exitCode": 0,
+        "tests": 82
+      },
+      {
+        "suite": "integration",
+        "exitCode": 0,
+        "tests": 96
+      },
+      {
+        "suite": "frontend-models",
+        "exitCode": 0,
+        "tests": 75
+      },
+      {
+        "suite": "creator-workflow-ui",
+        "exitCode": 0,
+        "tests": 140
+      }
+    ]
+  },
+  "authCatalogReplay": {
+    "preview5WindowsPayload": {
+      "status": "failed",
+      "error": {
+        "code": "PROVIDER_IDENTITY_UNAVAILABLE",
+        "message": "LibTV 官方身份读取尚未验证，此账号暂不能连接。",
+        "retryable": false,
+        "details": {}
+      },
+      "tools": []
+    },
+    "preview6Source": {
+      "status": "completed",
+      "error": null,
+      "tools": [
+        "doctor"
+      ],
+      "spaces": 2
+    },
+    "scope": "Synthetic OAuth and official catalog-shape replay; no customer credentials or paid requests"
+  },
+  "packageVerification": {
+    "version": "0.3.0-preview.6",
+    "sourceCommit": "9dbf657f9f6f3e684417ac7df4ea3b6d4fd714fe",
+    "installerSha256": "f669287d2ea27abcebe26989543336dc0d5a3f7f32b01dc9a788c7c8f334204c",
+    "packagedLaunchPassed": true,
+    "extractedPayloadSignatureVerified": true,
+    "identicalWindowsAndMacUI": true,
+    "windowsPayloadFilesVerified": 653,
+    "macInstallerExecuted": false,
+    "windowsInstallExecuted": false,
+    "developerIDSigned": false,
+    "notarized": false,
+    "packages": [
+      {
+        "file": "AssetLab-Windows-x64-0.3.0-preview.6.zip",
+        "sha256": "b02a04b5fcb8b0a019f6b74a871e45a58a7288779902a27f6e0c3933eda5b991",
+        "bytes": 24497868
+      },
+      {
+        "file": "AssetLab-Setup-0.3.0-preview.6-x64.exe",
+        "sha256": "f3e653ff495ec931cc4d48bf905621860bd1dc566837b531cd53160fc327ef63",
+        "bytes": 17658700
+      },
+      {
+        "file": "AssetLab-Setup-0.3.0-preview.6-macOS-arm64.pkg",
+        "sha256": "f669287d2ea27abcebe26989543336dc0d5a3f7f32b01dc9a788c7c8f334204c",
+        "bytes": 18735897
+      }
+    ]
+  },
+  "publicVerification": {
+    "publicVersion": "0.3.0-preview.6",
+    "sourceCommit": "9dbf657f9f6f3e684417ac7df4ea3b6d4fd714fe",
+    "changedFilesVerified": 8,
+    "publicChangedFiles": [
+      {
+        "file": "downloads/AssetLab-Setup-0.3.0-preview.6-x64.exe",
+        "sha256": "f3e653ff495ec931cc4d48bf905621860bd1dc566837b531cd53160fc327ef63",
+        "bytes": 17658700
+      },
+      {
+        "file": "downloads/AssetLab-Setup-0.3.0-preview.6-macOS-arm64.pkg",
+        "sha256": "f669287d2ea27abcebe26989543336dc0d5a3f7f32b01dc9a788c7c8f334204c",
+        "bytes": 18735897
+      },
+      {
+        "file": "index.html",
+        "sha256": "001529b845005672edfbdfb8681b88384229b018ad3f1b6b1e13fca0ef250ffb",
+        "bytes": 26677,
+        "cacheControl": "no-cache"
+      },
+      {
+        "file": "release-notes.txt",
+        "sha256": "62bded340b323bcc9f8f50bcde342d97f6117efaab68408fc536bcde9adcbd14",
+        "bytes": 762,
+        "cacheControl": "no-cache"
+      },
+      {
+        "file": "site-content.json",
+        "sha256": "38a64291e62cecf0bb2465ff09cc9bf035e51b6450bcd005527c04b37a3e0f32",
+        "bytes": 471,
+        "cacheControl": "no-cache"
+      },
+      {
+        "file": "release.json",
+        "sha256": "a755bce551785f7da391392045b502a98f883c3deed537c99b2757ed784598b1",
+        "bytes": 1623,
+        "cacheControl": "no-cache"
+      },
+      {
+        "file": "downloads/AssetLab-Setup-0.3.0-preview.6-x64.exe.sha256",
+        "sha256": "a69ecd46ace3e37d1f3c42a05e06fcdabd0e0fc78463f3bba162e42d19c7d150",
+        "bytes": 105,
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "file": "downloads/AssetLab-Setup-0.3.0-preview.6-macOS-arm64.pkg.sha256",
+        "sha256": "01f87429e39e866cc0b92f33f6377a8e3b15fc125b7c39a9e22ec70257c043b4",
+        "bytes": 113,
+        "cacheControl": "public, max-age=31536000, immutable"
+      }
+    ],
+    "realPublicFeedUpdaterChecks": [
+      {
+        "platform": "windows-x64",
+        "currentVersion": "0.3.0-preview.5",
+        "latestVersion": "0.3.0-preview.6",
+        "status": "ready",
+        "canInstall": true,
+        "file": "downloads/AssetLab-Setup-0.3.0-preview.6-x64.exe",
+        "bytes": 17658700,
+        "sha256": "f3e653ff495ec931cc4d48bf905621860bd1dc566837b531cd53160fc327ef63",
+        "sha256Verified": true,
+        "range206": true,
+        "installationInvoked": false
+      },
+      {
+        "platform": "macos-arm64",
+        "currentVersion": "0.3.0-preview.5",
+        "latestVersion": "0.3.0-preview.6",
+        "status": "ready",
+        "canInstall": true,
+        "file": "downloads/AssetLab-Setup-0.3.0-preview.6-macOS-arm64.pkg",
+        "bytes": 18735897,
+        "sha256": "f669287d2ea27abcebe26989543336dc0d5a3f7f32b01dc9a788c7c8f334204c",
+        "sha256Verified": true,
+        "range206": true,
+        "installationInvoked": false
+      }
+    ],
+    "feedCacheControl": "no-cache",
+    "updaterImplementation": "Exact preview5 Windows installer source, executed with explicit platform targets on Mac",
+    "customerDeviceUpgraded": false,
+    "browserVisualQA": true
+  },
+  "browserVerification": {
+    "updateNoticeVisible": true,
+    "laterReminderAndManualReopenPassed": true,
+    "unsavedDraftBlocksInstall": true,
+    "viewports": [
+      1200,
+      390
+    ],
+    "publicDownloadVersion": "0.3.0-preview.6",
+    "publicDownloadLinksMatchManifest": true,
+    "preexistingWebsiteDataUriIconBlockedByCSP": true
+  },
+  "customerDeviceUpgraded": false
+}

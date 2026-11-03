@@ -12,7 +12,7 @@
 <p>
   <a href="https://github.com/kk43994/ai-genius-kk-max-level-manga-director/actions/workflows/verify.yml"><img src="https://github.com/kk43994/ai-genius-kk-max-level-manga-director/actions/workflows/verify.yml/badge.svg?branch=main" alt="源码验证状态"></a>
   <img src="https://img.shields.io/badge/SOURCE-0.3.0--preview.6-171717?style=flat-square&labelColor=171717&color=b49a66" alt="源码 0.3.0-preview.6">
-  <img src="https://img.shields.io/badge/DESKTOP-0.3.0--preview.5-171717?style=flat-square&labelColor=171717&color=738f80" alt="公开桌面版 0.3.0-preview.5">
+  <img src="https://img.shields.io/badge/DESKTOP-0.3.0--preview.6-171717?style=flat-square&labelColor=171717&color=738f80" alt="公开桌面版 0.3.0-preview.6">
   <img src="https://img.shields.io/badge/FINAL_CUT-YOURS-171717?style=flat-square&labelColor=171717&color=b49a66" alt="创作决定由人做出">
 </p>
 
@@ -123,7 +123,7 @@ MJ 用于人物与场景风格探索；正式图片制作默认 **Lib Image 2.5 
 | 入口 | 当前版本 | 范围 |
 | :--- | :--- | :--- |
 | **本仓库源码** | `0.3.0-preview.6` | 统一画布、就地编辑、版本选图、AI 内容人工纠错等最新开发功能。逐项证据见 [preview.6](docs/versions/0.3.0-preview.6.md)。 |
-| **公共安装包与更新源** | `0.3.0-preview.5` | Windows / macOS 桌面预览版；下载与实际支持平台以 [下载页](https://kk666.best/asset-lab/) 为准。源码更新不会自动变成安装包更新。 |
+| **公共安装包与更新源** | `0.3.0-preview.6` | 包含 LibTV 官方接口兼容修复；启动/每 4 小时检查，发现新版后由用户决定是否安装。[发布与验证](docs/updates/20261103-1235-desktop-auth-update.md)。 |
 | **图片创作** | 已接入，持续打磨 | 使用你自己的 LibTV 账号和授权；实际可用模型、费用与结果取决于官方服务。新候选由人选用。 |
 | **视频与音频** | 后续阶段 | 当前交付重点是带分镜图、画面描述与角色台词的分镜脚本，以及静帧预演。 |
 
