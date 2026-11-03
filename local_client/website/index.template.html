@@ -38,50 +38,83 @@
 <div class="cinema-shade"></div><div class="iris-frame"></div>
 </div>
 <div class="grain" aria-hidden="true"></div>
+<button id="motion-toggle" type="button" aria-pressed="false">暂停动效</button>
 <header class="header">
   <a class="brand" href="#main" aria-label="KK DIRECTOR 首页"><span>KK</span> DIRECTOR<i>漫剧导演台</i></a>
-  <nav aria-label="主导航"><a href="#vision">关于导演台</a><a href="#workflow">制作流程</a><a href="#platforms">平台接入</a><a href="#updates">更新记录</a></nav>
+  <nav aria-label="主导航"><a href="#vision">关于导演台</a><a href="#workflow">制作流程</a><a href="#deliverables">交付成果</a><a href="#platforms">平台接入</a><a href="#updates">更新记录</a></nav>
   <a class="nav-download" href="#download">下载工作台 <span>↗</span></a>
 </header>
 <nav class="chapter-nav" aria-label="章节导航"><a href="#main" class="active">00 / 片场</a><a href="#vision">01 / 创作</a><a href="#workflow">02 / 流程</a><a href="#platforms">03 / 接入</a><a href="#download">04 / 开始</a></nav>
 <main id="main">
 <section class="hero" aria-labelledby="hero-title"><div class="hero-sticky">
   <h1 id="hero-title" class="screen-reader">KK DIRECTOR，为漫剧工作室打造的 AI 导演台</h1>
-  <div class="hero-intro"><span class="eyebrow">THE ART OF DIRECTING</span><p>从一段想象，到一整部漫剧。</p><a class="hero-cta" href="#download">开启你的下一部作品 <span>↗</span></a></div>
+  <div class="hero-intro"><span class="eyebrow">THE ART OF DIRECTING</span><p>从一页剧本，到一组连贯分镜。</p><a class="hero-cta" href="#download">开启你的下一部作品 <span>↗</span></a></div>
   <div class="camera-caption"><span>ONE VISION. EVERY FRAME.</span><p>每一个镜头，<br>都由你决定。</p></div>
-  <div class="hero-bottom"><a href="#vision">滑动，进入故事 <span>↓</span></a><div><span class="stage-hint">移动鼠标 · 感受画面层次</span><button id="motion-toggle" type="button" aria-pressed="false">暂停动效</button></div><span class="edition">STUDIO EDITION / 2026</span></div>
+  <div class="hero-bottom"><a href="#vision">滑动，进入故事 <span>↓</span></a><div><span class="stage-hint">移动鼠标 · 感受画面层次</span></div><span class="edition">STUDIO EDITION / 2026</span></div>
   <div class="shot-indicator"><span>01</span><i></i><span>03</span><small>THE OPENING</small></div>
 </div></section>
 <div class="paper-story">
 <section class="chapter vision" id="vision" aria-labelledby="vision-title">
   <p class="eyebrow">[ 01 ] THE DIRECTOR'S CHAIR</p><h2 id="vision-title">让想象，<br>有<span>掌控力。</span></h2>
-  <p class="lead">AI 协作，<br>你来拍板。</p><p>为漫剧工作室打造的 AI 导演台。把剧本、美术、人物、场景和分镜，放进同一张制作画布。</p><p>模型负责给出可能。你负责选择、修改、重抽，把一张好看的图，变成一段讲得通的故事。</p>
+  <p class="lead">故事和决定，<br>留在同一张画布。</p>
+  <p>导入剧本，先看清人物、场次与故事走向。风格试做、资产制作、分镜修改，都围绕这张画布展开。</p>
+  <div class="director-decisions"><div><span>01</span><p><strong>看中哪张，直接选。</strong><small>候选与历史版本放在一起比较。</small></p></div><div><span>02</span><p><strong>哪里不对，就改哪里。</strong><small>改台词、换参考，带原图和意见重抽。</small></p></div><div><span>03</span><p><strong>AI 先给答案，你有最后决定权。</strong><small>角色、场次、镜头都能增删与纠错。</small></p></div></div>
   <a class="line-link" href="{{GITHUB}}" target="_blank" rel="noopener">探索 KK DIRECTOR <span>↗</span></a>
   <p class="micro">AI天才kk选手进军漫剧界直接做出满级ai漫剧导演台</p>
 </section>
 <section class="chapter" id="workflow" aria-labelledby="workflow-title">
   <p class="eyebrow">[ 02 ] ONE CANVAS. EVERY SHOT.</p><h2 id="workflow-title">一张画布。<br><span>整部戏。</span></h2>
   <p>把固定的步骤交给流程，把每一次创作的决定留给人。先铺框架，画面随后补齐。</p>
-  <ol class="steps"><li><span>01</span><div><h3>剧本，先搭骨架。</h3><p>AI 整理角色、场次、事件与台词；识别有误，直接增删修正。</p></div></li><li><span>02</span><div><h3>风格，先定全剧。</h3><p>探索人物和场景风格，试做入景，再确认统一美术标准。</p></div></li><li><span>03</span><div><h3>资产，始终一致。</h3><p>先做人物主多视图，再派生剧情状态；场景与道具一并归档。</p></div></li><li><span>04</span><div><h3>分镜，在此发生。</h3><p>引用素材，编排动作、构图与台词；并发生成，点图选择版本。</p></div></li><li><span>05</span><div><h3>审片，原位修改。</h3><p>连贯看图、看对白，带原图和修改意见重抽，导出图文分镜脚本。</p></div></li></ol>
-  <figure class="story-strip"><img src="assets/story-contact.png" width="1942" height="809" loading="lazy" alt="同一人物造型、车站空间、行走全景与情绪特写的四幅概念画面"><figcaption>连续分镜概念示意 · 非软件实拍</figcaption></figure>
+  <div class="workflow-tour"><div class="workflow-tabs" aria-label="选择创作阶段">
+<button type="button" id="workflow-tab-0" data-workflow-step="0" aria-controls="workflow-panel-0"><small>01</small>剧本</button>
+<button type="button" id="workflow-tab-1" data-workflow-step="1" aria-controls="workflow-panel-1"><small>02</small>美术</button>
+<button type="button" id="workflow-tab-2" data-workflow-step="2" aria-controls="workflow-panel-2"><small>03</small>资产</button>
+<button type="button" id="workflow-tab-3" data-workflow-step="3" aria-controls="workflow-panel-3"><small>04</small>分镜</button>
+<button type="button" id="workflow-tab-4" data-workflow-step="4" aria-controls="workflow-panel-4"><small>05</small>交付</button>
+</div><div class="workflow-panels">
+<article id="workflow-panel-0" class="workflow-panel" aria-labelledby="workflow-tab-0"><p class="workflow-en">01 / SCRIPT</p><h3>先看懂，这部戏。</h3><p class="workflow-description">导入剧本后，先铺开故事框架。没有图片也能读清剧情。</p><dl><div><dt>AI 先做</dt><dd>整理人物、场次、事件与原文台词。</dd></div><div><dt>你来决定</dt><dd>增删角色与镜头，修正识别和对白。</dd></div></dl><p class="workflow-output"><span>这一步得到</span>可编辑的剧情卡片<b aria-hidden="true">↗</b></p></article>
+<article id="workflow-panel-1" class="workflow-panel" aria-labelledby="workflow-tab-1"><p class="workflow-en">02 / ART DIRECTION</p><h3>先让全剧，说同一种视觉语言。</h3><p class="workflow-description">人物和场景先分别探索，再放到一起试做。选定后，全剧沿用。</p><dl><div><dt>AI 先做</dt><dd>提供风格候选，归纳美术标准。</dd></div><div><dt>你来决定</dt><dd>选人物长相、场景气质，确认全剧风格。</dd></div></dl><p class="workflow-output"><span>这一步得到</span>人物与场景美术标准<b aria-hidden="true">↗</b></p></article>
+<article id="workflow-panel-2" class="workflow-panel" aria-labelledby="workflow-tab-2"><p class="workflow-en">03 / ASSET LIBRARY</p><h3>同一个人，每一镜都认得。</h3><p class="workflow-description">先确定人物主多视图，再派生剧情状态。场景和关键道具一起归档。</p><dl><div><dt>AI 先做</dt><dd>依据已选风格与主图制作候选。</dd></div><div><dt>你来决定</dt><dd>选用多视图，检查造型、服装与空间。</dd></div></dl><p class="workflow-output"><span>这一步得到</span>人物、场景与道具资产<b aria-hidden="true">↗</b></p></article>
+<article id="workflow-panel-3" class="workflow-panel" aria-labelledby="workflow-tab-3"><p class="workflow-en">04 / STORYBOARD</p><h3>让每一张图，接得上下一张。</h3><p class="workflow-description">调用已有资产，安排动作、构图与台词。需要多试几张，可以并发抽卡。</p><dl><div><dt>AI 先做</dt><dd>根据镜头要求与参考图生成候选。</dd></div><div><dt>你来决定</dt><dd>比较版本，修改不满意的画面与表演。</dd></div></dl><p class="workflow-output"><span>这一步得到</span>带画面、描述与对白的分镜<b aria-hidden="true">↗</b></p></article>
+<article id="workflow-panel-4" class="workflow-panel" aria-labelledby="workflow-tab-4"><p class="workflow-en">05 / FINAL CUT</p><h3>整部看过，再交出去。</h3><p class="workflow-description">按剧情顺序看图与对白，发现问题原位修改。确认后导出图文脚本。</p><dl><div><dt>AI 先做</dt><dd>整理当前选用的画面与引用信息。</dd></div><div><dt>你来决定</dt><dd>检查前后镜头、人物状态和剧情连续性。</dd></div></dl><p class="workflow-output"><span>这一步得到</span>可离线查看的图文分镜包<b aria-hidden="true">↗</b></p></article>
+</div><p class="workflow-note">点击阶段，看看你会得到什么。制作中仍可回到任意内容修改。</p></div>
+
 </section>
-<section class="chapter" id="platforms" aria-labelledby="platform-title">
-  <p class="eyebrow">[ 03 ] CONNECT YOUR CREATIVE POWER</p><h2 id="platform-title">能力接入。<br><span>创作自由。</span></h2>
-  <article class="provider"><div><h3>LibTV</h3><span>已接入</span></div><h4>用你的账号，调动你的额度。</h4><p>官方授权、图片模型、素材库引用和并发抽卡。导演台组织制作过程，创作与额度由自己的 LibTV 账号提供。</p></article>
-  <article class="provider future"><div><h3>Lovart</h3><span>后续规划</span></div><p>下一站，更多创作能力。当前尚未接入，接入方式与范围按官方能力核验。</p></article>
-  <p class="micro">模型和费用以官方账号及授权为准；未返回余额时显示“未知”。</p>
-</section>
+
 </div>
 <div class="closing-paper">
-<section class="download-section" id="download" aria-labelledby="download-title"><div class="wrap section download-grid">
-  <div><p class="eyebrow">YOUR NEXT PRODUCTION STARTS HERE</p><h2 id="download-title">下一部作品，<br>现在开场。</h2><p class="download-description">下载对应系统的版本，安装后打开「资产实验室」，<br>在浏览器里连接自己的 LibTV 账号、导入剧本。</p><p class="version-label">可下载版本 <strong>{{VERSION}}</strong><br><span>安装包发布于 {{DATE}} · 页面更新于 {{SITE_DATE}}</span></p><a class="text-link" href="{{GITHUB}}" target="_blank" rel="noopener">想体验最新源码？前往 GitHub ↗</a></div>
-  <div class="download-card"><div class="download-platform"><div><h3>macOS</h3><p>Apple 芯片 · macOS 11+ · {{MAC_SIZE}} MB</p></div><a class="button primary" href="downloads/{{MAC_FILE}}" download data-download>下载 Mac 版 ↓</a></div><div class="download-platform"><div><h3>Windows</h3><p>x64 · Windows 10 / 11 · {{SIZE}} MB</p></div><a class="button secondary" href="downloads/{{FILE}}" download data-download>下载 Windows 版 ↓</a></div><p class="install-note">安装后桌面图标仍叫「资产实验室」。暂无 Intel Mac 安装包；普通使用不需要 Codex 或命令行。</p><details class="details"><summary>版本说明与安装包校验</summary><a href="release-notes.txt" download>下载当前安装版说明 ↗</a><p>Mac SHA-256</p><code id="checksum-mac">{{MAC_SHA}}</code><div class="checksum-actions"><button data-copy="checksum-mac">复制</button><a href="downloads/{{MAC_FILE}}.sha256" download>下载校验文件</a></div><p>Windows SHA-256</p><code id="checksum-win">{{SHA}}</code><div class="checksum-actions"><button data-copy="checksum-win">复制</button><a href="downloads/{{FILE}}.sha256" download>下载校验文件</a></div><p>{{MAC_STATUS}}Windows 实机安装仍待验收。当前安装包未正式签名，Mac 未完成 Apple 公证；如系统拦截，请联系交付人员核对来源。</p><span id="copy-status" role="status" aria-live="polite"></span></details><p id="download-status" class="download-status" role="status" aria-live="polite"></p></div>
+<section class="wrap section deliverables" id="deliverables" aria-labelledby="deliverables-title">
+ <div class="section-heading"><div><p class="eyebrow">FROM A STORY TO A PRODUCTION</p><h2 id="deliverables-title">不止一张好图。<br><span>是一组讲得通的镜头。</span></h2></div><p class="delivery-lead">给团队的下一步，<br>留下清楚的画面和创作依据。</p></div>
+ <figure class="delivery-reel"><img src="assets/story-contact.png" width="1942" height="809" loading="lazy" alt="同一人物与车站贯穿造型、空间、全景和情绪特写的四联概念图"><figcaption><span>CHARACTER / SPACE / ACTION / EMOTION</span><span>原创概念示意 · 非软件截图</span></figcaption></figure>
+ <div class="delivery-items"><article><small>01 / STORY</small><h3>图文分镜脚本</h3><p>镜头图、画面描述和角色对白放在一起，便于审查连续性、离线查看与打印。</p></article><article><small>02 / ASSETS</small><h3>可调用的制作资产</h3><p>人物主多视图、剧情状态、场景与道具归档，后续镜头继续引用。</p></article><article><small>03 / CONTEXT</small><h3>对应的创作依据</h3><p>保留镜头要求与固定参考版本，让团队知道画面来自哪些选择。</p></article></div>
+ <p class="delivery-boundary">当前聚焦图片创作与图文分镜交付。视频、音频与 Lovart 接入后续扩展。</p>
+</section>
+<section class="wrap section platform-section" id="platforms" aria-labelledby="platform-title">
+ <div class="platform-intro"><p class="eyebrow">CONNECTED TO YOUR CREATIVE POWER</p><h2 id="platform-title">你的创作能力，<br><span>在这里协同。</span></h2><p>连接自己的平台账号。模型、素材与额度各归其位，创作在同一张画布里继续。</p><ul class="provider-capabilities"><li>图片模型自由选择</li><li>个人素材库引用</li><li>多组候选并发生成</li><li>原任务进度与恢复</li></ul><p class="provider-note">MJ 探索人物与场景风格。正式图片创作默认 Lib Image 2.5 Pro，也可自行切换模型。</p></div>
+ <div class="connection-graph" aria-label="LibTV 当前接入，Lovart 后续规划，创作集中到 KK DIRECTOR">
+  <svg class="connection-wires" viewBox="0 0 600 380" preserveAspectRatio="none" aria-hidden="true"><path class="wire-base" d="M160 105 C280 105 265 190 355 190"/><path class="wire-running" d="M160 105 C280 105 265 190 355 190"/><path class="wire-future" d="M160 280 C280 280 265 190 355 190"/><path class="wire-base" d="M430 190 H590"/><path class="wire-running wire-out" d="M430 190 H590"/></svg>
+  <a class="source-node source-libtv" href="https://www.liblib.tv/" target="_blank" rel="noopener"><img src="assets/brands/libtv.svg" width="144" height="30" alt="LibTV"><span><i></i>已接入 · 创作与额度源</span><small>访问平台 ↗</small></a>
+  <a class="source-node source-lovart" href="https://www.lovart.ai/" target="_blank" rel="noopener"><img src="assets/brands/lovart.svg" width="141" height="36" alt="Lovart"><span>后续规划 · 尚未接入</span><small>了解平台 ↗</small></a>
+  <div class="director-hub"><span class="hub-ring"></span><b>KK</b><small>DIRECTOR</small></div>
+  <div class="graph-output"><span>统一美术</span><span>制作资产</span><span>连贯分镜</span></div>
+  <p class="connection-caption">平台提供能力 · 导演台组织创作 · 你决定结果</p>
+ </div>
+</section>
+<section class="download-section" id="download" aria-labelledby="download-title"><div class="wrap section">
+ <div class="section-heading download-heading"><div><p class="eyebrow">YOUR DIRECTOR'S DESK, READY TO GO</p><h2 id="download-title">下一部作品，<br><span>从这里开场。</span></h2></div><div class="download-intro"><p>选好设备，带上剧本。<br>开始你的第一张制作画布。</p><span class="public-version">公开预览版 {{VERSION}}</span></div></div>
+ <p id="device-guidance" class="device-guidance">选择与你的电脑匹配的版本。</p>
+ <div class="installer-deck">
+  <article class="installer-card" data-os="mac"><div class="installer-top"><div class="os-emblem"><img src="assets/brands/apple.svg" alt="Apple" width="30" height="34"></div><span class="device-match" hidden>当前设备</span><span class="installer-number">01 / MAC</span></div><h3>为你的 Mac，<br>开启片场。</h3><p class="installer-compat">Apple 芯片 · macOS 11 或更高版本</p><a class="installer-button" href="downloads/{{MAC_FILE}}" download data-download><span>下载 Mac 版</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m-5-5 5 5 5-5M5 20h14"/></svg></a><div class="installer-meta"><span>macOS / ARM64</span><span>PKG · {{MAC_SIZE}} MB</span></div></article>
+  <article class="installer-card" data-os="windows"><div class="installer-top"><div class="os-emblem"><svg viewBox="0 0 24 24" role="img" aria-label="Windows"><path d="M2 3.7 10.2 2.6v8.8H2zm9.4-1.3L22 1v10.4H11.4zM2 12.6h8.2v8.8L2 20.3zm9.4 0H22V23l-10.6-1.4z"/></svg></div><span class="device-match" hidden>当前设备</span><span class="installer-number">02 / WINDOWS</span></div><h3>在 Windows 上，<br>让灵感开机。</h3><p class="installer-compat">64 位电脑 · Windows 10 / 11</p><a class="installer-button" href="downloads/{{FILE}}" download data-download><span>下载 Windows 版</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m-5-5 5 5 5-5M5 20h14"/></svg></a><div class="installer-meta"><span>WINDOWS / X64</span><span>EXE · {{SIZE}} MB</span></div></article>
+ </div>
+ <ol class="setup-journey"><li><span>01</span><div><strong>安装并打开</strong><p>应用名称为「资产实验室」</p></div></li><li><span>02</span><div><strong>连接 LibTV</strong><p>在官方页面授权自己的账号</p></div></li><li><span>03</span><div><strong>导入剧本</strong><p>搭起画布，开始制作</p></div></li></ol>
+ <div class="download-foot"><div class="download-details"><details class="details"><summary>安装说明与文件校验</summary><p>安装后应用名称为「资产实验室」，普通使用无需命令行。Mac 版仅适用于 Apple 芯片，Intel Mac 暂无安装包。</p><a href="release-notes.txt" download>下载当前安装版说明 ↗</a><p>Mac SHA-256</p><code id="checksum-mac">{{MAC_SHA}}</code><div class="checksum-actions"><button data-copy="checksum-mac">复制</button><a href="downloads/{{MAC_FILE}}.sha256" download>下载校验文件</a></div><p>Windows SHA-256</p><code id="checksum-win">{{SHA}}</code><div class="checksum-actions"><button data-copy="checksum-win">复制</button><a href="downloads/{{FILE}}.sha256" download>下载校验文件</a></div><p>{{MAC_STATUS}}Windows 实机安装仍待验收。当前安装包未正式签名，Mac 未完成 Apple 公证；如系统拦截，请联系交付人员核对来源。</p><span id="copy-status" role="status" aria-live="polite"></span></details><p id="download-status" class="download-status" role="status" aria-live="polite"></p></div><div class="download-provenance"><p>安装包发布于 {{DATE}}<br>官网更新于 {{SITE_DATE}}</p><a href="{{GITHUB}}" target="_blank" rel="noopener">查看最新开发源码 ↗</a></div></div>
 </div></section>
 
 <section class="wrap section updates" id="updates" aria-labelledby="updates-title"><div class="section-heading"><div><p class="eyebrow">[ 05 ] FIELD NOTES</p><h2 id="updates-title">每一步，<br><span>都有记录。</span></h2></div><a class="line-link" href="{{GITHUB}}/blob/main/docs/updates/README.md" target="_blank" rel="noopener">全部升级记录 ↗</a></div><div class="updates-grid">{{RECENT_UPDATES}}</div><div class="knowledge-links"><a href="{{GITHUB}}/blob/main/docs/rag/README.md" target="_blank" rel="noopener">RAG 项目知识库 ↗</a><a href="{{GITHUB}}/blob/main/docs/versions/{{SOURCE_VERSION}}.md" target="_blank" rel="noopener">源码 {{SOURCE_VERSION}} · 验收范围 ↗</a></div></section>
 <section class="wrap section faq-section" id="how" aria-labelledby="faq-title"><div><p class="eyebrow">BEFORE YOU START</p><h2 id="faq-title">关于账号、<br>额度与更新。</h2></div><div class="faqs"><details><summary>额度从哪里来？</summary><p>目前使用你自己的 LibTV 授权账号与额度；导演台负责组织制作过程。新任务在前端确认后提交，具体费用由官方模型和参数决定。Lovart 还在后续规划中。</p></details><details><summary>网站更新了，安装包也升级了吗？</summary><p>页面内容、开发源码与安装包分别标明版本。当前可下载版是 {{VERSION}}，最新源码是 {{SOURCE_VERSION}}。只有经过打包和发布的新安装版才会进入公共更新源，不会仅修改网页就把旧安装包称为新版。</p></details><details><summary>已有用户怎么更新？</summary><p>支持更新的客户端会在启动后及运行期间检查更新，发现新安装版时显示提示；保存草稿并完成运行任务后，由你决定安装。0.2.3-preview.1 及更早版本需要先从本页覆盖安装一次。</p></details><details><summary>创作资料和账号存在哪里？</summary><p>项目与加密授权保存在自己的电脑，下载网站不接收你的 LibTV 授权。授权在 LibTV 官方页面完成。卸载程序不主动删除独立保存的项目资料。</p></details><details id="manju-preview"><summary>旧版场景与白模实验工具</summary><p>独立的 ManjuWorkbench {{MANJU_VERSION}} 保留供旧用户试用；它是早期场景建模、人物白模和镜头预演集合，不是上方当前主线导演台。其生成和自动更新未开放。</p><div class="legacy-downloads"><a href="downloads/{{MANJU_WIN_FILE}}" download data-download>Windows · {{MANJU_WIN_SIZE}} MB ↓</a><a href="downloads/{{MANJU_MAC_FILE}}" download data-download>Mac · {{MANJU_MAC_SIZE}} MB ↓</a><a href="manju-notes.txt" download>旧版说明 ↗</a></div></details></div></section>
 
-<footer class="wrap footer"><a class="footer-brand" href="#main">KK<span>DIRECTOR</span><b>↗</b></a><div class="footer-meta"><span>温州氪客科技有限公司 · 2026</span><span>让每一个好故事，都有好镜头。</span><a href="{{GITHUB}}" target="_blank" rel="noopener">GITHUB ↗</a></div><p class="micro">主视觉为原创 AI 概念图；采用分层胶卷微动、金属扫光、视差和滚动运镜，不代表软件生成结果。</p></footer>
+<footer class="wrap footer"><a class="footer-brand" href="#main">KK<span>DIRECTOR</span><b>↗</b></a><div class="footer-meta"><span>温州氪客科技有限公司 · 2026</span><span>让每一个好故事，都有好镜头。</span><a href="{{GITHUB}}" target="_blank" rel="noopener">GITHUB ↗</a></div><p class="micro">主视觉与展示画面为原创 AI 概念图，不代表软件生成结果。LibTV、Lovart、Apple 与 Windows 标识归各自权利人所有，用于说明服务及设备兼容；不表示合作背书。</p></footer>
 </div>
 </main>
 </body></html>

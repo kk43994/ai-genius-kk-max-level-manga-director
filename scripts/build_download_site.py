@@ -46,6 +46,7 @@ def render_site(fields, out):
     (out/'index.html').write_text(html, encoding='utf-8')
     for file in ('style.css', 'release.js', 'stage.js', 'logo.svg'):
         shutil.copyfile(source/file, out/'assets'/file)
+    shutil.copytree(source/'brands', out/'assets'/'brands', dirs_exist_ok=True)
     for file in ('kk-director-hero.png', 'production-flow.png', 'story-contact.png'):
         shutil.copyfile(ROOT/'docs/brand'/file, out/'assets'/file)
     metadata = {'schemaVersion':1, 'sourceVersion':APP_VERSION, 'desktopVersion':fields['VERSION'],
