@@ -17,7 +17,7 @@ def main():
     report={'observedAt':datetime.now(timezone.utc).isoformat(),'scope':'Actual local storage/HTTP and synthetic provider contracts; no paid requests, real credentials or remote deployment',
             'suites':[],'paidSubmissionAttempted':False,'realAuthorizationAttempted':False}
     commands=[(name,[sys.executable,'-m','unittest','discover','-s','tests/'+name,'-q']) for name in ('storage','auth','spaces','tasks','workflow','analysis','releases','generation','integration')]
-    commands.append(('frontend-models',['node','--test','tests/ui/api-client.test.mjs','tests/accounts-ui/state.test.mjs','tests/accounts-ui/owner-state.test.mjs','tests/workflow/test_model.mjs','tests/releases/version.test.mjs','tests/integration/drafts.test.mjs','tests/integration/session-boundary.test.mjs']))
+    commands.append(('frontend-models',['node','--test','tests/ui/api-client.test.mjs','tests/accounts-ui/state.test.mjs','tests/accounts-ui/owner-state.test.mjs','tests/workflow/test_model.mjs','tests/releases/version.test.mjs','tests/releases/website-motion.test.mjs','tests/integration/drafts.test.mjs','tests/integration/session-boundary.test.mjs']))
     commands.append(('creator-workflow-ui',['node','--test',*[str(p.relative_to(ROOT)) for p in sorted((ROOT/'tests/workflow').glob('*.test.mjs'))]]))
     for name,command in commands:
         result=subprocess.run(command,cwd=ROOT,capture_output=True,text=True,timeout=90,

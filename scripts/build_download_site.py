@@ -18,6 +18,7 @@ from local_client import APP_VERSION
 
 
 GITHUB = 'https://github.com/kk43994/ai-genius-kk-max-level-manga-director'
+ARROW = '<svg class="icon-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19 19 5M5 5h14v14"/></svg>'
 
 
 def render_site(fields, out):
@@ -33,12 +34,16 @@ def render_site(fields, out):
         cards.append('<article class="update-card"><small>' + escape(row['date'][:10]) + ' · ' + escape(row['version'])
                      + ' · 源码记录</small><h3>' + escape(row['title']) + '</h3><p>' + escape(summary)
                      + '</p><a href="' + GITHUB + '/blob/main/' + escape(row['file'], quote=True)
-                     + '" target="_blank" rel="noopener">查看这次改了什么 ↗</a></article>')
+                     + '" target="_blank" rel="noopener">查看这次改了什么 ' + ARROW + '</a></article>')
     values = {**fields, 'SOURCE_VERSION': APP_VERSION, 'SITE_DATE': now.strftime('%Y.%m.%d'), 'GITHUB': GITHUB}
     html = (source/'index.template.html').read_text(encoding='utf-8')
     for key, value in values.items():
         html = html.replace('{{'+key+'}}', escape(str(value), quote=True))
     html = html.replace('{{RECENT_UPDATES}}', ''.join(cards))
+    # A refreshed HTML must never reuse an old stylesheet or script from the browser cache.
+    for filename in ('style.css', 'release.js', 'stage.js', 'logo.svg'):
+        digest = hashlib.sha256((source / filename).read_bytes()).hexdigest()[:16]
+        html = html.replace('assets/' + filename + '"', 'assets/' + filename + '?v=' + digest + '"')
     if '{{' in html:
         raise ValueError('Unresolved page template field')
     out.mkdir(parents=True, exist_ok=True)

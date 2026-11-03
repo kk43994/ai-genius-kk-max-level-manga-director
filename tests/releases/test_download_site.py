@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -44,6 +45,11 @@ class DownloadSiteTest(unittest.TestCase):
             self.assertNotIn('{{', html)
             self.assertIn('Lovart', html)
             self.assertIn('尚未接入', html)
+            for name in ('style.css', 'release.js', 'stage.js', 'logo.svg'):
+                digest = hashlib.sha256((out / 'assets' / name).read_bytes()).hexdigest()[:16]
+                self.assertIn('assets/' + name + '?v=' + digest, html)
+            self.assertNotIn('↗', html)
+            self.assertTrue((out / 'assets/brands/kk-director.svg').is_file())
             for name in ['style.css', 'release.js', 'stage.js', 'story-contact.png', 'brands/libtv.svg', 'brands/lovart.svg', 'brands/apple.svg', 'logo.svg', 'kk-director-hero.png', 'production-flow.png']:
                 self.assertTrue((out / 'assets' / name).is_file())
         self.assertEqual(original, json.dumps([public, legacy], sort_keys=True))
