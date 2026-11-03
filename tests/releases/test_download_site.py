@@ -50,6 +50,12 @@ class DownloadSiteTest(unittest.TestCase):
                 self.assertIn('assets/' + name + '?v=' + digest, html)
             self.assertNotIn('↗', html)
             self.assertTrue((out / 'assets/brands/kk-director.svg').is_file())
+            # The preloaded picture and both rendering paths share one light asset.
+            self.assertIn('href="assets/kk-director-hero.webp" type="image/webp"', html)
+            hero = (out / 'assets/kk-director-hero.webp').read_bytes()
+            self.assertEqual(hero[8:12], b'WEBP')
+            self.assertLess(len(hero), 350000)
+            self.assertNotIn('<image href="assets/kk-director-hero.png"', html)
             for name in ['style.css', 'release.js', 'stage.js', 'story-contact.png', 'brands/libtv.svg', 'brands/lovart.svg', 'brands/apple.svg', 'logo.svg', 'kk-director-hero.png', 'production-flow.png']:
                 self.assertTrue((out / 'assets' / name).is_file())
         self.assertEqual(original, json.dumps([public, legacy], sort_keys=True))

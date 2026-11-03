@@ -10,7 +10,7 @@ KK DIRECTOR 是面向漫剧工作室的 AI 导演台；当前通过 LibTV 扩展
 
 `local_client/website/stage.js` 使用 SVG 与原生脚本：全景开场 → 滚动推近人物 → 八边光圈收拢进入章节。主图局部裁切层轻微错速移动，曲线边缘扫光与指针视差增加层次；这是图像的 2.5D 演绎，不是可自由旋转的三维胶卷模型。保持同一张已确认主图，不自动换人或换风格。无音频、无 Three.js 依赖。
 
-手机使用独立近景裁切，确保面部和主体金属边缘可见；支持暂停和系统 `prefers-reduced-motion`，后台不持续更新画面，浏览器返回可恢复动画。正文用深色底承接，导航有遮罩以免与正文重叠。修改后检查开场、中段推近、光圈转场、手机裁切及下载可用性。品牌生成提示词记录在 `docs/brand/PROMPTS.md`。
+手机使用独立近景裁切，确保面部和主体金属边缘可见；2026-11-03 性能版在窄屏或粗指针触屏使用单图合成层，缓慢呼吸/暖光和滚动推镜，桌面保留分层胶卷与八边光圈。支持暂停和系统 `prefers-reduced-motion`，后台不持续更新画面，浏览器返回可恢复动画。正文用深色底承接，导航有遮罩以免与正文重叠。修改后检查开场、中段推近、转场、手机裁切及下载可用性。品牌生成提示词记录在 `docs/brand/PROMPTS.md`。
 
 旧 ManjuWorkbench 场景/白模实验版保留原下载，收进说明折叠区，避免和当前主线混淆。主线安装后的图标仍为“资产实验室”，页面明确提示，未修改现有安装包品牌或伪造新版。
 
@@ -52,3 +52,13 @@ python scripts/build_download_site.py \
 暂停保留相机和胶卷的当前值，不回到 scale(1)。暂停、标签页隐藏及不透明正文完全遮住主视觉时停止 requestAnimationFrame 链；滚动返回、可见恢复和 bfcache pageshow 只启动一条循环。ResizeObserver 缓存尺寸变化；支持缺少 IntersectionObserver/animate 时的可读静态退化，不先隐藏内容再等动画恢复。系统减少动态效果优先，手动暂停状态不被系统切换覆盖。
 
 品牌使用原创 Frame K：imagegen 并发探索，按胶片边孔与 K 形切口整理矢量源；实际 SVG 用于页头、中枢和浏览器图标。原始探索图在 `docs/brand/logo-concepts/`，提示词在 `docs/brand/PROMPTS.md`。不同于平台第三方标识，不能替换或混淆 LibTV / Lovart 的官方 Logo。见 [本次检查](../updates/20261103-0950-website-quality.md)。
+
+## 手机首屏性能（2026-11-03 10:15）
+
+旧实现即使手机静止也持续更新三个 SVG 图像层、模糊扫光、噪点、光圈多边形；每帧给相同 `textContent` 赋值还会反复触发布局。当前 `stage.js` 以宽度 ≤760 px 或 `(hover: none) and (pointer: coarse)` 选择轻量渲染：隐藏整个 SVG 与噪点，单张图片加一个暖光层仅动画 transform/opacity；手机光圈使用静态渐变的透明度转场。滚动事件唤醒单个 RAF，镜头插值收敛后停循环，暂停保留帧；触屏横屏仍采用轻量路径。
+
+`data-playing` 同步暂停、后台、pagehide 和画面被正文覆盖；手机正文完全不透明，遮住画面即停止环境动效。正文文字与样式只在内容改变时写入，桌面也受益。无 JS 时手机主图仍显示。
+
+首屏统一读取 `docs/brand/kk-director-hero.webp`（1942×809，242,314 字节），由原 PNG 以 `cwebp -q 88 -m 6 -metadata icc` 编码；原图保留给品牌源与分享卡。没有重新生成画面。预加载、手机 img 与桌面 SVG 使用同一个 URL，浏览器复用资源。
+
+可重复测量：Chrome 390×844 / 4× CPU throttling，停在首屏，不滚动；`Performance.getMetrics` 两次相减。旧版 31.70 秒 1,863 次布局，新版 47.36 秒 0 次布局/样式重算，主线程 TaskDuration 每秒约 437 ms → 13 ms。样本时间不同，按秒比较；不能据此宣称手机实机 60 FPS。暂停、横屏、小屏及桌面回归和发布证据见 [性能升级记录](../updates/20261103-1015-mobile-cinema-performance.md)。
