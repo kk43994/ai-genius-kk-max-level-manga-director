@@ -1,6 +1,6 @@
 # 官网检查、手机适配与原创 Logo
 
-<!-- update-record: {"id":"20261103-0950-website-quality","version":"0.3.0-preview.6","date":"2026-11-03T09:50:00+08:00","title":"官网体验修复与原创 Frame K 标识","releaseState":"source-only","verificationState":"recorded","commits":[]} -->
+<!-- update-record: {"id":"20261103-0950-website-quality","version":"0.3.0-preview.6","date":"2026-11-03T09:50:00+08:00","title":"官网体验修复与原创 Frame K 标识","releaseState":"published-evidence","verificationState":"recorded","commits":["efd7836df67335b0665ff89cc02dd211b7bdaefd"]} -->
 
 ## 为什么改
 
@@ -21,14 +21,15 @@
 - [x] Chrome 320 / 390 px 无横向溢出；菜单展开、章节跳转、Escape 关闭通过；截图验证主图与文字分开、无蓝色 Emoji。
 - [x] 桌面实际暂停保持放大值，滚动后相机保持冻结；流程点击及 End 键只展示一个面板，当前主导航高亮正确。
 - [x] 768 px 无横向溢出；系统减少动态效果关闭动画；禁用 JavaScript 时五阶段正文与下载链接均可见。页面本身无脚本报错；浏览器 Zotero 扩展有连接日志，不归因于网站。
-- [ ] 下载入口与最终公开验证。
-- [ ] GitHub CI 与合并。
+- [x] 09:54 北京时间公开发布；17 项 HTTPS 内容 SHA-256 一致，34 个原有非本轮修改文件保持不变。公开页面新 SVG 与内容指纹已加载，校验值复制成功。
+- [x] 实际前端点击 Mac 下载触发下载事件及“已请求”提示；浏览器随后报告下载取消，不记作客户端文件保存成功。两款安装包完整 HTTPS 读取及哈希均已通过。
+- [x] [分支 CI](https://github.com/kk43994/ai-genius-kk-max-level-manga-director/actions/runs/41562580076) 与 [PR CI](https://github.com/kk43994/ai-genius-kk-max-level-manga-director/actions/runs/41562617266) 均成功；[PR #4](https://github.com/kk43994/ai-genius-kk-max-level-manga-director/pull/4) 已合并，合并提交 `dfb55bb`。
 
 浏览器响应式模拟不等于真实 iPhone WebKit 实机验收；实际用户截图作为修复依据。未运行安装程序或收费生成。
 
 ## 发布状态
 
-本地优化版已运行；公开部署与 GitHub 证据完成后更新此条。公共安装包仍为 preview.5，无客户端安装验证或新的应用更新通知。
+2026-11-03 09:54 北京时间原子发布至 `20261103-kk-director-quality`，前版 `20261103-kk-director-content` 保留用于回退；公开页面与发布文件一致。源码实现 `efd7836` 经 PR #4 合并，公共安装包仍为 preview.5，无客户端安装验证或新的应用更新通知。证据与截图保存于维护端 `../evidence/site-audit-20261103/`。
 
 ## 关联位置
 
