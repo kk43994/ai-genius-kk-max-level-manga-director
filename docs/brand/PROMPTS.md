@@ -21,3 +21,12 @@ Use case: ads-marketing. Create an exceptionally refined editorial visual for th
 ## 使用约定
 
 两张图均已检查：主视觉文字清晰、流程四阶段可辨、图片边界完整；仅作品牌与流程说明，功能能力以 README 和版本验收记录为准。保留原始生成文件及上述提示词，后续迭代继续记录生成方式与实际用途。
+
+
+## 官网连续镜头联页
+
+2026-11-03，`story-contact.png`。使用内置 imagegen，参照原创制作流程图保持同一概念人物和车站。用于官网制作流程章节；不是用户剧本或实际软件结果。最终官网继续使用用户确认的 `kk-director-hero.png`，通过 SVG 分层、金属边缘扫光与滚动推镜呈现，无声音。
+
+```text
+Transform this original concept artwork into a highly sophisticated cinematic CONTACT SHEET for an editorial website section, ultra-wide 2.4:1. Keep the same original adult woman, short dark bob, dark coat and grand rain-lit train terminal across every frame. Replace the warm stationery layout with a solid near-black background and four huge vertically aligned film-negative panels separated by tiny black gutters: 1) portrait concept with two small matching profile views; 2) wide architectural environment design of the terminal; 3) the woman full-body walking through the terminal; 4) expressive dramatic close-up looking toward arriving train. Black, warm ivory and muted copper; analog silver grain, exquisite photographic texture, restraint, realistic film stills, perfectly aligned panels like a cinematographer's contact sheet. No scrapbook props, paper, pens, flowers, arrows, UI, digits, letters or typography. All faces completely within bounds. Do not add film logos or watermarks. A production aesthetic that communicates the same character and environment maintained through shots.
+```
