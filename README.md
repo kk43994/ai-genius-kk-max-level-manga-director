@@ -4,6 +4,7 @@
 
 <h1>AI天才kk选手进军漫剧界直接做出满级ai漫剧导演台</h1>
 
+<p><img src="local_client/website/logo.svg" alt="KK DIRECTOR 原创 Frame K 标识" width="64"></p>
 <p><strong>KK DIRECTOR · 为漫剧工作室打造的 AI 导演台</strong></p>
 <p>开局一份剧本，出手就是导演台。<br>接入 LibTV 创作与额度来源，让一间工作室的想象力，进入可复用的制作流程。</p>
 <p><strong>当前支持 LibTV 扩展接入 · 后续扩展 Lovart</strong></p>
