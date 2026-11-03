@@ -1,6 +1,6 @@
 # 手机首屏动效性能优化
 
-<!-- update-record: {"id":"20261103-1015-mobile-cinema-performance","version":"0.3.0-preview.6","date":"2026-11-03T10:15:00+08:00","title":"手机首屏轻量运镜与渲染优化","releaseState":"source-only","verificationState":"recorded","commits":[]} -->
+<!-- update-record: {"id":"20261103-1015-mobile-cinema-performance","version":"0.3.0-preview.6","date":"2026-11-03T10:15:00+08:00","title":"手机首屏轻量运镜与渲染优化","releaseState":"published-evidence","verificationState":"recorded","commits":["0a572de6a1d1ddb48ec66c4b2d5f99d3a5762360"]} -->
 
 ## 为什么改
 
@@ -21,13 +21,17 @@
 - [x] Chrome 390×844，4 倍 CPU 降速：旧版静止 31.698824 秒，1,863 次布局和样式重算，TaskDuration 13.862070 秒；新版静止 47.359567 秒，0 次新增布局/样式重算，ScriptDuration 增量 0，TaskDuration 0.624303 秒。按每秒归一化主线程占用约下降 97%；并非真实手机帧率测试。
 - [x] 320 / 390 px 及 844 px 触屏横屏无横向溢出，手机轻量路径生效；实际前端滑动出现 DOLLY IN，暂停保持构图。
 - [x] 桌面 1440 px 恢复完整 SVG 胶卷；系统减少动效显示“已减少动效”并禁用持续动画。Chrome 页面无脚本错误。
-- [ ] GitHub CI、公开部署和 HTTPS 内容核验。
+- [x] [分支 CI](https://github.com/kk43994/ai-genius-kk-max-level-manga-director/actions/runs/41565245457) 与 [PR CI](https://github.com/kk43994/ai-genius-kk-max-level-manga-director/actions/runs/41565280622) 均成功；[PR #5](https://github.com/kk43994/ai-genius-kk-max-level-manga-director/pull/5) 已合并，合并提交 `d6f7fdc`。
+- [x] 10:20 北京时间公开发布；18 项 HTTPS 文件 SHA-256 全部一致，37 项既有非修改文件保持不变，两款安装包及更新清单仍为 preview.5。
+- [x] 公开页面加载 WebP 和 light 渲染路径；菜单开合、章节跳转及下载目标正确。首屏被正文覆盖后 CSS 动效暂停；实际手机尺寸截图留存。
 
 证据存于维护端 `../evidence/site-mobile-20261103/`。浏览器响应式模拟不是实际 iPhone / 微信 WebKit 实机验收，不能保证所有手机均达固定帧率。未运行安装程序或收费生成。
 
 ## 发布状态
 
-当前为候选源码；公开发布和关联提交完成后补充实际证据。公共安装包保持 preview.5。
+2026-11-03 10:20 北京时间原子发布至 `20261103-kk-director-mobile`，前版 `20261103-kk-director-quality` 保留回退。公开资源与候选哈希一致，源码实现 `0a572de` 经 PR #5 合并。公共安装包保持 preview.5，无新的客户端安装或更新通知。
+
+回退前必须先核对公开目录仍指向本版，并检查 Hub 并发状态；只原子切回前一网站目录，不回滚业务数据或安装包。部署证据保存于维护端 `../evidence/site-mobile-20261103/` 与服务器专用备份目录。
 
 ## 关联位置
 
