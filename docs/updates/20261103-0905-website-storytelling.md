@@ -1,6 +1,6 @@
 # 官网创作展示与交付说明
 
-<!-- update-record: {"id":"20261103-0905-website-storytelling","version":"0.3.0-preview.6","date":"2026-11-03T09:06:05+08:00","title":"官网细节升级：品牌接入、设备下载与连贯动效","releaseState":"published-evidence","verificationState":"recorded","commits":[]} -->
+<!-- update-record: {"id":"20261103-0905-website-storytelling","version":"0.3.0-preview.6","date":"2026-11-03T09:06:05+08:00","title":"官网细节升级：品牌接入、设备下载与连贯动效","releaseState":"published-evidence","verificationState":"recorded","commits":["38cdcc3ad5ab50aa616df16345b8940cea3127e8"]} -->
 
 ## 为什么改
 
@@ -22,7 +22,7 @@
 - [x] 实际 Mac 平台提示、模拟 Windows 高亮和手机安装提示；390 px 无横向溢出，下载卡片宽 330 px、平台示意宽 350 px，系统图标及品牌 Logo 全部加载。
 - [x] 下载入口保持原安装包地址，安装说明展开、SHA-256 复制成功。
 - [x] 2026-11-03 09:20 北京时间公开部署，页面、脚本、品牌资源、两份更新清单及两款安装包共 16 项 HTTPS 哈希一致；32 个原有非本轮修改文件保留。
-- [ ] GitHub CI 与合并证据。
+- [x] 实现提交 `38cdcc3` 的 [分支 CI](https://github.com/kk43994/ai-genius-kk-max-level-manga-director/actions/runs/41559215399) 与 [PR CI](https://github.com/kk43994/ai-genius-kk-max-level-manga-director/actions/runs/41559297568) 均通过；[PR #3](https://github.com/kk43994/ai-genius-kk-max-level-manga-director/pull/3) 已合并，合并提交 `398922f`。
 
 仅网站展示变更，不调用收费生成，不发布新安装包。
 
